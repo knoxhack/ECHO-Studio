@@ -1,0 +1,54 @@
+﻿name: docs bug
+description: Report an issue for the ECHO public alpha.
+title: "[docs bug]: "
+labels: ["alpha-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing the ECHO public alpha. Please include exact steps, logs, and screenshots when possible.
+  - type: input
+    id: product
+    attributes:
+      label: Product
+      description: Which ECHO product is affected?
+      placeholder: ECHO Launcher, Ashfall Native Edition, ECHO SDK, etc.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Product version, release tag, or launcher channel.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do before the issue happened?
+      placeholder: "1. ...
+2. ...
+3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste logs or attach screenshots here.
+      render: text

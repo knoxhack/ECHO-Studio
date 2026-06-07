@@ -1,0 +1,151 @@
+import { promises as fs } from 'fs'
+import { join } from 'path'
+import { createHash } from 'crypto'
+import AdmZip from 'adm-zip'
+import { readManifest, defaultWorkspace } from './fsService'
+import type { AddonManifest } from '../shared/types'
+import type { BundleMember, ExperienceResult, ServerPackResult } from '../shared/bundles'
+
+async function loadMember(path: string): Promise<{ manifest: AddonManifest; member: BundleMember }> {
+  const manifest = await readManifest(path)
+  if (!manifest) throw new Error(`Missing echo.mod.json in ${path}`)
+  const raw = JSON.stringify(manifest)
+  const hash = createHash('sha256').update(raw).digest('hex')
+  return {
+    manifest,
+    member: { id: manifest.id, name: manifest.name, version: manifest.version, path, hash }
+  }
+}
+
+// Topologically order members so dependencies load first. Members that depend
+// on another member's id are placed after it; unresolved deps are ignored
+// (they are assumed to be SDK modules).
+export function computeLoadOrder(manifests: AddonManifest[]): { order: string[]; warnings: string[] } {
+  const ids = new Set(manifests.map((m) => m.id))
+  const warnings: string[] = []
+  const graph = new Map<string, string[]>()
+  for (const m of manifests) {
+    const deps = [...m.dependencies.required, ...m.dependencies.optional].filter((d) => ids.has(d))
+    graph.set(m.id, deps)
+  }
+  const order: string[] = []
+  const visited = new Set<string>()
+  const visiting = new Set<string>()
+  const visit = (id: string): void => {
+    if (visited.has(id)) return
+    if (visiting.has(id)) {
+      warnings.push(`Circular dependency involving ${id}; load order may be unstable.`)
+      return
+    }
+    visiting.add(id)
+    for (const dep of graph.get(id) ?? []) visit(dep)
+    visiting.delete(id)
+    visited.add(id)
+    order.push(id)
+  }
+  for (const m of manifests) visit(m.id)
+  return { order, warnings }
+}
+
+// Build a Community Experience bundle: a project folder with experience.json +
+// lockfile.json describing members, load order and dependency rules.
+export async function createExperience(
+  workspaceDir: string,
+  namespace: string,
+  id: string,
+  name: string,
+  memberPaths: string[]
+): Promise<ExperienceResult> {
+  const loaded = await Promise.all(memberPaths.map(loadMember))
+  const manifests = loaded.map((l) => l.manifest)
+  const members = loaded.map((l) => l.member)
+  const { order, warnings } = computeLoadOrder(manifests)
+
+  // Compatibility warnings across members.
+  const experiences = new Set(manifests.flatMap((m) => m.target.experiences))
+  if (experiences.size > 1) {
+    warnings.push(`Members target multiple experiences: ${[...experiences].join(', ')}.`)
+  }
+
+  const workspace = workspaceDir || defaultWorkspace()
+  const dir = join(workspace, `${namespace}_${id}`)
+  await fs.mkdir(dir, { recursive: true })
+
+  const experience = {
+    schemaVersion: 1,
+    id: `${namespace}:${id}`,
+    name,
+    projectClass: 'community_experience',
+    namespace,
+    members: members.map((m) => ({ id: m.id, version: m.version })),
+    loadOrder: order,
+    dependencyRules: manifests.map((m) => ({ id: m.id, requires: m.dependencies.required }))
+  }
+  const lockfile = {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    members: members.map((m) => ({ id: m.id, version: m.version, hash: m.hash }))
+  }
+  await fs.writeFile(join(dir, 'experience.json'), JSON.stringify(experience, null, 2), 'utf-8')
+  await fs.writeFile(join(dir, 'packos.lockfile.json'), JSON.stringify(lockfile, null, 2), 'utf-8')
+  await fs.writeFile(
+    join(dir, 'README.md'),
+    `# ${name}\n\nA community experience bundling ${members.length} addons.\n\nLoad order:\n${order.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n`,
+    'utf-8'
+  )
+
+  return { path: dir, loadOrder: order, members, warnings }
+}
+
+// Export a server pack zip: server profile + required client addon list +
+// compatibility warnings. Bundles each member's manifest into the zip.
+export async function exportServerPack(
+  workspaceDir: string,
+  name: string,
+  memberPaths: string[]
+): Promise<ServerPackResult> {
+  const loaded = await Promise.all(memberPaths.map(loadMember))
+  const manifests = loaded.map((l) => l.manifest)
+  const members = loaded.map((l) => l.member)
+  const warnings: string[] = []
+
+  // Client addons are those that register UI/screens/content the client needs.
+  const requiredClientAddons = manifests
+    .filter((m) => m.permissions.some((p) => p.startsWith('screen.') || p === 'mission.register' || p === 'holomap.layers'))
+    .map((m) => m.id)
+
+  for (const m of manifests) {
+    if (!m.runtime.supports.includes('neoforge') && m.projectClass !== 'server_module') {
+      warnings.push(`${m.id} does not declare NeoForge support; server compatibility uncertain.`)
+    }
+  }
+
+  const zip = new AdmZip()
+  const serverProfile = {
+    schemaVersion: 1,
+    name,
+    requiredClientAddons,
+    members: members.map((m) => ({ id: m.id, version: m.version, hash: m.hash })),
+    configProfiles: { default: { pvp: false, difficulty: 'normal' } }
+  }
+  zip.addFile('server.profile.json', Buffer.from(JSON.stringify(serverProfile, null, 2), 'utf-8'))
+  for (const l of loaded) {
+    const raw = await fs.readFile(join(l.member.path, 'echo.mod.json'), 'utf-8')
+    zip.addFile(`addons/${l.manifest.namespace}_${local(l.manifest.id)}/echo.mod.json`, Buffer.from(raw, 'utf-8'))
+  }
+
+  const workspace = workspaceDir || defaultWorkspace()
+  const exportsDir = join(workspace, '_server_packs')
+  await fs.mkdir(exportsDir, { recursive: true })
+  const zipPath = join(exportsDir, `${sanitize(name)}-serverpack.zip`)
+  zip.writeZip(zipPath)
+
+  return { zipPath, requiredClientAddons, warnings, members }
+}
+
+function local(id: string): string {
+  return id.includes(':') ? id.split(':')[1] : id
+}
+function sanitize(s: string): string {
+  return s.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+}

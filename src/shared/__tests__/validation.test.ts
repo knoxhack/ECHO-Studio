@@ -1,0 +1,94 @@
+import { describe, it, expect } from 'vitest'
+import { runPackOSCheck, autoFixManifest } from '../validation'
+import type { AddonManifest } from '../types'
+
+function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
+  return {
+    schemaVersion: 1,
+    id: 'teamnova:test_addon',
+    name: 'Test Addon',
+    version: '0.1.0',
+    description: 'A test addon for unit tests.',
+    developerType: 'addon_developer',
+    publisher: { id: 'teamnova', name: 'Team Nova', type: 'team' },
+    projectClass: 'gameplay_addon',
+    namespace: 'teamnova',
+    target: { experiences: ['ashfall'], modules: [] },
+    runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' },
+    permissions: ['mission.register'],
+    dependencies: { required: ['echo:core', 'echo:mission_core'], optional: [] },
+    trust: { level: 'community', signed: false, verified: false },
+    support: { tier: 'community', issues: 'https://example.com/issues' },
+    tags: ['test'],
+    ...overrides
+  } as AddonManifest
+}
+
+describe('runPackOSCheck', () => {
+  it('passes a clean manifest with no issues', () => {
+    const manifest = makeManifest()
+    const report = runPackOSCheck(manifest)
+    expect(report.counts.BLOCKER).toBe(0)
+    expect(report.counts.ERROR).toBe(0)
+    expect(report.compatibilityScore).toBeGreaterThan(80)
+    expect(report.publishingReady).toBe(true)
+  })
+
+  it('flags reserved namespace as BLOCKER', () => {
+    const manifest = makeManifest({ namespace: 'echo', id: 'echo:bad_addon' })
+    const report = runPackOSCheck(manifest)
+    expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
+    expect(report.issues.some((i) => i.message.includes('reserved namespace'))).toBe(true)
+  })
+
+  it('flags blocked permissions', () => {
+    const manifest = makeManifest({ permissions: ['file_system.write_global'] })
+    const report = runPackOSCheck(manifest)
+    expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
+    expect(report.issues.some((i) => i.message.includes('Restricted permission'))).toBe(true)
+  })
+
+  it('flags missing echo:core dependency as ERROR', () => {
+    const manifest = makeManifest({ dependencies: { required: [], optional: [] } })
+    const report = runPackOSCheck(manifest)
+    expect(report.counts.ERROR).toBeGreaterThanOrEqual(1)
+    expect(report.issues.some((i) => i.message.includes('echo:core'))).toBe(true)
+  })
+
+  it('flags missing mission_core when mission.register is used', () => {
+    const manifest = makeManifest({
+      permissions: ['mission.register'],
+      dependencies: { required: ['echo:core'], optional: [] }
+    })
+    const report = runPackOSCheck(manifest)
+    expect(report.issues.some((i) => i.message.includes('MissionCore'))).toBe(true)
+  })
+
+  it('flags bad version as WARNING', () => {
+    const manifest = makeManifest({ version: 'v1' })
+    const report = runPackOSCheck(manifest)
+    expect(report.counts.WARNING).toBeGreaterThanOrEqual(1)
+    expect(report.issues.some((i) => i.message.includes('semantic versioning'))).toBe(true)
+  })
+})
+
+describe('autoFixManifest', () => {
+  it('fixes reserved namespace', () => {
+    const manifest = makeManifest({ namespace: 'echo', id: 'echo:bad_addon' })
+    const fixed = autoFixManifest(manifest)
+    expect(fixed.namespace).not.toBe('echo')
+    expect(fixed.id.startsWith('echo:')).toBe(false)
+  })
+
+  it('adds missing echo:core dependency', () => {
+    const manifest = makeManifest({ dependencies: { required: [], optional: [] } })
+    const fixed = autoFixManifest(manifest)
+    expect(fixed.dependencies.required).toContain('echo:core')
+  })
+
+  it('adds default tags if missing', () => {
+    const manifest = makeManifest({ tags: [] })
+    const fixed = autoFixManifest(manifest)
+    expect((fixed.tags ?? []).length).toBeGreaterThan(0)
+  })
+})

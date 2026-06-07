@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 480px;
+      height: 280px;
+      background: #0a0e14;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .ring {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      border-top-color: #2ee6c8;
+      border-right-color: #38b6ff;
+      animation: spin 1.2s linear infinite;
+      margin-bottom: 24px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h1 {
+      color: #d6e2f0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    p {
+      color: #5c6f84;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .version {
+      position: absolute;
+      bottom: 14px;
+      right: 18px;
+      color: #3a4d60;
+      font-size: 11px;
+    }
+    .footer {
+      position: absolute;
+      bottom: 14px;
+      left: 18px;
+      color: #3a4d60;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="ring"></div>
+  <h1>ECHO Addon Studio</h1>
+  <p>Initializing workspace…</p>
+  <div class="footer">ECHO Platform</div>
+  <div class="version" id="ver"></div>
+  <script>
+    document.getElementById('ver').textContent = navigator.userAgent.includes('ECHO')
+      ? ''
+      : 'v' + (new URLSearchParams(location.search).get('v') || '0.1.0')
+  </script>
+</body>
+</html>
