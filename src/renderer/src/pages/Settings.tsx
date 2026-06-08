@@ -18,6 +18,7 @@ interface UpdateStatus {
   percent?: number
   message?: string
 }
+const ADDON_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
 
 export default function Settings(): JSX.Element {
   const { workspaceDir, chooseWorkspace, refresh, profile, config, updateProfile, updateConfig, toast } =
@@ -177,6 +178,11 @@ export default function Settings(): JSX.Element {
               <div style={{ marginTop: 8, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: `${update.percent ?? 0}%`, height: '100%', background: 'var(--accent)', transition: '0.2s' }} />
               </div>
+            )}
+            {update?.status === 'error' && (
+              <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => window.studio.openExternal(ADDON_STUDIO_RELEASES_URL)}>
+                Manual install from releases page
+              </button>
             )}
           </div>
         </div>

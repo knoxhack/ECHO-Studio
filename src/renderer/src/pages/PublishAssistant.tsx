@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 
 export default function PublishAssistant(): JSX.Element {
   const [step, setStep] = useState(0)
@@ -55,7 +55,7 @@ export default function PublishAssistant(): JSX.Element {
           {steps.map((s, i) => (
             <li key={s} className="list-item" style={{ opacity: i === step ? 1 : i < step ? 0.8 : 0.4 }}>
               <span style={{ display: 'inline-block', width: 20 }}>
-                {i < step ? '✓' : i === step ? '▶' : '○'}
+                {i < step ? 'âœ“' : i === step ? 'â–¶' : 'â—‹'}
               </span>
               {s}
             </li>
@@ -94,3 +94,4 @@ export default function PublishAssistant(): JSX.Element {
     </div>
   )
 }
+
