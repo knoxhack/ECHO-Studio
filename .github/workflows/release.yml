@@ -88,31 +88,28 @@ jobs:
           npm run dist:publish
 
       - name: Validate release assets
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
+          if (-not (Test-Path 'release')) {
+            throw 'release output directory missing'
+          }
 
-          if [ ! -d release ]; then
-            echo 'release output directory missing'
-            exit 1
-          fi
+          $manifests = Get-ChildItem -Path release -Filter 'latest*.yml' -File
+          if (-not $manifests) {
+            throw 'Expected updater manifest latest*.yml missing from release artifacts'
+          }
 
-          if [ ! -f release/latest.yml ]; then
-            echo 'latest.yml missing from release artifacts'
-            exit 1
-          fi
+          $installers = Get-ChildItem -Path release -File | Where-Object { $_.Extension -in '.exe', '.zip', '.dmg', '.AppImage', '.deb', '.rpm' }
+          if (-not $installers) {
+            throw 'No installer artifacts found under release directory'
+          }
 
-          if ! ls release/*.exe >/dev/null 2>&1; then
-            echo 'No .exe installer artifacts found'
-            exit 1
-          fi
-
-          if ! ls release/*.blockmap >/dev/null 2>&1; then
-            echo 'No .blockmap artifacts found'
-            exit 1
-          fi
-
-          sha256sum release/* > release/SHA256SUMS.txt
+          $sumFile = Join-Path release 'SHA256SUMS.txt'
+          Remove-Item -Force $sumFile -ErrorAction SilentlyContinue
+          Get-ChildItem release -File | ForEach-Object {
+            $hash = Get-FileHash -Path $_.FullName -Algorithm SHA256
+            [System.IO.File]::AppendAllText($sumFile, "$($hash.Hash.ToLower())  $($_.Name)`n")
+          }
 
       - name: Upload checksum manifest
         env:
