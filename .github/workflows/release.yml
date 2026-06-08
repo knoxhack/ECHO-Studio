@@ -3,35 +3,119 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
+      - 'v*.*.*-beta*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag to validate (defaults to package.json version).'
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release-windows:
-    runs-on: windows-latest
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release-metadata.outputs.tag }}
+      channel: ${{ steps.release-metadata.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
+      - id: release-metadata
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ] || [ "$TAG" = "" ] || [ "$TAG" = "main" ]; then
+            TAG="v$(node -p \"require('./package.json').version\")"
+          fi
+
+          if [ -n "${{ github.event_name }}" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            OVERRIDE='${{ github.event.inputs.tag }}'
+            if [ -n "$OVERRIDE" ]; then
+              TAG="$OVERRIDE"
+            fi
+          fi
+
+          if ! [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-beta\.[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid tag format: $TAG"
+            exit 1
+          fi
+
+          PKG_VERSION="v$(node -p \"require('./package.json').version\")"
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "Tag/version mismatch: tag=$TAG package=$PKG_VERSION"
+            exit 1
+          fi
+
+          CHANNEL="stable"
+          if [[ "$TAG" == *-beta.* ]]; then
+            CHANNEL="beta"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
       - run: npm ci
 
-      - name: Build & Package
-        run: npm run dist
+      - name: Build and publish release artifacts
         env:
-          # Uncomment and set repository secrets for code signing:
-          # WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_UPDATE_CHANNEL: ${{ needs.validate.outputs.channel }}
+        run: |
+          npm run dist:publish
 
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/*.exe
-            release/*.blockmap
+      - name: Validate release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -d release ]; then
+            echo 'release output directory missing'
+            exit 1
+          fi
+
+          if [ ! -f release/latest.yml ]; then
+            echo 'latest.yml missing from release artifacts'
+            exit 1
+          fi
+
+          if ! ls release/*.exe >/dev/null 2>&1; then
+            echo 'No .exe installer artifacts found'
+            exit 1
+          fi
+
+          if ! ls release/*.blockmap >/dev/null 2>&1; then
+            echo 'No .blockmap artifacts found'
+            exit 1
+          fi
+
+          sha256sum release/* > release/SHA256SUMS.txt
+
+      - name: Upload checksum manifest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.validate.outputs.tag }}" release/SHA256SUMS.txt --clobber
