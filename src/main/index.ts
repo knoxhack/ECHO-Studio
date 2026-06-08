@@ -3,8 +3,33 @@ import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { registerIpc } from './ipc'
 
+const UPDATE_DISABLED = process.env['UPDATE_DISABLED'] === 'true'
+const UPDATE_MANUAL_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
+
 // Track splash window reference so we can close it.
 let splashWindow: BrowserWindow | null = null
+
+function getConfiguredUpdateChannel(): string | undefined {
+  const configured = process.env['ECHO_UPDATE_CHANNEL'] || process.env['APP_UPDATE_CHANNEL']
+  if (configured === 'beta' || configured === 'stable') {
+    return configured
+  }
+
+  const version = app.getVersion()
+  if (version.includes('-beta.')) {
+    return 'beta'
+  }
+
+  return 'stable'
+}
+
+function formatManualInstallMessage(channel: string, error: string): { status: string; message: string; manualUrl: string } {
+  return {
+    status: 'manual-fallback',
+    message: `Update check failed for ${channel} channel: ${error}`,
+    manualUrl: UPDATE_MANUAL_URL,
+  }
+}
 
 function createSplash(): void {
   splashWindow = new BrowserWindow({
@@ -16,17 +41,17 @@ function createSplash(): void {
     resizable: false,
     show: false,
     skipTaskbar: true,
-    webPreferences: { nodeIntegration: false, contextIsolation: true }
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
   })
 
   splashWindow.loadFile(join(__dirname, '../../build/splash.html'), {
-    query: { v: app.getVersion() }
+    query: { v: app.getVersion() },
   })
 
   splashWindow.on('ready-to-show', () => splashWindow?.show())
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -41,12 +66,11 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   })
 
   mainWindow.on('ready-to-show', () => {
-    // Destroy splash before showing main window for a clean transition.
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close()
       splashWindow = null
@@ -60,16 +84,28 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // electron-vite injects this env var in dev; fall back to built file otherwise.
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 // ---- Auto Updater Events ----
 function setupAutoUpdater(mainWindow: BrowserWindow): void {
+  if (UPDATE_DISABLED) {
+    mainWindow.webContents.send('update-status', { status: 'disabled' })
+    return
+  }
+
+  const channel = getConfiguredUpdateChannel()
+  if (channel) {
+    autoUpdater.channel = channel
+  }
+  autoUpdater.autoDownload = false
+
   autoUpdater.on('checking-for-update', () => {
     mainWindow.webContents.send('update-status', { status: 'checking' })
   })
@@ -86,7 +122,7 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
     mainWindow.webContents.send('update-status', {
       status: 'downloading',
       percent: Math.round(progress.percent),
-      bytesPerSecond: progress.bytesPerSecond
+      bytesPerSecond: progress.bytesPerSecond,
     })
   })
 
@@ -95,27 +131,35 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
   })
 
   autoUpdater.on('error', (err) => {
-    mainWindow.webContents.send('update-status', { status: 'error', message: err.message })
+    mainWindow.webContents.send('update-status', formatManualInstallMessage(channel ?? 'stable', err.message))
+    console.error('[autoUpdater][error]', err)
   })
 
-  // Allow renderer to trigger install-and-restart.
   ipcMain.on('update:install', () => {
-    autoUpdater.quitAndInstall(false, true)
+    try {
+      autoUpdater.downloadUpdate().catch((error: Error) => {
+        mainWindow.webContents.send('update-status', formatManualInstallMessage(channel ?? 'stable', error.message))
+      })
+      autoUpdater.quitAndInstall(false, true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      mainWindow.webContents.send('update-status', formatManualInstallMessage(channel ?? 'stable', message))
+    }
+  })
+
+  autoUpdater.checkForUpdates().catch((error) => {
+    mainWindow.webContents.send('update-status', formatManualInstallMessage(channel ?? 'stable', error.message))
+    console.error('[autoUpdater][check]', error)
   })
 }
 
 app.whenReady().then(() => {
   registerIpc()
   createSplash()
-  createWindow()
+  const mainWindow = createWindow()
 
-  // Check for updates in production builds (skip in dev).
-  const mainWindow = BrowserWindow.getAllWindows()[0]
   if (mainWindow && !process.env['ELECTRON_RENDERER_URL']) {
     setupAutoUpdater(mainWindow)
-    autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
-      console.error('[autoUpdater]', err.message)
-    })
   }
 
   app.on('activate', () => {
