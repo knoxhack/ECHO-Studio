@@ -104,7 +104,7 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
   if (channel) {
     autoUpdater.channel = channel
   }
-  autoUpdater.autoDownload = false
+  autoUpdater.autoDownload = true
 
   autoUpdater.on('checking-for-update', () => {
     mainWindow.webContents.send('update-status', { status: 'checking' })
@@ -137,9 +137,6 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
 
   ipcMain.on('update:install', () => {
     try {
-      autoUpdater.downloadUpdate().catch((error: Error) => {
-        mainWindow.webContents.send('update-status', formatManualInstallMessage(channel ?? 'stable', error.message))
-      })
       autoUpdater.quitAndInstall(false, true)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
