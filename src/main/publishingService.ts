@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import { promises as fs } from 'fs'
+import { basename, dirname, resolve, sep } from 'path'
 import { promisify } from 'util'
 import type {
   GitHubAppLoginStart,
@@ -54,6 +55,35 @@ function repoFullName(owner: string, repo: string): string {
     throw new Error('GitHub owner and repo must be simple owner/repository names.')
   }
   return `${cleanOwner}/${cleanRepo}`
+}
+
+function assertGeneratedDraftPath(releaseDraftPath: string): string {
+  const resolved = resolve(releaseDraftPath)
+  if (basename(resolved) !== 'github-release-draft.json') {
+    throw new Error('Release draft path must point to a generated github-release-draft.json file.')
+  }
+  return resolved
+}
+
+function assertInsideDirectory(parentDir: string, childPath: string): string {
+  const resolvedParent = resolve(parentDir)
+  const resolvedChild = resolve(childPath)
+  if (resolvedChild !== resolvedParent && !resolvedChild.startsWith(`${resolvedParent}${sep}`)) {
+    throw new Error(`Release draft asset must stay inside ${resolvedParent}.`)
+  }
+  return resolvedChild
+}
+
+function normalizeDraftAsset(asset: DraftAsset, draftDir: string): DraftAsset {
+  const assetPath = assertInsideDirectory(draftDir, asset.path)
+  const name = asset.name?.trim() || basename(assetPath)
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+    throw new Error(`Release draft asset name is unsafe: ${name}`)
+  }
+  if (asset.sha256 && !/^[a-f0-9]{64}$/i.test(asset.sha256)) {
+    throw new Error(`Release draft asset ${name} has an invalid SHA-256 hash.`)
+  }
+  return { ...asset, path: assetPath, name }
 }
 
 async function runGh(args: string[]) {
@@ -243,10 +273,12 @@ export async function connectGitHubRepo(owner: string, repo: string): Promise<Gi
 
 export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: string, repo: string, tagOverride?: string, forceDraft = true): Promise<GitHubReleaseDraftResult> {
   const fullName = repoFullName(owner, repo)
-  const draft = JSON.parse(await fs.readFile(releaseDraftPath, 'utf-8')) as ReleaseDraftFile
+  const draftPath = assertGeneratedDraftPath(releaseDraftPath)
+  const draftDir = dirname(draftPath)
+  const draft = JSON.parse(await fs.readFile(draftPath, 'utf-8')) as ReleaseDraftFile
   const tag = tagOverride?.trim() || draft.tag_name?.trim()
   if (!tag) throw new Error('Release tag is required.')
-  const assets = draft.assets ?? []
+  const assets = (draft.assets ?? []).map((asset) => normalizeDraftAsset(asset, draftDir))
   if (!assets.length) throw new Error('Release draft has no assets.')
   for (const asset of assets) {
     await fs.access(asset.path)

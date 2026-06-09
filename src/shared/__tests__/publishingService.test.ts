@@ -77,34 +77,79 @@ describe('GitHub App broker publishing', () => {
 
   it('uploads release draft payload and assets through the GitHub App broker', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
-    const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
-    const draftPath = join(root, 'github-release-draft.json')
-    await fs.writeFile(assetPath, 'artifact-bytes')
-    await fs.writeFile(
-      draftPath,
-      JSON.stringify({
-        tag_name: 'v0.1.0',
-        name: 'myaddon v0.1.0',
-        draft: true,
-        assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: 'a'.repeat(64) }]
-      })
-    )
+    try {
+      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
+      const draftPath = join(root, 'github-release-draft.json')
+      await fs.writeFile(assetPath, 'artifact-bytes')
+      await fs.writeFile(
+        draftPath,
+        JSON.stringify({
+          tag_name: 'v0.1.0',
+          name: 'myaddon v0.1.0',
+          draft: true,
+          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: 'a'.repeat(64) }]
+        })
+      )
 
-    const fetchMock = vi.fn(() =>
-      jsonResponse({
-        url: 'https://github.com/knoxhack/my-addon/releases/tag/v0.1.0',
-        assets: ['myaddon-0.1.0.echo-addon']
-      })
-    )
-    vi.stubGlobal('fetch', fetchMock)
+      const fetchMock = vi.fn(() =>
+        jsonResponse({
+          url: 'https://github.com/knoxhack/my-addon/releases/tag/v0.1.0',
+          assets: ['myaddon-0.1.0.echo-addon']
+        })
+      )
+      vi.stubGlobal('fetch', fetchMock)
 
-    const result = await createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')
-    const firstCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    const requestBody = JSON.parse(String(firstCall[1].body))
+      const result = await createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')
+      const firstCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+      const requestBody = JSON.parse(String(firstCall[1].body))
 
-    expect(result.authProvider).toBe('github-app')
-    expect(result.url).toContain('/releases/tag/v0.1.0')
-    expect(requestBody.assets[0].contentBase64).toBe(Buffer.from('artifact-bytes').toString('base64'))
-    expect(requestBody.releaseDraft.tag_name).toBe('v0.1.0')
+      expect(result.authProvider).toBe('github-app')
+      expect(result.url).toContain('/releases/tag/v0.1.0')
+      expect(requestBody.assets[0].contentBase64).toBe(Buffer.from('artifact-bytes').toString('base64'))
+      expect(requestBody.releaseDraft.tag_name).toBe('v0.1.0')
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts that reference assets outside the generated export folder', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const outsideAssetPath = join(root, '..', `outside-${Date.now()}.echo-addon`)
+      const draftPath = join(root, 'github-release-draft.json')
+      await fs.writeFile(outsideAssetPath, 'artifact-bytes')
+      await fs.writeFile(
+        draftPath,
+        JSON.stringify({
+          tag_name: 'v0.1.0',
+          assets: [{ path: outsideAssetPath, name: 'outside.echo-addon', sha256: 'a'.repeat(64) }]
+        })
+      )
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/must stay inside/)
+      await fs.rm(outsideAssetPath, { force: true })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release draft assets with unsafe names or invalid checksums', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
+      const draftPath = join(root, 'github-release-draft.json')
+      await fs.writeFile(assetPath, 'artifact-bytes')
+      await fs.writeFile(
+        draftPath,
+        JSON.stringify({
+          tag_name: 'v0.1.0',
+          assets: [{ path: assetPath, name: '../escape.echo-addon', sha256: 'not-a-sha' }]
+        })
+      )
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/asset name is unsafe/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
   })
 })
