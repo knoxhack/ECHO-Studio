@@ -111,7 +111,10 @@ function buildReleaseManifest(
     version: manifest.version,
     channel: 'alpha',
     publisher: manifest.publisher.id,
+    sourceRepo: `${packageManifest.publisher.githubOwner}/${packageManifest.publisher.githubRepo}`,
+    releaseTag: `v${manifest.version}`,
     trust: 'community',
+    validation: report.publishingReady ? 'warning' : 'rejected',
     compatibility: packageManifest.targets.map((target) => TARGET_COMPATIBILITY[target]),
     dependencies: packageManifest.dependencies,
     package: {

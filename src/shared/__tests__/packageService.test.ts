@@ -67,6 +67,9 @@ describe('packageAddon', () => {
         version: '1.0.0',
         channel: 'alpha',
         publisher: 'teamnova',
+        sourceRepo: 'teamnova/weather_pack-addon',
+        releaseTag: 'v1.0.0',
+        validation: 'warning',
         dependencies: [{ id: 'echo:core', kind: 'module', version: '*' }],
         compatibility: ['ashfall-native-edition', 'ashfall-neoforge-edition', 'ashfall-standalone-edition']
       })
