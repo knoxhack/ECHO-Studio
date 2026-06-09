@@ -54,7 +54,11 @@ describe('packageAddon', () => {
       ])
       expect(await fs.readFile(result.checksumsPath ?? '', 'utf8')).toContain('weather_pack-1.0.0-neoforge.jar')
       expect(await fs.readFile(result.checksumsPath ?? '', 'utf8')).toContain('echo-release.json')
-      expect(JSON.parse(await fs.readFile(result.packageManifestPath ?? '', 'utf8')).schemaVersion).toBe('echo.addon.package.v1')
+      const packageManifest = JSON.parse(await fs.readFile(result.packageManifestPath ?? '', 'utf8'))
+      expect(packageManifest).toMatchObject({
+        schemaVersion: 'echo.addon.package.v1',
+        dependencies: [{ id: 'echo:core', version: '*' }]
+      })
       const releaseManifest = JSON.parse(await fs.readFile(result.releaseManifestPath ?? '', 'utf8'))
       expect(releaseManifest).toMatchObject({
         schemaVersion: 1,
@@ -63,6 +67,7 @@ describe('packageAddon', () => {
         version: '1.0.0',
         channel: 'alpha',
         publisher: 'teamnova',
+        dependencies: [{ id: 'echo:core', version: '*' }],
         compatibility: ['ashfall-native-edition', 'ashfall-neoforge-edition', 'ashfall-standalone-edition']
       })
       expect(releaseManifest.assets.map((asset: { name: string }) => asset.name).sort()).toEqual(assetNames)
