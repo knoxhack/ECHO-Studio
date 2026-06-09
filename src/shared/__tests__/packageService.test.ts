@@ -34,6 +34,8 @@ function manifest(): AddonManifest {
 describe('packageAddon', () => {
   it('writes SDK-validated release artifacts and sidecars', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
+    const previousCommitSha = process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
+    process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = '1234567890abcdef1234567890abcdef12345678'
     try {
       const project = path.join(root, 'project')
       await fs.mkdir(project, { recursive: true })
@@ -69,9 +71,15 @@ describe('packageAddon', () => {
         publisher: 'teamnova',
         sourceRepo: 'teamnova/weather_pack-addon',
         releaseTag: 'v1.0.0',
+        commitSha: '1234567890abcdef1234567890abcdef12345678',
         validation: 'warning',
         dependencies: [{ id: 'echo:core', kind: 'module', version: '*' }],
         compatibility: ['ashfall-native-edition', 'ashfall-neoforge-edition', 'ashfall-standalone-edition']
+      })
+      expect(releaseManifest.artifacts.native).toMatchObject({
+        file: 'weather_pack-1.0.0.echo-addon',
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/i),
+        size: expect.any(Number)
       })
       expect(releaseManifest.assets.map((asset: { name: string }) => asset.name).sort()).toEqual(assetNames)
       const draft = JSON.parse(await fs.readFile(result.releaseDraftPath ?? '', 'utf8'))
@@ -79,7 +87,15 @@ describe('packageAddon', () => {
       expect(draft.assets.map((asset: { name: string }) => asset.name)).toContain('echo-release.json')
       expect(draft.assets.every((asset: { sha256?: string }) => /^[a-f0-9]{64}$/i.test(asset.sha256 ?? ''))).toBe(true)
       expect(draft.assets.find((asset: { name: string }) => asset.name === 'checksums.sha256')?.sha256).toMatch(/^[a-f0-9]{64}$/i)
+      expect(draft.releaseIndex).toMatchObject({
+        commitSha: '1234567890abcdef1234567890abcdef12345678',
+        artifacts: {
+          native: { file: 'weather_pack-1.0.0.echo-addon' }
+        }
+      })
     } finally {
+      if (previousCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
+      else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousCommitSha
       await fs.rm(root, { recursive: true, force: true })
     }
   })

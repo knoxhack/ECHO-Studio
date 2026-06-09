@@ -5,6 +5,7 @@ const CATEGORIES = [
   'Getting Started',
   'Addon SDK',
   'Manifest Reference',
+  'Package Contract',
   'Content Types',
   'MissionCore',
   'RecipeCore',
@@ -26,6 +27,8 @@ const SNIPPETS: Record<string, string> = {
     'The ECHO Addon SDK provides public APIs for:\n- MissionCore (missions, objectives, rewards)\n- RecipeCore (crafting recipes, machine recipes)\n- ScreenCore (custom UI screens)\n- HoloMap (map layers and markers)\n- Index (lore entries)\n\nAll content must be namespaced to the creator.\nUse ONLY the permissions listed in the SDK documentation.',
   'Manifest Reference':
     '{\n  "schemaVersion": 1,\n  "id": "teamnova:orbital_colonies",\n  "name": "Orbital Colonies",\n  "version": "0.3.0",\n  "namespace": "teamnova",\n  "description": "A brief description of what your addon does.",\n  "developerType": "addon_developer",\n  "publisher": {\n    "id": "teamnova",\n    "name": "Team Nova",\n    "type": "team"\n  },\n  "projectClass": "gameplay_addon",\n  "target": {\n    "experiences": ["ashfall"],\n    "modules": []\n  },\n  "runtime": {\n    "supports": ["neoforge"],\n    "nativeReadiness": "none",\n    "minimumEchoSdk": "1.4.0"\n  },\n  "permissions": ["mission.register", "holomap.layers"],\n  "dependencies": {\n    "required": ["echo:core", "echo:mission_core"],\n    "optional": []\n  },\n  "trust": {\n    "level": "community",\n    "signed": false,\n    "verified": false\n  },\n  "support": {\n    "tier": "community",\n    "issues": "https://github.com/teamnova/issues"\n  },\n  "tags": ["echo", "addon", "gameplay"]\n}',
+  'Package Contract':
+    '{\n  "schemaVersion": "echo.addon.package.v1",\n  "id": "orbital_colonies",\n  "version": "0.3.0",\n  "publisher": {\n    "githubOwner": "teamnova",\n    "githubRepo": "orbital-colonies-addon"\n  },\n  "targets": ["native", "neoforge", "standalone"],\n  "dependencies": [\n    { "id": "echo:core", "kind": "module", "version": "*" }\n  ],\n  "artifacts": {\n    "native": "orbital_colonies-0.3.0.echo-addon",\n    "neoforge": "orbital_colonies-0.3.0-neoforge.jar",\n    "standalone": "orbital_colonies-0.3.0-standalone.jar",\n    "sources": "orbital_colonies-0.3.0-sources.jar"\n  }\n}',
   'Content Types':
     'ECHO Addon Studio supports these content types:\n\n- mission    : Quests with objectives and rewards\n- recipe     : Crafting and machine recipes\n- screen     : Custom UI screens (ScreenCore)\n- holomap    : Map layers and markers\n- index      : Lore and data entries\n- item       : Custom items and blocks\n\nEach type has its own folder and JSON schema. Use the Content Builder or specialized editors.',
   'MissionCore':
@@ -43,7 +46,7 @@ const SNIPPETS: Record<string, string> = {
   'PackOS Validation':
     'PackOS is the core safety gate. It checks:\n\n1. Namespace safety — no reserved "echo:" namespace\n2. Permission safety — no blocked internal permissions\n3. Dependency completeness — required SDK modules present\n4. Version format — semantic versioning\n5. Content integrity — no broken references\n6. Publishing readiness — description, tags, support link\n\nRun PackOS Check before every submission. Use "Fix with AI" for automatic fixes.',
   'Publishing':
-    'To publish your addon:\n\n1. Run PackOS Check and resolve all BLOCKERs and ERRORs.\n2. Fill in the Submit Addon form with version notes.\n3. Create releases with changelogs.\n4. Submit for community catalog review.\n\nTrust levels:\n- Local      : Only visible to you\n- Community  : Installable by users who allow community addons\n- Verified   : Reviewed and trusted by the ECHO team\n- Featured   : Promoted by the ECHO team',
+    'To publish your addon:\n\n1. Run PackOS Check and resolve all BLOCKERs and ERRORs.\n2. Prepare release assets from the Publish Assistant.\n3. Review echo-addon-package.json, echo-release.json, and checksums.sha256.\n4. Connect the GitHub App or GitHub CLI provider.\n5. Create a GitHub Release draft and upload the prepared assets.\n6. Submit the release for Release Index ingestion.\n\nTrust levels:\n- Community            : Source-linked public release.\n- Provenance-attested  : GitHub artifact attestation verified.\n- Official             : ECHO-owned or explicitly approved publisher.\n- Blocked              : Prevented by Release Index policy.',
   'Verification Program':
     'The ECHO Verification Program reviews addons for:\n\n- Code quality and safety\n- Documentation completeness\n- User experience\n- Community feedback\n\nVerified addons receive:\n- A verified badge in the catalog\n- Priority in search results\n- Access to beta SDK features\n\nApply via the Submit Addon page.',
   'Best Practices':

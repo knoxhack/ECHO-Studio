@@ -2,6 +2,8 @@ import { promises as fs } from 'fs'
 import type { Dirent } from 'fs'
 import { join } from 'path'
 import { createHash } from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import AdmZip from 'adm-zip'
 import { readManifest, listAssetFiles } from './fsService'
 import { readAllContent, readLangKeys } from './contentService'
@@ -13,6 +15,7 @@ import type { PackageResult } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
 
 const EXCLUDE_DIRS = new Set(['.studio', 'exports', 'node_modules', '.git'])
+const execFileAsync = promisify(execFile)
 const TARGET_COMPATIBILITY: Record<AddonPackageTarget, string> = {
   native: 'ashfall-native-edition',
   neoforge: 'ashfall-neoforge-edition',
@@ -97,13 +100,40 @@ function artifactKind(name: string): string {
   return 'asset'
 }
 
+function realCommitSha(value: unknown): string | undefined {
+  const sha = String(value ?? '').trim()
+  return /^[a-f0-9]{7,40}$/i.test(sha) && !/^0{7,40}$/.test(sha) ? sha : undefined
+}
+
+async function sourceCommitSha(projectPath: string): Promise<string | undefined> {
+  const override = realCommitSha(process.env.ECHO_ADDON_STUDIO_COMMIT_SHA)
+  if (override) return override
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', projectPath, 'rev-parse', 'HEAD'], { timeout: 3000 })
+    return realCommitSha(stdout)
+  } catch {
+    return undefined
+  }
+}
+
 function buildReleaseManifest(
   manifest: Awaited<ReturnType<typeof readManifest>>,
   packageManifest: AddonPackageManifest,
   artifacts: Array<{ name: string; sha256: string; bytes: number }>,
-  report: PackOSReport
+  report: PackOSReport,
+  commitSha?: string
 ) {
   if (!manifest) throw new Error('Missing echo.mod.json')
+  const artifactMap = Object.fromEntries(
+    artifacts.map((artifact) => [
+      artifactKind(artifact.name),
+      {
+        file: artifact.name,
+        sha256: artifact.sha256,
+        size: artifact.bytes
+      }
+    ])
+  )
   return {
     schemaVersion: 1,
     id: packageManifest.id,
@@ -113,10 +143,12 @@ function buildReleaseManifest(
     publisher: manifest.publisher.id,
     sourceRepo: `${packageManifest.publisher.githubOwner}/${packageManifest.publisher.githubRepo}`,
     releaseTag: `v${manifest.version}`,
+    ...(commitSha ? { commitSha } : {}),
     trust: 'community',
     validation: report.publishingReady ? 'warning' : 'rejected',
     compatibility: packageManifest.targets.map((target) => TARGET_COMPATIBILITY[target]),
     dependencies: packageManifest.dependencies,
+    artifacts: artifactMap,
     package: {
       schemaVersion: packageManifest.schemaVersion,
       targets: packageManifest.targets
@@ -213,7 +245,8 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
   const hash = artifactRecords[0].sha256
   const bufferLength = artifactRecords[0].bytes
   const packageManifestRecord = await writeJsonArtifact(packageManifestPath, packageManifest)
-  const releaseManifest = buildReleaseManifest(manifest, packageManifest, artifactRecords, report)
+  const commitSha = await sourceCommitSha(projectPath)
+  const releaseManifest = buildReleaseManifest(manifest, packageManifest, artifactRecords, report, commitSha)
   const releaseManifestRecord = await writeJsonArtifact(releaseManifestPath, releaseManifest)
   const checksumsRecord = await writeTextArtifact(
     checksumsPath,
@@ -247,6 +280,8 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
       id: localId(manifest.id),
       kind: 'addon',
       version: manifest.version,
+      ...(commitSha ? { commitSha } : {}),
+      artifacts: releaseManifest.artifacts,
       publisher: manifest.publisher.id,
       validation: report.publishingReady ? 'warning' : 'rejected'
     }
