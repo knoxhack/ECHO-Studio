@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useWorkspace } from '../state/WorkspaceContext'
 
 export default function ManifestEditor(): JSX.Element {
-  const { currentProject } = useWorkspace()
+  const { activeProject } = useWorkspace()
   const [raw, setRaw] = useState(() => {
     try {
-      return JSON.stringify(currentProject?.manifest ?? {}, null, 2)
+      return JSON.stringify(activeProject?.manifest ?? {}, null, 2)
     } catch {
       return '{}'
     }

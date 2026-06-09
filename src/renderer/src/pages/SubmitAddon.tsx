@@ -74,6 +74,7 @@ export default function SubmitAddon(): JSX.Element {
   }
 
   const ready = pkg?.report.publishingReady ?? false
+  const sdkReady = pkg?.sdkValidation.ok ?? false
 
   return (
     <Page title="Submit Addon" subtitle="Validate, package, add metadata and submit.">
@@ -96,7 +97,7 @@ export default function SubmitAddon(): JSX.Element {
             </button>
             {pkg && (
               <div style={{ marginTop: 12 }}>
-                <div className="metric" style={{ color: ready ? 'var(--good)' : 'var(--bad)' }}>
+                <div className="metric" style={{ color: sdkReady && ready ? 'var(--good)' : 'var(--bad)' }}>
                   {pkg.report.compatibilityScore}%
                 </div>
                 <div className="sub">
@@ -114,6 +115,8 @@ export default function SubmitAddon(): JSX.Element {
               <div style={{ fontSize: 13, lineHeight: 2 }}>
                 <div className="mono" style={{ wordBreak: 'break-all' }}>{pkg.zipPath}</div>
                 <div>Size: {(pkg.bytes / 1024).toFixed(1)} KB</div>
+                <div>SDK Contract: {pkg.sdkValidation.ok ? 'Ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
+                <div>Built Assets: {pkg.assetPaths.length}</div>
                 <div className="mono faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>
                   sha256: {pkg.hash}
                 </div>
@@ -195,12 +198,13 @@ export default function SubmitAddon(): JSX.Element {
             <h3>Submit</h3>
             <button
               className="btn primary"
-              disabled={!ready || !sub.permissionsConfirmed}
+              disabled={!sdkReady || !ready || !sub.permissionsConfirmed}
               onClick={submit}
             >
               Submit for Review
             </button>
-            {!ready && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass PackOS first (step 1).</p>}
+            {!sdkReady && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass SDK contract validation first (step 1).</p>}
+            {sdkReady && !ready && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass PackOS first (step 1).</p>}
             {!sub.permissionsConfirmed && <p className="fix" style={{ color: 'var(--warn)' }}>Confirm permissions (step 5).</p>}
           </div>
         )}

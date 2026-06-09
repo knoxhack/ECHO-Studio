@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSandboxScore } from '../../main/sandboxService'
+import { computeSandboxScore } from '../sandbox'
 
 describe('computeSandboxScore', () => {
   it('returns 100 for a perfect run', () => {

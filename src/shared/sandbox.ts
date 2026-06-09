@@ -21,3 +21,17 @@ export interface SandboxOptions {
   fakePlayer: boolean
   testInventory: boolean
 }
+
+export function computeSandboxScore(
+  missingDeps: number,
+  warningCount: number,
+  errorCount: number,
+  contentFailed: number
+): number {
+  let score = 100
+  score -= missingDeps * 10
+  score -= warningCount * 3
+  score -= errorCount * 15
+  score -= contentFailed * 5
+  return Math.max(0, Math.min(100, score))
+}

@@ -1,5 +1,6 @@
 import { SDK_VERSION } from './constants'
 import type { AddonManifest, AddonType, CreateAddonOptions } from './types'
+import type { AddonPackageManifest } from './addonPackageContract'
 
 const PROJECT_CLASS: Record<AddonType, string> = {
   gameplay_addon: 'community_addon',
@@ -91,6 +92,28 @@ export function buildManifest(opts: CreateAddonOptions): AddonManifest {
   }
 }
 
+export function buildAddonPackageManifest(manifest: AddonManifest): AddonPackageManifest {
+  const addonId = manifest.id.includes(':') ? manifest.id.split(':')[1] : manifest.id
+  const targets = manifest.runtime.supports.map((runtime) => (runtime === 'echo_native' ? 'native' : runtime))
+  return {
+    schemaVersion: 'echo.addon.package.v1',
+    id: addonId,
+    version: manifest.version,
+    publisher: {
+      githubOwner: manifest.publisher.id,
+      githubRepo: `${addonId}-addon`
+    },
+    targets,
+    dependencies: manifest.dependencies.required.map((id) => ({ id, version: '*' })),
+    artifacts: {
+      ...(targets.includes('native') ? { native: `${addonId}-${manifest.version}.echo-addon` } : {}),
+      ...(targets.includes('neoforge') ? { neoforge: `${addonId}-${manifest.version}-neoforge.jar` } : {}),
+      ...(targets.includes('standalone') ? { standalone: `${addonId}-${manifest.version}-standalone.jar` } : {}),
+      sources: `${addonId}-${manifest.version}-sources.jar`
+    }
+  }
+}
+
 // Returns a map of relative file path -> string content for a new project.
 export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManifest): Record<string, string> {
   const files: Record<string, string> = {}
@@ -98,6 +121,7 @@ export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManif
   const id = opts.addonId
 
   files['echo.mod.json'] = JSON.stringify(manifest, null, 2)
+  files['META-INF/echo-addon-package.json'] = JSON.stringify(buildAddonPackageManifest(manifest), null, 2)
   files['packos.validation.json'] = JSON.stringify(
     { schemaVersion: 1, policyTarget: 'community', minimumScore: 70, ignoreWarnings: [] },
     null,

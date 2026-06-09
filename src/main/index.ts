@@ -1,11 +1,27 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import https from 'https'
 import { autoUpdater } from 'electron-updater'
 import { registerIpc } from './ipc'
 
 const UPDATE_FEED_OWNER_PUBLIC = 'knoxhack'
 const UPDATE_FEED_REPO_PUBLIC = 'ECHO-Addons-Studio'
 const UPDATE_FEED_STREAM = 'public'
+const RELEASE_INDEX_CHANNEL_URL =
+  process.env['ECHO_RELEASE_INDEX_CHANNEL_URL'] ||
+  'https://raw.githubusercontent.com/knoxhack/ECHO-Release-Index/main/channels/alpha/launcher-channel.json'
+const RELEASE_INDEX_PRODUCT_ID = 'echo-addons-studio'
+
+type ReleaseIndexProductEntry = {
+  id?: string
+  kind?: string
+  version?: string
+  sourceRepo?: string
+  compatibility?: string[]
+  validation?: string
+  artifacts?: unknown
+}
+type ReleaseIndexChannel = { catalogUrls?: string[] | Record<string, string[]> }
 
 function resolveUpdateStream(): 'public' | 'internal' {
   return UPDATE_FEED_STREAM
@@ -32,6 +48,61 @@ function resolveUpdateFeedConfig() {
   }
   assertUpdateFeedConfig(stream, feed)
   return feed
+}
+
+function readHttpsJson<T>(url: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, { headers: { accept: 'application/json', 'user-agent': 'echo-addons-studio' } }, (response) => {
+        const statusCode = response.statusCode ?? 0
+        if (statusCode < 200 || statusCode >= 300) {
+          response.resume()
+          reject(new Error(`Release Index request failed with HTTP ${statusCode}: ${url}`))
+          return
+        }
+        const chunks: Buffer[] = []
+        response.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as T)
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+      .on('error', reject)
+  })
+}
+
+function hasUpdaterArtifact(entry: ReleaseIndexProductEntry): boolean {
+  const visit = (node: unknown): boolean => {
+    if (Array.isArray(node)) return node.some(visit)
+    if (!node || typeof node !== 'object') return false
+    const row = node as Record<string, unknown>
+    if ((row.url || row.downloadUrl) && (row.sha256 || row.sha512) && (row.file || row.name || row.filename)) return true
+    return Object.values(row).some(visit)
+  }
+  return visit(entry.artifacts)
+}
+
+async function resolveReleaseIndexProductFeed(): Promise<{ feed: { owner: string; repo: string }; entry: ReleaseIndexProductEntry } | null> {
+  const channel = await readHttpsJson<ReleaseIndexChannel>(RELEASE_INDEX_CHANNEL_URL)
+  const catalogUrls = Array.isArray(channel.catalogUrls)
+    ? channel.catalogUrls
+    : Object.values(channel.catalogUrls ?? {}).flat()
+  for (const catalogUrl of catalogUrls) {
+    const entry = await readHttpsJson<ReleaseIndexProductEntry>(catalogUrl)
+    if (entry.id !== RELEASE_INDEX_PRODUCT_ID) continue
+    if (entry.validation !== 'approved') throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} is ${entry.validation ?? 'missing validation'}.`)
+    if (!hasUpdaterArtifact(entry)) throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} has no updater artifact.`)
+    const sourceRepo = String(entry.sourceRepo ?? '')
+    const match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(sourceRepo)
+    if (!match) throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} has invalid sourceRepo.`)
+    const feed = { owner: match[1], repo: match[2] }
+    assertUpdateFeedConfig(resolveUpdateStream(), feed)
+    return { feed, entry }
+  }
+  return null
 }
 
 function assertUpdateFeedConfig(stream: 'public' | 'internal', feed: { owner: string; repo: string }): void {
@@ -113,7 +184,7 @@ function createWindow(): void {
 }
 
 // ---- Auto Updater Events ----
-function setupAutoUpdater(mainWindow: BrowserWindow): void {
+async function setupAutoUpdater(mainWindow: BrowserWindow): Promise<void> {
   if (isUpdateDisabled()) {
     mainWindow.webContents.send('update-status', { status: 'disabled', message: 'Update checks are disabled by policy.' })
     return
@@ -123,7 +194,32 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = isPrereleaseVersion(app.getVersion()) || (process.env['ECHO_UPDATE_ALLOW_PRERELEASE'] || '').toLowerCase() === 'true'
   autoUpdater.channel = resolveUpdateFeedTag()
-  const primaryFeed = resolveUpdateFeedConfig()
+  let primaryFeed = resolveUpdateFeedConfig()
+  try {
+    const canonical = await resolveReleaseIndexProductFeed()
+    if (canonical) {
+      primaryFeed = canonical.feed
+      mainWindow.webContents.send('update-status', {
+        status: 'release-index-product',
+        productId: RELEASE_INDEX_PRODUCT_ID,
+        version: canonical.entry.version,
+        sourceRepo: canonical.entry.sourceRepo,
+      })
+    } else {
+      mainWindow.webContents.send('update-status', {
+        status: 'release-index-product-missing',
+        productId: RELEASE_INDEX_PRODUCT_ID,
+        message: 'Release Index product entry was not found; using compatibility updater feed.',
+      })
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    mainWindow.webContents.send('update-status', {
+      status: 'release-index-product-warning',
+      productId: RELEASE_INDEX_PRODUCT_ID,
+      message: `${message} Using compatibility updater feed.`,
+    })
+  }
   autoUpdater.setFeedURL({
     provider: 'github',
     owner: primaryFeed.owner,
@@ -155,7 +251,7 @@ function setupAutoUpdater(mainWindow: BrowserWindow): void {
     mainWindow.webContents.send('update-status', { status: 'downloaded', version: info.version })
   })
 
-  autoUpdater.on('error', (err) => {
+  autoUpdater.on('error', (_err) => {
     mainWindow.webContents.send('update-status', {
       status: 'error',
       message: `Could not contact ${primaryFeed.owner}/${primaryFeed.repo}. Open manual install flow.`,
@@ -179,7 +275,7 @@ app.whenReady().then(() => {
   // Check for updates in production builds (skip in dev).
   const mainWindow = BrowserWindow.getAllWindows()[0]
   if (mainWindow && !process.env['ELECTRON_RENDERER_URL']) {
-    setupAutoUpdater(mainWindow)
+    void setupAutoUpdater(mainWindow)
   }
 
   app.on('activate', () => {

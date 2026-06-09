@@ -27,6 +27,7 @@ import {
 import { runProjectCheck } from '../shared/projectValidation'
 import { scanAssets, importAssets, exportAssetPack } from './assetService'
 import { packageAddon } from './packageService'
+import { connectGitHubRepo, createGitHubReleaseDraft, getGitHubPublishingStatus, startGitHubAppLogin } from './publishingService'
 import {
   getSubmission,
   saveSubmission,
@@ -151,6 +152,12 @@ export function registerIpc(): void {
   handle('assets:exportPack', (projectPath: string) => exportAssetPack(projectPath))
 
   handle('package:build', (projectPath: string) => packageAddon(projectPath))
+  handle('publish:authStatus', () => getGitHubPublishingStatus())
+  handle('publish:startGitHubAppLogin', () => startGitHubAppLogin())
+  handle('publish:connectRepo', (owner: string, repo: string) => connectGitHubRepo(owner, repo))
+  handle('publish:createDraft', (releaseDraftPath: string, owner: string, repo: string, tag?: string, draft?: boolean) =>
+    createGitHubReleaseDraft(releaseDraftPath, owner, repo, tag, draft ?? true)
+  )
   handle('submission:get', (projectPath: string) => getSubmission(projectPath))
   handle('submission:save', (projectPath: string, state: SubmissionState) =>
     saveSubmission(projectPath, state)

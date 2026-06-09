@@ -32,6 +32,10 @@ Run commands from the repository root.
 
 Addons Studio installers, app update metadata, and addon author tooling release notes belong here.
 
+## Release Index Product Routing
+
+App update checks first resolve the canonical Release Index product entry `echo-addons-studio` from `channels/alpha/launcher-channel.json`. The legacy GitHub updater feed is used only as a compatibility fallback while the indexed product entry is warning-state or missing approved updater artifacts.
+
 ## Docs Index
 
 - [docs/release-policy.md](docs/release-policy.md)

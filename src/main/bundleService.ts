@@ -4,7 +4,7 @@ import { createHash } from 'crypto'
 import AdmZip from 'adm-zip'
 import { readManifest, defaultWorkspace } from './fsService'
 import type { AddonManifest } from '../shared/types'
-import type { BundleMember, ExperienceResult, ServerPackResult } from '../shared/bundles'
+import { computeLoadOrder, type BundleMember, type ExperienceResult, type ServerPackResult } from '../shared/bundles'
 
 async function loadMember(path: string): Promise<{ manifest: AddonManifest; member: BundleMember }> {
   const manifest = await readManifest(path)
@@ -17,35 +17,7 @@ async function loadMember(path: string): Promise<{ manifest: AddonManifest; memb
   }
 }
 
-// Topologically order members so dependencies load first. Members that depend
-// on another member's id are placed after it; unresolved deps are ignored
-// (they are assumed to be SDK modules).
-export function computeLoadOrder(manifests: AddonManifest[]): { order: string[]; warnings: string[] } {
-  const ids = new Set(manifests.map((m) => m.id))
-  const warnings: string[] = []
-  const graph = new Map<string, string[]>()
-  for (const m of manifests) {
-    const deps = [...m.dependencies.required, ...m.dependencies.optional].filter((d) => ids.has(d))
-    graph.set(m.id, deps)
-  }
-  const order: string[] = []
-  const visited = new Set<string>()
-  const visiting = new Set<string>()
-  const visit = (id: string): void => {
-    if (visited.has(id)) return
-    if (visiting.has(id)) {
-      warnings.push(`Circular dependency involving ${id}; load order may be unstable.`)
-      return
-    }
-    visiting.add(id)
-    for (const dep of graph.get(id) ?? []) visit(dep)
-    visiting.delete(id)
-    visited.add(id)
-    order.push(id)
-  }
-  for (const m of manifests) visit(m.id)
-  return { order, warnings }
-}
+export { computeLoadOrder } from '../shared/bundles'
 
 // Build a Community Experience bundle: a project folder with experience.json +
 // lockfile.json describing members, load order and dependency rules.

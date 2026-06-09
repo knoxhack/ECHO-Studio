@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeLoadOrder } from '../../main/bundleService'
+import { computeLoadOrder } from '../bundles'
 import type { AddonManifest } from '../types'
 
 function makeManifest(id: string, deps: string[] = []): AddonManifest {

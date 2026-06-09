@@ -1,29 +1,91 @@
-﻿import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { GitHubPublishingStatus, PackageResult } from '@shared/publishing'
+import { useWorkspace } from '../state/WorkspaceContext'
 
 export default function PublishAssistant(): JSX.Element {
-  const [step, setStep] = useState(0)
+  const { activeProject, toast } = useWorkspace()
   const [owner, setOwner] = useState('knoxhack')
   const [repo, setRepo] = useState('')
   const [tag, setTag] = useState('v0.1.0')
   const [draft, setDraft] = useState(true)
   const [status, setStatus] = useState<string | null>(null)
+  const [pkg, setPkg] = useState<PackageResult | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [releaseUrl, setReleaseUrl] = useState('')
+  const [authStatus, setAuthStatus] = useState<GitHubPublishingStatus | null>(null)
 
-  const steps = [
-    'Validate addon package',
-    'Generate checksums',
-    'Prepare release assets',
-    'Create GitHub Release draft',
-  ]
+  useEffect(() => {
+    void window.studio.getGitHubPublishingStatus().then((result) => {
+      if (result.ok && result.data) setAuthStatus(result.data)
+    })
+  }, [])
 
-  const runStep = () => {
-    if (step < steps.length - 1) {
-      setStatus(`Running: ${steps[step]}...`)
-      setTimeout(() => {
-        setStatus(`Completed: ${steps[step]}`)
-        setStep((s) => s + 1)
-      }, 600)
-    } else {
-      setStatus('Release draft prepared. Open GitHub to publish.')
+  const packageProject = async () => {
+    if (!activeProject) {
+      setStatus('Select an addon project first.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.studio.packageAddon(activeProject.path)
+      if (!result.ok || !result.data) throw new Error(result.error ?? 'Package build failed.')
+      setPkg(result.data)
+      setStatus(`Prepared ${result.data.zipPath}`)
+      toast('Release assets prepared')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Package build failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const connectRepo = async () => {
+    setBusy(true)
+    try {
+      const result = await window.studio.connectGitHubRepo(owner, repo)
+      if (!result.ok || !result.data) throw new Error(result.error ?? 'Repository connection failed.')
+      setStatus(result.data.message)
+      if (result.data.exists) toast(`Connected ${owner}/${repo}`)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Repository connection failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startAppLogin = async () => {
+    setBusy(true)
+    try {
+      const result = await window.studio.startGitHubAppLogin()
+      if (!result.ok || !result.data) throw new Error(result.error ?? 'GitHub App login failed.')
+      const url = result.data.authorizeUrl || result.data.installUrl
+      if (url) await window.studio.openExternal(url)
+      setStatus(result.data.message)
+      const refreshed = await window.studio.getGitHubPublishingStatus()
+      if (refreshed.ok && refreshed.data) setAuthStatus(refreshed.data)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'GitHub App login failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const createDraft = async () => {
+    if (!pkg?.releaseDraftPath) {
+      setStatus('Prepare release assets before creating a GitHub draft.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.studio.createGitHubReleaseDraft(pkg.releaseDraftPath, owner, repo, tag, draft)
+      if (!result.ok || !result.data) throw new Error(result.error ?? 'GitHub release draft failed.')
+      setReleaseUrl(result.data.url ?? '')
+      setStatus(`Created release draft ${result.data.tag}.`)
+      toast('GitHub release draft created')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'GitHub release draft failed.')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -31,11 +93,32 @@ export default function PublishAssistant(): JSX.Element {
     <div className="page">
       <h1 className="page-title">Publish Assistant</h1>
       <p className="page-subtitle">
-        Prepare release assets, generate checksums, and create a GitHub Release draft.
+        Prepare release assets, generate checksums, connect a GitHub repository, and create a draft release.
       </p>
 
       <div className="card" style={{ marginTop: 16 }}>
         <h2 className="card-title">Repository</h2>
+        {authStatus && (
+          <div className="flex gap-2" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+            <span className={`badge ${authStatus.ghCliAuthenticated ? 'ready' : 'local'}`}>
+              {authStatus.ghCliAuthenticated ? 'GitHub CLI Ready' : 'GitHub CLI Offline'}
+            </span>
+            <span className={`badge ${authStatus.githubAppConfigured ? 'ready' : 'local'}`}>
+              {authStatus.githubAppConfigured ? 'GitHub App Configured' : 'GitHub App Not Configured'}
+            </span>
+            <span className={`badge ${authStatus.githubAppBrokerConfigured ? 'ready' : 'local'}`}>
+              {authStatus.githubAppBrokerConfigured ? 'App Broker Configured' : 'App Broker Offline'}
+            </span>
+            <span className={`badge ${authStatus.githubAppSessionReady ? 'ready' : 'local'}`}>
+              {authStatus.githubAppSessionReady ? 'App Session Ready' : 'App Session Needed'}
+            </span>
+            {authStatus.githubAppConfigured && (
+              <button className="btn secondary" onClick={startAppLogin} disabled={busy}>
+                Start App Login
+              </button>
+            )}
+          </div>
+        )}
         <div className="grid gap-2" style={{ marginTop: 8, gridTemplateColumns: '1fr 1fr', maxWidth: 480 }}>
           <input className="input" placeholder="Owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
           <input className="input" placeholder="Repo" value={repo} onChange={(e) => setRepo(e.target.value)} />
@@ -51,29 +134,63 @@ export default function PublishAssistant(): JSX.Element {
 
       <div className="card" style={{ marginTop: 16 }}>
         <h2 className="card-title">Progress</h2>
-        <ol className="list" style={{ marginTop: 8 }}>
-          {steps.map((s, i) => (
-            <li key={s} className="list-item" style={{ opacity: i === step ? 1 : i < step ? 0.8 : 0.4 }}>
-              <span style={{ display: 'inline-block', width: 20 }}>
-                {i < step ? 'âœ“' : i === step ? 'â–¶' : 'â—‹'}
-              </span>
-              {s}
-            </li>
-          ))}
-        </ol>
+        <div className="grid gap-2" style={{ marginTop: 8 }}>
+          <div className="list-item">
+            <span className={`badge ${pkg?.sdkValidation.ok ? 'ready' : 'local'}`}>1</span>
+            Validate SDK package contract.
+          </div>
+          <div className="list-item">
+            <span className={`badge ${pkg?.report.publishingReady ? 'ready' : 'local'}`}>2</span>
+            Run PackOS project validation.
+          </div>
+          <div className="list-item">
+            <span className={`badge ${pkg?.checksumsPath ? 'ready' : 'local'}`}>3</span>
+            Write artifacts, checksums, manifest, and GitHub release draft JSON.
+          </div>
+          <div className="list-item">
+            <span className={`badge ${authStatus?.activeProvider !== 'none' ? 'ready' : 'local'}`}>4</span>
+            Connect repository with GitHub CLI or a GitHub App broker session.
+          </div>
+          <div className="list-item">
+            <span className={`badge ${releaseUrl ? 'ready' : 'local'}`}>5</span>
+            Create GitHub Release draft and upload prepared assets.
+          </div>
+        </div>
         {status && (
           <div className="badge" style={{ marginTop: 12, display: 'inline-block' }}>
             {status}
           </div>
         )}
         <div className="flex gap-2" style={{ marginTop: 12 }}>
-          <button className="btn primary" onClick={runStep} disabled={step >= steps.length}>
-            {step >= steps.length ? 'Done' : 'Next Step'}
+          <button className="btn primary" onClick={packageProject} disabled={busy || !activeProject}>
+            Prepare Assets
           </button>
-          <button className="btn secondary" onClick={() => { setStep(0); setStatus(null) }}>
-            Reset
+          <button className="btn secondary" onClick={connectRepo} disabled={busy || !owner.trim() || !repo.trim()}>
+            Connect Repo
+          </button>
+          <button className="btn primary" onClick={createDraft} disabled={busy || !pkg?.releaseDraftPath || !owner.trim() || !repo.trim()}>
+            Create Draft
+          </button>
+          <button className="btn secondary" onClick={() => pkg?.releaseDraftPath && window.studio.openPath(pkg.releaseDraftPath)} disabled={!pkg?.releaseDraftPath}>
+            Open Draft JSON
           </button>
         </div>
+        {pkg && (
+          <div className="grid gap-2" style={{ marginTop: 12 }}>
+            <div className="badge">Package: {pkg.zipPath}</div>
+            <div className="badge">SDK Contract: {pkg.sdkValidation.ok ? 'ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
+            <div className="badge">Built Assets: {pkg.assetPaths.length}</div>
+            <div className="badge">Checksums: {pkg.checksumsPath ?? 'not written'}</div>
+            <div className="badge">Draft JSON: {pkg.releaseDraftPath ?? 'not written'}</div>
+          </div>
+        )}
+        {releaseUrl && (
+          <div style={{ marginTop: 12 }}>
+            <a className="btn ghost" href={releaseUrl} target="_blank" rel="noreferrer">
+              Open GitHub Release
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
@@ -94,4 +211,3 @@ export default function PublishAssistant(): JSX.Element {
     </div>
   )
 }
-

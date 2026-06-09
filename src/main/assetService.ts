@@ -4,20 +4,9 @@ import { dialog, BrowserWindow } from 'electron'
 import AdmZip from 'adm-zip'
 import { listAssetFiles, readManifest } from './fsService'
 import { readAllContent } from './contentService'
-import type { AssetInfo, AssetReport } from '../shared/assets'
+import { parsePng, type AssetInfo, type AssetReport } from '../shared/assets'
 
-// Parse a PNG header. Returns dimensions + validity without a native lib.
-export function parsePng(buf: Buffer): { valid: boolean; width?: number; height?: number; bitDepth?: number } {
-  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-  if (buf.length < 24) return { valid: false }
-  for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return { valid: false }
-  // IHDR chunk starts at byte 8: length(4) + 'IHDR'(4) + width(4) + height(4) + bitDepth(1)
-  if (buf.toString('ascii', 12, 16) !== 'IHDR') return { valid: false }
-  const width = buf.readUInt32BE(16)
-  const height = buf.readUInt32BE(20)
-  const bitDepth = buf[24]
-  return { valid: true, width, height, bitDepth }
-}
+export { parsePng } from '../shared/assets'
 
 function kindFor(rel: string): AssetInfo['kind'] {
   const ext = extname(rel).toLowerCase()

@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { readManifest, listProjects } from './fsService'
 import { listContent } from './contentService'
 import type { AddonProject } from '../shared/types'
-import type { SandboxResult, SandboxOptions, SandboxLog } from '../shared/sandbox'
+import { computeSandboxScore, type SandboxResult, type SandboxOptions, type SandboxLog } from '../shared/sandbox'
 
 const PROFILES: Record<string, { runtime: string; experiences: string[]; permissions: string[] }> = {
   'Ashfall Sandbox': {
@@ -149,16 +149,4 @@ export async function runSandbox(
   }
 }
 
-export function computeSandboxScore(
-  missingDeps: number,
-  warningCount: number,
-  errorCount: number,
-  contentFailed: number
-): number {
-  let score = 100
-  score -= missingDeps * 10
-  score -= warningCount * 3
-  score -= errorCount * 15
-  score -= contentFailed * 5
-  return Math.max(0, Math.min(100, score))
-}
+export { computeSandboxScore } from '../shared/sandbox'

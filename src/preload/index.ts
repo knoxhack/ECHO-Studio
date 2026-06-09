@@ -12,6 +12,10 @@ import type { PackOSReport } from '../shared/types'
 import type { AssetReport } from '../shared/assets'
 import type {
   PackageResult,
+  GitHubAppLoginStart,
+  GitHubPublishingStatus,
+  GitHubReleaseDraftResult,
+  GitHubRepoConnection,
   ReleaseEntry,
   ReleasesState,
   SubmissionState
@@ -73,6 +77,11 @@ const api = {
   exportAssetPack: (projectPath: string) => invoke<string>('assets:exportPack', projectPath),
 
   packageAddon: (projectPath: string) => invoke<PackageResult>('package:build', projectPath),
+  getGitHubPublishingStatus: () => invoke<GitHubPublishingStatus>('publish:authStatus'),
+  startGitHubAppLogin: () => invoke<GitHubAppLoginStart>('publish:startGitHubAppLogin'),
+  connectGitHubRepo: (owner: string, repo: string) => invoke<GitHubRepoConnection>('publish:connectRepo', owner, repo),
+  createGitHubReleaseDraft: (releaseDraftPath: string, owner: string, repo: string, tag?: string, draft?: boolean) =>
+    invoke<GitHubReleaseDraftResult>('publish:createDraft', releaseDraftPath, owner, repo, tag, draft),
   getSubmission: (projectPath: string) => invoke<SubmissionState>('submission:get', projectPath),
   saveSubmission: (projectPath: string, state: SubmissionState) =>
     invoke<void>('submission:save', projectPath, state),

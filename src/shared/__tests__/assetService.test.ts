@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePng } from '../../main/assetService'
+import { parsePng } from '../assets'
 
 describe('parsePng', () => {
   function makePng(width: number, height: number): Buffer {
