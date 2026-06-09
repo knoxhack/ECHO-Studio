@@ -152,4 +152,24 @@ describe('GitHub App broker publishing', () => {
       await fs.rm(root, { recursive: true, force: true })
     }
   })
+
+  it('rejects release draft assets without SHA-256 hashes', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
+      const draftPath = join(root, 'github-release-draft.json')
+      await fs.writeFile(assetPath, 'artifact-bytes')
+      await fs.writeFile(
+        draftPath,
+        JSON.stringify({
+          tag_name: 'v0.1.0',
+          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon' }]
+        })
+      )
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/valid SHA-256/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
 })

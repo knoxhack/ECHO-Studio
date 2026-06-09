@@ -80,8 +80,8 @@ function normalizeDraftAsset(asset: DraftAsset, draftDir: string): DraftAsset {
   if (!/^[A-Za-z0-9._-]+$/.test(name)) {
     throw new Error(`Release draft asset name is unsafe: ${name}`)
   }
-  if (asset.sha256 && !/^[a-f0-9]{64}$/i.test(asset.sha256)) {
-    throw new Error(`Release draft asset ${name} has an invalid SHA-256 hash.`)
+  if (!asset.sha256 || !/^[a-f0-9]{64}$/i.test(asset.sha256)) {
+    throw new Error(`Release draft asset ${name} must include a valid SHA-256 hash.`)
   }
   return { ...asset, path: assetPath, name }
 }

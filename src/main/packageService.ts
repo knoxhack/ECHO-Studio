@@ -78,6 +78,17 @@ async function writeJsonArtifact(filePath: string, value: unknown): Promise<{ pa
   }
 }
 
+async function writeTextArtifact(filePath: string, value: string): Promise<{ path: string; name: string; sha256: string; bytes: number }> {
+  const buffer = Buffer.from(value, 'utf-8')
+  await fs.writeFile(filePath, buffer)
+  return {
+    path: filePath,
+    name: filePath.split(/[\\/]/).pop() ?? filePath,
+    sha256: sha256Buffer(buffer),
+    bytes: buffer.length
+  }
+}
+
 function artifactKind(name: string): string {
   if (name.endsWith('.echo-addon')) return 'native'
   if (name.endsWith('-neoforge.jar')) return 'neoforge'
@@ -201,10 +212,9 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
   const packageManifestRecord = await writeJsonArtifact(packageManifestPath, packageManifest)
   const releaseManifest = buildReleaseManifest(manifest, packageManifest, artifactRecords, report)
   const releaseManifestRecord = await writeJsonArtifact(releaseManifestPath, releaseManifest)
-  await fs.writeFile(
+  const checksumsRecord = await writeTextArtifact(
     checksumsPath,
-    [...artifactRecords, packageManifestRecord, releaseManifestRecord].map((artifact) => `${artifact.sha256}  ${artifact.name}`).sort().join('\n') + '\n',
-    'utf-8'
+    [...artifactRecords, packageManifestRecord, releaseManifestRecord].map((artifact) => `${artifact.sha256}  ${artifact.name}`).sort().join('\n') + '\n'
   )
   await fs.writeFile(releaseDraftPath, JSON.stringify({
     draft: true,
@@ -226,7 +236,7 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
     ].join('\n'),
     assets: [
       ...artifactRecords.map((artifact) => ({ path: artifact.path, name: artifact.name, sha256: artifact.sha256 })),
-      { path: checksumsPath, name: 'checksums.sha256' },
+      { path: checksumsPath, name: 'checksums.sha256', sha256: checksumsRecord.sha256 },
       { path: packageManifestPath, name: 'echo-addon-package.json', sha256: packageManifestRecord.sha256 },
       { path: releaseManifestPath, name: 'echo-release.json', sha256: releaseManifestRecord.sha256 }
     ],

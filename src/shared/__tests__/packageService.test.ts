@@ -74,6 +74,8 @@ describe('packageAddon', () => {
       const draft = JSON.parse(await fs.readFile(result.releaseDraftPath ?? '', 'utf8'))
       expect(draft.assets).toHaveLength(7)
       expect(draft.assets.map((asset: { name: string }) => asset.name)).toContain('echo-release.json')
+      expect(draft.assets.every((asset: { sha256?: string }) => /^[a-f0-9]{64}$/i.test(asset.sha256 ?? ''))).toBe(true)
+      expect(draft.assets.find((asset: { name: string }) => asset.name === 'checksums.sha256')?.sha256).toMatch(/^[a-f0-9]{64}$/i)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
