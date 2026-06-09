@@ -104,7 +104,7 @@ export function buildAddonPackageManifest(manifest: AddonManifest): AddonPackage
       githubRepo: `${addonId}-addon`
     },
     targets,
-    dependencies: manifest.dependencies.required.map((id) => ({ id, version: '*' })),
+    dependencies: manifest.dependencies.required.map((id) => ({ id, kind: 'module' as const, version: '*' })),
     artifacts: {
       ...(targets.includes('native') ? { native: `${addonId}-${manifest.version}.echo-addon` } : {}),
       ...(targets.includes('neoforge') ? { neoforge: `${addonId}-${manifest.version}-neoforge.jar` } : {}),

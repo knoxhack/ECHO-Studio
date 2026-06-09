@@ -1,5 +1,12 @@
 export type AddonPackageTarget = 'native' | 'neoforge' | 'standalone'
 export type AddonPackageArtifactKey = AddonPackageTarget | 'sources'
+export type AddonPackageDependencyKind = 'product' | 'modpack' | 'module' | 'addon' | 'runtime' | 'studio' | 'website'
+
+export interface AddonPackageDependency {
+  id: string
+  kind?: AddonPackageDependencyKind
+  version: string
+}
 
 export interface AddonPackageManifest {
   schemaVersion: 'echo.addon.package.v1'
@@ -10,7 +17,7 @@ export interface AddonPackageManifest {
     githubRepo: string
   }
   targets: AddonPackageTarget[]
-  dependencies: Array<{ id: string; version: string }>
+  dependencies: AddonPackageDependency[]
   artifacts: Partial<Record<AddonPackageArtifactKey, string>>
 }
 
@@ -31,6 +38,16 @@ const targetArtifactKeys: Record<AddonPackageTarget, AddonPackageArtifactKey> = 
   neoforge: 'neoforge',
   standalone: 'standalone'
 }
+
+const dependencyKinds = new Set<AddonPackageDependencyKind>([
+  'product',
+  'modpack',
+  'module',
+  'addon',
+  'runtime',
+  'studio',
+  'website'
+])
 
 export function validateAddonPackageManifest(
   manifest: AddonPackageManifest,
@@ -56,6 +73,9 @@ export function validateAddonPackageManifest(
 
   for (const dependency of manifest.dependencies ?? []) {
     if (!String(dependency.id ?? '').trim()) issues.push('Dependency id is required.')
+    if (dependency.kind && !dependencyKinds.has(dependency.kind)) {
+      issues.push(`Dependency ${dependency.id ?? '(unknown)'} has unsupported kind: ${dependency.kind}.`)
+    }
     if (!String(dependency.version ?? '').trim()) issues.push(`Dependency ${dependency.id ?? '(unknown)'} version is required.`)
   }
 

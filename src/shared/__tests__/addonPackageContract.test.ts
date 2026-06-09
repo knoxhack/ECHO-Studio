@@ -9,7 +9,7 @@ describe('validateAddonPackageManifest', () => {
       version: '1.0.0',
       publisher: { githubOwner: 'teamnova', githubRepo: 'weather-pack-addon' },
       targets: ['native', 'neoforge'],
-      dependencies: [{ id: 'echo:core', version: '*' }],
+      dependencies: [{ id: 'echo:core', kind: 'module', version: '*' }],
       artifacts: {
         native: 'weather_pack-1.0.0.echo-addon',
         neoforge: 'weather_pack-1.0.0-neoforge.jar',
@@ -41,6 +41,23 @@ describe('validateAddonPackageManifest', () => {
     expect(result.issues.join('\n')).toContain('schemaVersion must be echo.addon.package.v1')
     expect(result.issues.join('\n')).toContain('id must match')
     expect(result.issues.join('\n')).toContain('native artifact has invalid filename')
+  })
+
+  it('rejects unsupported dependency kinds', () => {
+    const result = validateAddonPackageManifest({
+      schemaVersion: 'echo.addon.package.v1',
+      id: 'weather_pack',
+      version: '1.0.0',
+      publisher: { githubOwner: 'teamnova', githubRepo: 'weather-pack-addon' },
+      targets: ['native'],
+      dependencies: [{ id: 'echo:core', kind: 'unknown' as never, version: '*' }],
+      artifacts: {
+        native: 'weather_pack-1.0.0.echo-addon'
+      }
+    }, ['weather_pack-1.0.0.echo-addon'])
+
+    expect(result.ok).toBe(false)
+    expect(result.issues).toContain('Dependency echo:core has unsupported kind: unknown.')
   })
 
   it('requires a target-specific artifact for every declared target', () => {

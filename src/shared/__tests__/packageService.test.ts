@@ -57,7 +57,7 @@ describe('packageAddon', () => {
       const packageManifest = JSON.parse(await fs.readFile(result.packageManifestPath ?? '', 'utf8'))
       expect(packageManifest).toMatchObject({
         schemaVersion: 'echo.addon.package.v1',
-        dependencies: [{ id: 'echo:core', version: '*' }]
+        dependencies: [{ id: 'echo:core', kind: 'module', version: '*' }]
       })
       const releaseManifest = JSON.parse(await fs.readFile(result.releaseManifestPath ?? '', 'utf8'))
       expect(releaseManifest).toMatchObject({
@@ -67,7 +67,7 @@ describe('packageAddon', () => {
         version: '1.0.0',
         channel: 'alpha',
         publisher: 'teamnova',
-        dependencies: [{ id: 'echo:core', version: '*' }],
+        dependencies: [{ id: 'echo:core', kind: 'module', version: '*' }],
         compatibility: ['ashfall-native-edition', 'ashfall-neoforge-edition', 'ashfall-standalone-edition']
       })
       expect(releaseManifest.assets.map((asset: { name: string }) => asset.name).sort()).toEqual(assetNames)
