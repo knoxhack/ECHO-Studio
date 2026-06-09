@@ -63,7 +63,7 @@ describe('packageAddon', () => {
       })
       const releaseManifest = JSON.parse(await fs.readFile(result.releaseManifestPath ?? '', 'utf8'))
       expect(releaseManifest).toMatchObject({
-        schemaVersion: 1,
+        schemaVersion: 'echo.release.index.entry.v1',
         id: 'weather_pack',
         kind: 'addon',
         version: '1.0.0',

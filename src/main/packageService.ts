@@ -135,7 +135,7 @@ function buildReleaseManifest(
     ])
   )
   return {
-    schemaVersion: 1,
+    schemaVersion: 'echo.release.index.entry.v1',
     id: packageManifest.id,
     kind: 'addon',
     version: manifest.version,
