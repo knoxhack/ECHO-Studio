@@ -3,6 +3,7 @@ import { join } from 'path'
 import https from 'https'
 import { autoUpdater } from 'electron-updater'
 import { registerIpc } from './ipc'
+import { selectIndexedProductUpdate, type IndexedProductUpdate, type ReleaseIndexProductEntry } from '../shared/productUpdateIndex'
 
 const UPDATE_FEED_OWNER_PUBLIC = 'knoxhack'
 const UPDATE_FEED_REPO_PUBLIC = 'ECHO-Addons-Studio'
@@ -12,15 +13,6 @@ const RELEASE_INDEX_CHANNEL_URL =
   'https://raw.githubusercontent.com/knoxhack/ECHO-Release-Index/main/channels/alpha/launcher-channel.json'
 const RELEASE_INDEX_PRODUCT_ID = 'echo-addons-studio'
 
-type ReleaseIndexProductEntry = {
-  id?: string
-  kind?: string
-  version?: string
-  sourceRepo?: string
-  compatibility?: string[]
-  validation?: string
-  artifacts?: unknown
-}
 type ReleaseIndexChannel = { catalogUrls?: string[] | Record<string, string[]> }
 
 function resolveUpdateStream(): 'public' | 'internal' {
@@ -74,18 +66,7 @@ function readHttpsJson<T>(url: string): Promise<T> {
   })
 }
 
-function hasUpdaterArtifact(entry: ReleaseIndexProductEntry): boolean {
-  const visit = (node: unknown): boolean => {
-    if (Array.isArray(node)) return node.some(visit)
-    if (!node || typeof node !== 'object') return false
-    const row = node as Record<string, unknown>
-    if ((row.url || row.downloadUrl) && (row.sha256 || row.sha512) && (row.file || row.name || row.filename)) return true
-    return Object.values(row).some(visit)
-  }
-  return visit(entry.artifacts)
-}
-
-async function resolveReleaseIndexProductFeed(): Promise<{ feed: { owner: string; repo: string }; entry: ReleaseIndexProductEntry } | null> {
+async function resolveReleaseIndexProductFeed(): Promise<IndexedProductUpdate | null> {
   const channel = await readHttpsJson<ReleaseIndexChannel>(RELEASE_INDEX_CHANNEL_URL)
   const catalogUrls = Array.isArray(channel.catalogUrls)
     ? channel.catalogUrls
@@ -93,14 +74,9 @@ async function resolveReleaseIndexProductFeed(): Promise<{ feed: { owner: string
   for (const catalogUrl of catalogUrls) {
     const entry = await readHttpsJson<ReleaseIndexProductEntry>(catalogUrl)
     if (entry.id !== RELEASE_INDEX_PRODUCT_ID) continue
-    if (entry.validation !== 'approved') throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} is ${entry.validation ?? 'missing validation'}.`)
-    if (!hasUpdaterArtifact(entry)) throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} has no updater artifact.`)
-    const sourceRepo = String(entry.sourceRepo ?? '')
-    const match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(sourceRepo)
-    if (!match) throw new Error(`Release Index product ${RELEASE_INDEX_PRODUCT_ID} has invalid sourceRepo.`)
-    const feed = { owner: match[1], repo: match[2] }
-    assertUpdateFeedConfig(resolveUpdateStream(), feed)
-    return { feed, entry }
+    const update = selectIndexedProductUpdate(entry, RELEASE_INDEX_PRODUCT_ID)
+    assertUpdateFeedConfig(resolveUpdateStream(), update.feed)
+    return update
   }
   return null
 }
@@ -204,6 +180,22 @@ async function setupAutoUpdater(mainWindow: BrowserWindow): Promise<void> {
         productId: RELEASE_INDEX_PRODUCT_ID,
         version: canonical.entry.version,
         sourceRepo: canonical.entry.sourceRepo,
+        artifacts: {
+          latestYml: {
+            name: canonical.artifacts.latestYml.name,
+            sha256: canonical.artifacts.latestYml.sha256
+          },
+          installer: {
+            name: canonical.artifacts.installer.name,
+            sha256: canonical.artifacts.installer.sha256
+          },
+          blockmap: canonical.artifacts.blockmap
+            ? {
+                name: canonical.artifacts.blockmap.name,
+                sha256: canonical.artifacts.blockmap.sha256
+              }
+            : undefined
+        },
       })
     } else {
       mainWindow.webContents.send('update-status', {
