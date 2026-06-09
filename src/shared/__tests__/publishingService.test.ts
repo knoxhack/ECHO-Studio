@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { createHash } from 'crypto'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +17,10 @@ async function jsonResponse(body: unknown, status = 200): Promise<Response> {
     status,
     headers: { 'Content-Type': 'application/json' }
   })
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
 }
 
 describe('GitHub App broker publishing', () => {
@@ -87,7 +92,7 @@ describe('GitHub App broker publishing', () => {
           tag_name: 'v0.1.0',
           name: 'myaddon v0.1.0',
           draft: true,
-          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: 'a'.repeat(64) }]
+          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: sha256('artifact-bytes') }]
         })
       )
 
@@ -168,6 +173,26 @@ describe('GitHub App broker publishing', () => {
       )
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/valid SHA-256/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release draft assets whose bytes do not match declared SHA-256 hashes', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
+      const draftPath = join(root, 'github-release-draft.json')
+      await fs.writeFile(assetPath, 'artifact-bytes')
+      await fs.writeFile(
+        draftPath,
+        JSON.stringify({
+          tag_name: 'v0.1.0',
+          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: sha256('different-bytes') }]
+        })
+      )
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/SHA-256 mismatch/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

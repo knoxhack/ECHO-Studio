@@ -1,4 +1,5 @@
 import { execFile } from 'child_process'
+import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import { basename, dirname, resolve, sep } from 'path'
 import { promisify } from 'util'
@@ -84,6 +85,19 @@ function normalizeDraftAsset(asset: DraftAsset, draftDir: string): DraftAsset {
     throw new Error(`Release draft asset ${name} must include a valid SHA-256 hash.`)
   }
   return { ...asset, path: assetPath, name }
+}
+
+function sha256Buffer(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
+async function readVerifiedDraftAsset(asset: DraftAsset): Promise<Buffer> {
+  const buffer = await fs.readFile(asset.path)
+  const actual = sha256Buffer(buffer)
+  if (actual.toLowerCase() !== asset.sha256?.toLowerCase()) {
+    throw new Error(`Release draft asset ${asset.name} SHA-256 mismatch.`)
+  }
+  return buffer
 }
 
 async function runGh(args: string[]) {
@@ -282,17 +296,21 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
   if (!assets.length) throw new Error('Release draft has no assets.')
   for (const asset of assets) {
     await fs.access(asset.path)
+    await readVerifiedDraftAsset(asset)
   }
 
   const status = await getGitHubPublishingStatus()
   if (status.githubAppSessionReady) {
     const brokerAssets = await Promise.all(
-      assets.map(async (asset) => ({
-        name: asset.name || asset.path.replace(/^.*[\\/]/, ''),
-        path: asset.path,
-        sha256: asset.sha256,
-        contentBase64: (await fs.readFile(asset.path)).toString('base64'),
-      }))
+      assets.map(async (asset) => {
+        const buffer = await readVerifiedDraftAsset(asset)
+        return {
+          name: asset.name || asset.path.replace(/^.*[\\/]/, ''),
+          path: asset.path,
+          sha256: asset.sha256,
+          contentBase64: buffer.toString('base64'),
+        }
+      })
     )
     const response = await brokerRequest<BrokerDraftResponse>('v1/github/releases/drafts', {
       owner,
