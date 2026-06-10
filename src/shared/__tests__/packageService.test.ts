@@ -53,6 +53,12 @@ describe('packageAddon', () => {
       await fs.writeFile(path.join(project, 'build', 'libs', 'stale.jar'), 'stale build output', 'utf8')
       await fs.mkdir(path.join(project, 'release'), { recursive: true })
       await fs.writeFile(path.join(project, 'release', 'scratch.txt'), 'release scratch', 'utf8')
+      await fs.mkdir(path.join(project, 'src', 'generated', 'resources', 'META-INF'), { recursive: true })
+      await fs.writeFile(
+        path.join(project, 'src', 'generated', 'resources', 'META-INF', 'echo.modules.lock.json'),
+        JSON.stringify({ schemaVersion: 'echo.studio.modules.lock.v1', modules: [{ id: 'echocore' }] }, null, 2),
+        'utf8'
+      )
 
       const { packageAddon } = await import('../../main/packageService')
       const result = await packageAddon(project)
@@ -69,6 +75,8 @@ describe('packageAddon', () => {
         expect(entries.some((entry) => entry.startsWith('exports/'))).toBe(false)
       }
       expect(addonEntries).toContain('assets/icon.png')
+      expect(addonEntries).toContain('src/generated/resources/META-INF/echo.modules.lock.json')
+      expect(sourceEntries).toContain('src/generated/resources/META-INF/echo.modules.lock.json')
 
       expect(result.sdkValidation).toEqual({ ok: true, issues: [] })
       expect(assetNames).toEqual([

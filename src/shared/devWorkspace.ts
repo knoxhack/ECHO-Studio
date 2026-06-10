@@ -24,6 +24,49 @@ export interface DevArtifact {
   modifiedAt: number
 }
 
+export interface DevModuleLockModule {
+  id: string
+  aliases: string[]
+  name: string
+  version?: string
+  role: string
+  kind: string
+  status: string
+  channel: string
+  publicApi: string
+  requires: string[]
+  optional: string[]
+  runtimes: string[]
+  standaloneReady: boolean
+  launcherVisible: boolean
+  source?: string
+  moduleDir?: string
+  descriptorPath?: string
+}
+
+export interface DevModuleLock {
+  schemaVersion: 'echo.studio.modules.lock.v1'
+  generatedBy: string
+  generatedAt: string
+  project: {
+    id: string
+    version: string
+  }
+  catalog: {
+    source: 'builtin' | 'local-index'
+    indexPath?: string
+    moduleRoot?: string
+    generatedAt?: string
+    warnings: string[]
+  }
+  declared: string[]
+  normalizedDeclared: string[]
+  moduleCount: number
+  modules: DevModuleLockModule[]
+  missingRequired: string[]
+  unknown: string[]
+}
+
 export interface DevWorkspaceState {
   ready: boolean
   mode: DevWorkspaceMode

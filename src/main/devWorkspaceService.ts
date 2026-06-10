@@ -2,8 +2,8 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
-import { resolveProjectModulePlan } from '../shared/moduleCatalog'
+import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord } from '../shared/moduleCatalog'
 import type { AddonManifest, Runtime } from '../shared/types'
 import { packageAddon } from './packageService'
 import { readManifest } from './fsService'
@@ -36,6 +36,12 @@ async function writeIfAllowed(path: string, content: string, force: boolean, wri
     skipped.push(path)
     return
   }
+  await fs.writeFile(path, content, 'utf8')
+  written.push(path)
+}
+
+async function writeGenerated(path: string, content: string, written: string[]): Promise<void> {
+  await fs.mkdir(dirname(path), { recursive: true })
   await fs.writeFile(path, content, 'utf8')
   written.push(path)
 }
@@ -122,6 +128,54 @@ async function collectArtifacts(projectPath: string): Promise<DevArtifact[]> {
 
 function runtimeTargets(manifest: AddonManifest, options?: DevWorkspaceOptions): Runtime[] {
   return options?.runtimes?.length ? options.runtimes : manifest.runtime.supports
+}
+
+function lockModule(mod: EchoModuleRecord): DevModuleLock['modules'][number] {
+  return {
+    id: mod.id,
+    aliases: mod.aliases,
+    name: mod.name,
+    role: mod.role,
+    kind: mod.kind,
+    status: mod.status,
+    channel: mod.channel,
+    publicApi: mod.publicApi,
+    requires: mod.requires,
+    optional: mod.optional,
+    runtimes: mod.runtimes,
+    standaloneReady: mod.standaloneReady,
+    launcherVisible: mod.launcherVisible,
+    ...(mod.version ? { version: mod.version } : {}),
+    ...(mod.source ? { source: mod.source } : {}),
+    ...(mod.moduleDir ? { moduleDir: mod.moduleDir } : {}),
+    ...(mod.descriptorPath ? { descriptorPath: mod.descriptorPath } : {})
+  }
+}
+
+function buildModuleLock(manifest: AddonManifest, catalogResult: EchoModuleCatalogResult): DevModuleLock {
+  const plan = resolveProjectModulePlan(manifest, catalogResult.catalog)
+  return {
+    schemaVersion: 'echo.studio.modules.lock.v1',
+    generatedBy: STUDIO_MARKER,
+    generatedAt: new Date().toISOString(),
+    project: {
+      id: manifest.id,
+      version: manifest.version
+    },
+    catalog: {
+      source: catalogResult.source,
+      warnings: catalogResult.warnings,
+      ...(catalogResult.indexPath ? { indexPath: catalogResult.indexPath } : {}),
+      ...(catalogResult.moduleRoot ? { moduleRoot: catalogResult.moduleRoot } : {}),
+      ...(catalogResult.generatedAt ? { generatedAt: catalogResult.generatedAt } : {})
+    },
+    declared: plan.declared,
+    normalizedDeclared: plan.normalizedDeclared,
+    moduleCount: plan.closure.length,
+    modules: plan.closure.map(lockModule),
+    missingRequired: plan.missingRequired.map((mod) => mod.id),
+    unknown: plan.unknown
+  }
 }
 
 function gradleProperties(manifest: AddonManifest, runtimes: Runtime[]): string {
@@ -430,7 +484,7 @@ Version: ${manifest.version}
 }
 
 function expectedModes(rel: string): DevWorkspaceMode[] {
-  if (rel === 'echo.mod.json' || rel === '.echo-studio/dev-workspace.json') return ['visual', 'gradle', 'full']
+  if (rel === 'echo.mod.json' || rel === '.echo-studio/dev-workspace.json' || rel === '.echo-studio/modules.lock.json') return ['visual', 'gradle', 'full']
   if (
     [
       'settings.gradle',
@@ -438,7 +492,8 @@ function expectedModes(rel: string): DevWorkspaceMode[] {
       'gradle.properties',
       'gradlew.bat',
       'gradlew',
-      'src/main/resources/META-INF/echo.mod.json'
+      'src/main/resources/META-INF/echo.mod.json',
+      'src/generated/resources/META-INF/echo.modules.lock.json'
     ].includes(rel) ||
     rel.startsWith('src/main/java/') ||
     rel.startsWith('src/test/java/') ||
@@ -480,6 +535,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const files = await Promise.all([
     fileStatus(projectPath, 'echo.mod.json', mode),
     fileStatus(projectPath, '.echo-studio/dev-workspace.json', mode),
+    fileStatus(projectPath, '.echo-studio/modules.lock.json', mode),
     fileStatus(projectPath, 'META-INF/echo-addon-package.json', mode),
     fileStatus(projectPath, 'settings.gradle', mode),
     fileStatus(projectPath, 'build.gradle', mode),
@@ -487,6 +543,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     fileStatus(projectPath, 'gradlew.bat', mode),
     fileStatus(projectPath, 'gradlew', mode),
     fileStatus(projectPath, 'src/main/resources/META-INF/echo.mod.json', mode),
+    fileStatus(projectPath, 'src/generated/resources/META-INF/echo.modules.lock.json', mode),
     fileStatus(projectPath, javaPath, mode),
     fileStatus(projectPath, testPath, mode),
     fileStatus(projectPath, 'scripts/run-dev-client.ps1', mode),
@@ -517,11 +574,15 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
   const runtimes = runtimeTargets(manifest, options)
+  const moduleCatalog = await listEchoModules(projectPath)
+  const moduleLock = buildModuleLock(manifest, moduleCatalog)
+  const moduleLockJson = `${JSON.stringify(moduleLock, null, 2)}\n`
   const written: string[] = []
   const skipped: string[] = []
   const force = Boolean(options.force)
 
   await fs.mkdir(join(projectPath, '.echo-studio'), { recursive: true })
+  await writeGenerated(join(projectPath, '.echo-studio', 'modules.lock.json'), moduleLockJson, written)
 
   if (options.mode === 'gradle' || options.mode === 'full') {
     await writeIfAllowed(join(projectPath, 'settings.gradle'), settingsGradle(manifest), force, written, skipped)
@@ -530,6 +591,7 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
     await writeIfAllowed(join(projectPath, 'gradlew.bat'), gradlewBat(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'gradlew'), gradlewSh(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'src', 'main', 'resources', 'META-INF', 'echo.mod.json'), JSON.stringify(manifest, null, 2), force, written, skipped)
+    await writeGenerated(join(projectPath, 'src', 'generated', 'resources', 'META-INF', 'echo.modules.lock.json'), moduleLockJson, written)
     await writeIfAllowed(join(projectPath, 'src', 'main', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}.java`), javaSource(manifest), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'src', 'test', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}Test.java`), testSource(manifest), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'scripts', 'run-dev-client.ps1'), runScript('run-dev-client', manifest), force, written, skipped)
