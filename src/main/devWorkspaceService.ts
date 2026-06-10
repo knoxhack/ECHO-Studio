@@ -16,6 +16,7 @@ const GRADLE_VERSION = '9.1.0'
 const GRADLE_DISTRIBUTION_URL = `https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip`
 const MODULE_READY_TASK_SET = new Set<DevTaskId>(MODULE_READY_TASKS)
 const PREVIEW_RUNTIME_TASK_SET = new Set<DevTaskId>(PREVIEW_RUNTIME_TASKS)
+const GRADLE_BUILD_FILES = ['settings.gradle', 'settings.gradle.kts', 'build.gradle', 'build.gradle.kts'] as const
 
 interface RunningDevProcess {
   child: ChildProcess
@@ -324,6 +325,7 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
   const plan = resolveProjectModulePlan(manifest, catalogResult.catalog)
   const modules = plan.closure.map((mod) => {
     const localSource = Boolean(mod.moduleDir || mod.descriptorPath)
+    const gradleBuildPath = findModuleGradleBuildPath(mod.moduleDir)
     return {
       id: mod.id,
       name: mod.name,
@@ -336,6 +338,8 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
       requires: mod.requires,
       optional: mod.optional,
       localSource,
+      gradleBuild: Boolean(gradleBuildPath),
+      ...(gradleBuildPath ? { gradleBuildPath } : {}),
       ...(mod.version ? { version: mod.version } : {}),
       ...(mod.source ? { source: mod.source } : {}),
       ...(mod.moduleDir ? { moduleDir: mod.moduleDir } : {}),
@@ -356,10 +360,16 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
     normalizedDeclared: plan.normalizedDeclared,
     moduleCount: modules.length,
     localModuleCount: modules.filter((mod) => mod.localSource).length,
+    gradleBuildCount: modules.filter((mod) => mod.gradleBuild).length,
     modules,
     missingRequired: plan.missingRequired.map((mod) => mod.id),
     unknown: plan.unknown
   }
+}
+
+function findModuleGradleBuildPath(moduleDir: string | undefined): string | undefined {
+  if (!moduleDir) return undefined
+  return GRADLE_BUILD_FILES.map((name) => join(moduleDir, name)).find((candidate) => existsSync(candidate))
 }
 
 function sortedUnique(values: string[]): string[] {
@@ -453,6 +463,7 @@ async function moduleWorkspaceStatus(
     projectMatches,
     moduleCount: workspace?.moduleCount ?? 0,
     localModuleCount: workspace?.localModuleCount ?? 0,
+    gradleBuildCount: workspace?.gradleBuildCount ?? workspace?.modules.filter((mod) => mod.gradleBuild).length ?? 0,
     expectedModuleIds,
     mappedModuleIds,
     missingFromMap: diff.missing,

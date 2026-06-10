@@ -368,6 +368,9 @@ export default function DevWorkspace(): JSX.Element {
                 <span className={`badge ${state.moduleWorkspace.localModuleCount > 0 ? 'ready' : 'local'}`}>
                   {state.moduleWorkspace.localModuleCount}/{state.moduleWorkspace.moduleCount} local sources
                 </span>
+                <span className={`badge ${(state.moduleWorkspace.gradleBuildCount ?? 0) > 0 ? 'ready' : 'local'}`}>
+                  {state.moduleWorkspace.gradleBuildCount ?? 0} Gradle builds
+                </span>
                 {state.moduleLock.generatedAt && (
                   <span className="dim" style={{ fontSize: 11 }}>
                     generated {new Date(state.moduleLock.generatedAt).toLocaleString()}

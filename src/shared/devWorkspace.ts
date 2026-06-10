@@ -87,6 +87,8 @@ export interface DevModuleWorkspaceModule {
   requires: string[]
   optional: string[]
   localSource: boolean
+  gradleBuild?: boolean
+  gradleBuildPath?: string
   source?: string
   moduleDir?: string
   descriptorPath?: string
@@ -105,6 +107,7 @@ export interface DevModuleWorkspaceMap {
   normalizedDeclared: string[]
   moduleCount: number
   localModuleCount: number
+  gradleBuildCount?: number
   modules: DevModuleWorkspaceModule[]
   missingRequired: string[]
   unknown: string[]
@@ -150,6 +153,7 @@ export interface DevModuleWorkspaceStatus {
   projectMatches: boolean
   moduleCount: number
   localModuleCount: number
+  gradleBuildCount?: number
   expectedModuleIds: string[]
   mappedModuleIds: string[]
   missingFromMap: string[]

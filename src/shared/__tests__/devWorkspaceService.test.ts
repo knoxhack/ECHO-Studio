@@ -278,12 +278,16 @@ describe('setupDevWorkspace', () => {
           exists: true,
           upToDate: true,
           moduleCount: 1,
-          localModuleCount: 1
+          localModuleCount: 1,
+          gradleBuildCount: 1
         })
         expect(moduleWorkspace.localModuleCount).toBe(1)
+        expect(moduleWorkspace.gradleBuildCount).toBe(1)
         expect(moduleWorkspace.modules[0]).toMatchObject({
           id: 'echocore',
           localSource: true,
+          gradleBuild: true,
+          gradleBuildPath: path.join(modulesRoot, 'addons', 'echocore', 'build.gradle'),
           moduleDir: path.join(modulesRoot, 'addons', 'echocore'),
           descriptorPath
         })
