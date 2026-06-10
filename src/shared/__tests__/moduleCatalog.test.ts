@@ -61,6 +61,22 @@ describe('module catalog', () => {
     expect(findEchoModule('echoweathercore', catalog)?.provides).toContain('weather.events')
   })
 
+  it('preserves trust and blocked metadata from local ECHO-Modules index entries', () => {
+    const imported = moduleFromIndexEntry({
+      id: 'echounsafe',
+      name: 'ECHO: Unsafe',
+      channel: 'beta',
+      trustLevel: 'blocked',
+      blocked: true,
+      blockReason: 'Security review failed.',
+      requires: ['echocore']
+    })
+
+    expect(imported.trustLevel).toBe('blocked')
+    expect(imported.blocked).toBe(true)
+    expect(imported.blockReason).toBe('Security review failed.')
+  })
+
   it('resolves project module plans against an imported catalog', () => {
     const imported = moduleFromIndexEntry({
       id: 'echoweathercore',

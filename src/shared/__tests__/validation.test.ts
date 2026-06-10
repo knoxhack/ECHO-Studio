@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runPackOSCheck, autoFixManifest } from '../validation'
+import { ECHO_MODULE_CATALOG, type EchoModuleRecord } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
 
 function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
@@ -69,6 +70,40 @@ describe('runPackOSCheck', () => {
     const report = runPackOSCheck(manifest)
     expect(report.counts.WARNING).toBeGreaterThanOrEqual(1)
     expect(report.issues.some((i) => i.message.includes('semantic versioning'))).toBe(true)
+  })
+
+  it('blocks releases that depend on a blocked ECHO module', () => {
+    const blockedModule: EchoModuleRecord = {
+      id: 'echounsafe',
+      aliases: ['echo:unsafe'],
+      name: 'Unsafe',
+      role: 'test',
+      kind: 'library',
+      status: 'experimental',
+      channel: 'alpha',
+      standaloneReady: false,
+      launcherVisible: false,
+      ashfallRequired: false,
+      publicApi: 'experimental',
+      trustLevel: 'blocked',
+      blocked: true,
+      blockReason: 'Security review failed.',
+      requires: ['echocore'],
+      optional: [],
+      provides: [],
+      runtimes: ['neoforge'],
+      creatorUse: 'Blocked test module.'
+    }
+    const manifest = makeManifest({
+      dependencies: { required: ['echo:core', 'echo:unsafe'], optional: [] },
+      target: { experiences: ['ashfall'], modules: ['echo:unsafe'] }
+    })
+    const report = runPackOSCheck(manifest, [...ECHO_MODULE_CATALOG, blockedModule])
+
+    expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
+    expect(report.publishingReady).toBe(false)
+    expect(report.issues.some((issue) => issue.message.includes('Unsafe is blocked'))).toBe(true)
+    expect(report.issues.find((issue) => issue.message.includes('Unsafe is blocked'))?.fix).toBe('Security review failed.')
   })
 })
 

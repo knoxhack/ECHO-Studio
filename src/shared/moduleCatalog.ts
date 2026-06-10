@@ -2,6 +2,7 @@ import type { AddonManifest } from './types'
 
 export type EchoModuleStatus = 'stable' | 'beta' | 'experimental' | 'internal' | 'deprecated'
 export type EchoModuleKind = 'foundation' | 'library' | 'addon' | 'ui_pack' | 'developer_tool' | 'story' | 'world' | 'tech'
+export type EchoModuleTrustLevel = 'official' | 'trusted' | 'sandboxed' | 'community' | 'unknown' | 'blocked'
 
 export interface EchoModuleRecord {
   id: string
@@ -16,6 +17,9 @@ export interface EchoModuleRecord {
   launcherVisible: boolean
   ashfallRequired: boolean
   publicApi: 'stable' | 'beta' | 'experimental' | 'internal' | 'deprecated'
+  trustLevel?: EchoModuleTrustLevel
+  blocked?: boolean
+  blockReason?: string
   requires: string[]
   optional: string[]
   provides: string[]
@@ -37,6 +41,8 @@ export interface EchoModulesIndexEntry {
   channel?: string
   official?: boolean
   trustLevel?: string
+  blocked?: boolean
+  blockReason?: string
   side?: string
   standalone?: boolean
   launcherVisible?: boolean
@@ -528,6 +534,19 @@ function inferPublicApi(entry: EchoModulesIndexEntry): EchoModuleRecord['publicA
   return inferStatus(entry)
 }
 
+function inferTrustLevel(entry: EchoModulesIndexEntry): EchoModuleTrustLevel {
+  const value = (entry.trustLevel ?? '').toLowerCase()
+  if (value === 'official' || value === 'trusted' || value === 'sandboxed' || value === 'community' || value === 'blocked') return value
+  return entry.official ? 'official' : value ? 'unknown' : 'community'
+}
+
+function inferBlocked(entry: EchoModulesIndexEntry): boolean {
+  return Boolean(entry.blocked) ||
+    (entry.trustLevel ?? '').toLowerCase() === 'blocked' ||
+    (entry.channel ?? '').toLowerCase() === 'blocked' ||
+    (entry.apiStability ?? '').toLowerCase() === 'blocked'
+}
+
 function inferRuntimes(entry: EchoModulesIndexEntry): EchoModuleRecord['runtimes'] {
   const out: EchoModuleRecord['runtimes'] = ['neoforge', 'echo_native']
   if (entry.standalone) out.push('standalone')
@@ -564,6 +583,9 @@ export function moduleFromIndexEntry(entry: EchoModulesIndexEntry, context?: { c
     launcherVisible: entry.launcherVisible ?? inferStatus(entry) !== 'internal',
     ashfallRequired: Boolean(entry.ashfallRequired),
     publicApi: inferPublicApi(entry),
+    trustLevel: inferTrustLevel(entry),
+    blocked: inferBlocked(entry),
+    ...(entry.blockReason ? { blockReason: entry.blockReason } : {}),
     requires: (entry.requires ?? []).map((dep) => normalizeModuleId(dep)),
     optional: (entry.optional ?? []).map((dep) => normalizeModuleId(dep)),
     provides: entry.provides ?? [],

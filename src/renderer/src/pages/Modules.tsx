@@ -204,6 +204,12 @@ export default function Modules(): JSX.Element {
     return 'var(--text-faint)'
   }
 
+  const trustBadgeClass = (mod: EchoModuleRecord): string => {
+    if (mod.blocked || mod.trustLevel === 'blocked') return 'fixes'
+    if (mod.trustLevel === 'official' || mod.trustLevel === 'trusted') return 'ready'
+    return 'local'
+  }
+
   const workspaceCurrent = Boolean(devWorkspace?.lastSetupAt && devWorkspace.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate)
   const workspaceLabel = !devWorkspace?.lastSetupAt ? 'Not Set Up' : workspaceCurrent ? 'Current' : 'Stale'
 
@@ -376,6 +382,8 @@ export default function Modules(): JSX.Element {
                 <div className="btn-row" style={{ marginTop: 10 }}>
                   <span className="badge" style={{ color: statusColor(mod.status) }}>{mod.status}</span>
                   <span className="badge">{mod.role}</span>
+                  {mod.trustLevel && <span className={`badge ${trustBadgeClass(mod)}`}>{mod.trustLevel}</span>}
+                  {(mod.blocked || mod.trustLevel === 'blocked') && <span className="badge fixes">Blocked</span>}
                   {mod.standaloneReady && <span className="badge ready">Standalone</span>}
                 </div>
               </button>
@@ -390,6 +398,7 @@ export default function Modules(): JSX.Element {
             <div>ID: <span className="mono">{selected.id}</span></div>
             {selected.version && <div>Version: {selected.version}</div>}
             <div>Status: <b style={{ color: statusColor(selected.status) }}>{selected.status}</b></div>
+            <div>Trust: <b>{selected.trustLevel ?? 'community'}</b></div>
             <div>Channel: {selected.channel}</div>
             <div>API: {selected.publicApi}</div>
             <div>Role: {selected.role}</div>
@@ -399,6 +408,19 @@ export default function Modules(): JSX.Element {
           </div>
 
           <div className="section-title">Provides</div>
+          {(selected.blocked || selected.trustLevel === 'blocked') && (
+            <div className="issue BLOCKER" style={{ marginBottom: 10 }}>
+              <span className="lvl">BLOCKER</span>
+              This module is blocked for public releases.
+              {selected.blockReason && <div className="fix">{selected.blockReason}</div>}
+            </div>
+          )}
+          {selected.trustLevel === 'sandboxed' && (
+            <div className="issue WARNING" style={{ marginBottom: 10 }}>
+              <span className="lvl">WARNING</span>
+              Sandboxed module. Public publishing may require additional review.
+            </div>
+          )}
           <div className="btn-row">
             {selected.provides.map((item) => <span className="badge" key={item}>{item}</span>)}
           </div>

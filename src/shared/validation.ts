@@ -124,8 +124,16 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
       aiFixable: true
     })
   }
-  for (const mod of modulePlan.enabled) {
-    if (mod.status === 'deprecated') {
+  const riskyClosure = Array.from(new Map(modulePlan.closure.map((mod) => [mod.id, mod])).values())
+  for (const mod of riskyClosure) {
+    if (mod.blocked || mod.trustLevel === 'blocked') {
+      issues.push({
+        level: 'BLOCKER',
+        category: 'ECHO Modules',
+        message: `${mod.name} is blocked and cannot be used for public releases.`,
+        fix: mod.blockReason || 'Remove the blocked module or choose a supported replacement.'
+      })
+    } else if (mod.status === 'deprecated') {
       issues.push({
         level: 'ERROR',
         category: 'ECHO Modules',
@@ -138,6 +146,13 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
         category: 'ECHO Modules',
         message: `${mod.name} is marked internal and may not be accepted for public release.`,
         fix: 'Use public stable/beta modules for catalog-ready projects.'
+      })
+    } else if (mod.trustLevel === 'sandboxed') {
+      issues.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: `${mod.name} is sandboxed and may require additional review before publishing.`,
+        fix: 'Keep sandboxed modules for local/dev use or confirm release eligibility before submitting.'
       })
     }
   }

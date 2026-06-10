@@ -38,6 +38,9 @@ export interface DevModuleLockModule {
   status: string
   channel: string
   publicApi: string
+  trustLevel?: string
+  blocked?: boolean
+  blockReason?: string
   requires: string[]
   optional: string[]
   runtimes: string[]
@@ -77,6 +80,9 @@ export interface DevModuleWorkspaceModule {
   version?: string
   role: string
   publicApi: string
+  trustLevel?: string
+  blocked?: boolean
+  blockReason?: string
   runtimes: string[]
   requires: string[]
   optional: string[]
