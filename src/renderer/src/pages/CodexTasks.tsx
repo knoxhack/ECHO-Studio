@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
-import type { CodexTask, CodexTaskLane } from '@shared/codexTasks'
+import type { CodexTask, CodexTaskActionResult, CodexTaskLane } from '@shared/codexTasks'
 
 const LANES: Array<{ id: CodexTaskLane; label: string }> = [
   { id: 'suggested', label: 'Suggested' },
@@ -19,6 +19,7 @@ export default function CodexTasks(): JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  const [lastAction, setLastAction] = useState<CodexTaskActionResult | null>(null)
 
   const load = useCallback(async () => {
     if (!activeProject) {
@@ -62,6 +63,7 @@ export default function CodexTasks(): JSX.Element {
     const result = await window.studio.applyCodexTask(activeProject.path, task.id)
     setBusy(false)
     if (result.ok && result.data) {
+      setLastAction(result.data)
       toast(result.data.message)
       setStatus(`${result.data.message} ${result.data.filesChanged.length} file(s) changed.`)
       refresh()
@@ -76,6 +78,7 @@ export default function CodexTasks(): JSX.Element {
     const result = await window.studio.rejectCodexTask(activeProject.path, task.id, rejected)
     setBusy(false)
     if (result.ok && result.data) {
+      setLastAction(null)
       setTasks(result.data)
       setSelectedId(task.id)
       setStatus(rejected ? `${task.title} rejected.` : `${task.title} restored.`)
@@ -113,6 +116,10 @@ export default function CodexTasks(): JSX.Element {
           <span className="lvl">INFO</span>
           {status}
         </div>
+      )}
+
+      {lastAction && (
+        <ActionResult result={lastAction} />
       )}
 
       <div className="split" style={{ gridTemplateColumns: 'minmax(340px, 0.95fr) minmax(420px, 1.35fr)', alignItems: 'start' }}>
@@ -200,6 +207,117 @@ export default function CodexTasks(): JSX.Element {
         </div>
       </div>
     </Page>
+  )
+}
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path
+}
+
+function parentPath(path: string): string {
+  return path.replace(/[\\/][^\\/]+$/, '')
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function ActionResult({ result }: { result: CodexTaskActionResult }): JSX.Element {
+  const packageResult = result.packageResult
+  const devSetup = result.devSetup
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, flex: 1 }}>Last Applied Task</h3>
+        <span className="badge ready">{result.taskId}</span>
+      </div>
+      <p className="dim" style={{ fontSize: 13 }}>
+        {result.message}
+      </p>
+
+      {devSetup && (
+        <div className="grid cols-2" style={{ marginTop: 10 }}>
+          <div>
+            <div className="section-title" style={{ marginTop: 0 }}>Written</div>
+            {devSetup.written.length ? (
+              devSetup.written.slice(0, 8).map((file) => (
+                <div className="list-row" key={file} style={{ padding: '7px 10px' }}>
+                  <span className="badge ready">write</span>
+                  <span className="mono" style={{ flex: 1 }}>{file}</span>
+                </div>
+              ))
+            ) : (
+              <p className="dim" style={{ fontSize: 12 }}>No files were written.</p>
+            )}
+          </div>
+          <div>
+            <div className="section-title" style={{ marginTop: 0 }}>Skipped</div>
+            {devSetup.skipped.length ? (
+              devSetup.skipped.slice(0, 8).map((file) => (
+                <div className="list-row" key={file} style={{ padding: '7px 10px' }}>
+                  <span className="badge local">skip</span>
+                  <span className="mono" style={{ flex: 1 }}>{file}</span>
+                </div>
+              ))
+            ) : (
+              <p className="dim" style={{ fontSize: 12 }}>No existing files were skipped.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {packageResult && (
+        <>
+          <div className="grid cols-4" style={{ marginTop: 12 }}>
+            <Metric label="Package" value={formatBytes(packageResult.bytes)} tone="var(--good)" />
+            <Metric label="Assets" value={String(packageResult.assetPaths.length)} tone={packageResult.assetPaths.length ? 'var(--good)' : 'var(--warn)'} />
+            <Metric label="PackOS" value={`${packageResult.report.compatibilityScore}%`} tone={packageResult.report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
+            <Metric label="SDK" value={packageResult.sdkValidation.ok ? 'Ready' : 'Issues'} tone={packageResult.sdkValidation.ok ? 'var(--good)' : 'var(--bad)'} />
+          </div>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn ghost" onClick={() => window.studio.openPath(parentPath(packageResult.zipPath))}>
+              Open Release Folder
+            </button>
+            {packageResult.releaseDraftPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(packageResult.releaseDraftPath!)}>
+                Open Draft JSON
+              </button>
+            )}
+            {packageResult.releaseManifestPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(packageResult.releaseManifestPath!)}>
+                Open echo-release.json
+              </button>
+            )}
+            {packageResult.releaseIndexHandoffPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(packageResult.releaseIndexHandoffPath!)}>
+                Open Handoff
+              </button>
+            )}
+          </div>
+          <div className="section-title">Artifacts</div>
+          {packageResult.assetPaths.map((artifact) => (
+            <div className="list-row" key={artifact} style={{ padding: '7px 10px' }}>
+              <span className="badge ready">artifact</span>
+              <span className="mono" style={{ flex: 1 }}>{fileName(artifact)}</span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {!devSetup && !packageResult && result.filesChanged.length > 0 && (
+        <>
+          <div className="section-title">Changed Files</div>
+          {result.filesChanged.map((file) => (
+            <div className="list-row" key={file} style={{ padding: '7px 10px' }}>
+              <span className="badge ready">changed</span>
+              <span className="mono" style={{ flex: 1 }}>{file}</span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
   )
 }
 
