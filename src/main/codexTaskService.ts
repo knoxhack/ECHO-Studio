@@ -11,6 +11,7 @@ import {
 } from '../shared/codexTasks'
 import { resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
+import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
 import { listAssetFiles, readManifest, writeManifest } from './fsService'
 import { readAllContent, readLangKeys } from './contentService'
@@ -27,9 +28,13 @@ interface ProjectContext {
   manifest: AddonManifest
   moduleCatalog: EchoModuleRecord[]
   report: PackOSReport
+  devWorkspace?: DevWorkspaceState
+  workspaceInitialized: boolean
   devReady: boolean
   gradleReady: boolean
   sourceReady: boolean
+  moduleLockReady: boolean
+  moduleWorkspaceReady: boolean
   artifactNames: string[]
 }
 
@@ -105,9 +110,13 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
     manifest,
     moduleCatalog: moduleCatalog.catalog,
     report,
+    devWorkspace,
+    workspaceInitialized: Boolean(devWorkspace?.lastSetupAt),
     devReady: Boolean(devWorkspace?.ready),
     gradleReady: Boolean(devWorkspace?.gradleReady),
     sourceReady: Boolean(devWorkspace?.sourceReady),
+    moduleLockReady: Boolean(devWorkspace?.moduleLock.upToDate),
+    moduleWorkspaceReady: Boolean(devWorkspace?.moduleWorkspace.upToDate),
     artifactNames: devWorkspace?.artifacts.map((artifact) => artifact.name) ?? []
   }
 }
@@ -186,18 +195,21 @@ async function packosFixTask(projectPath: string, store: CodexTaskStore, context
 function devWorkspaceTask(store: CodexTaskStore, context: ProjectContext): CodexTask | null {
   if (context.devReady) return null
   const missing = [
+    !context.workspaceInitialized ? 'workspace setup' : '',
     !context.gradleReady ? 'Gradle files' : '',
-    !context.sourceReady ? 'source scaffold' : ''
+    !context.sourceReady ? 'source scaffold' : '',
+    !context.moduleLockReady ? 'module lock' : '',
+    !context.moduleWorkspaceReady ? 'module source map' : ''
   ].filter(Boolean)
   return {
     id: 'dev:setup-workspace',
-    title: 'Set up local Gradle workspace',
+    title: context.workspaceInitialized ? 'Refresh local dev workspace' : 'Set up local Gradle workspace',
     kind: 'dev_workspace_setup',
     lane: taskLane('dev:setup-workspace', 'ready', store),
-    summary: 'Generates Gradle files, wrapper bootstraps, source folders, resources, scripts, and Studio workspace metadata without overwriting user files.',
-    reason: missing.length ? `${missing.join(' and ')} are missing.` : 'Local workspace is not marked ready.',
+    summary: 'Generates or refreshes Gradle files, wrapper bootstraps, source folders, module locks, source maps, resources, scripts, and Studio workspace metadata without overwriting user files.',
+    reason: missing.length ? `${missing.join(', ')} need attention.` : 'Local workspace is not marked ready.',
     route: '/dev-workspace',
-    affectedFiles: ['settings.gradle', 'build.gradle', 'gradle.properties', 'gradlew.bat', 'gradlew', 'src/', 'scripts/'],
+    affectedFiles: ['.echo-studio/modules.lock.json', '.echo-studio/module-workspace.json', 'settings.gradle', 'build.gradle', 'gradle.properties', 'gradlew.bat', 'gradlew', 'src/', 'scripts/'],
     fileChanges: [],
     canApply: true,
     applyLabel: 'Set up workspace',
@@ -292,9 +304,10 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
   store.applied[taskId] = new Date().toISOString()
 
   if (taskId === 'dev:setup-workspace') {
+    const currentWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
     const devSetup = await setupDevWorkspace(projectPath, {
-      mode: 'gradle',
-      runtimes: defaultRuntimes(manifest),
+      mode: currentWorkspace?.lastSetupAt ? currentWorkspace.mode : 'gradle',
+      runtimes: currentWorkspace?.runtimeTargets.length ? currentWorkspace.runtimeTargets : defaultRuntimes(manifest),
       force: false
     })
     await writeStore(projectPath, store)
