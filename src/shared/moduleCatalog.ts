@@ -661,6 +661,7 @@ function aliasForId(id: string): string[] {
   if (!id.startsWith('echo')) return []
   const raw = id.slice(4)
   if (!raw) return ['echo:core']
+  if (raw.toLowerCase() === 'core') return ['echo:core']
   const snake = raw.replace(/core$/i, '_core')
   return Array.from(new Set([`echo:${raw}`, `echo:${snake}`]))
 }

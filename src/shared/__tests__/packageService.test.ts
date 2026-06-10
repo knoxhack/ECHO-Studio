@@ -311,6 +311,55 @@ describe('packageAddon', () => {
     }
   })
 
+  it('writes package and Release Index dependencies from the local module closure', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
+    const previousModulesDir = process.env.ECHO_MODULES_DIR
+    try {
+      const modulesRoot = path.join(root, 'ECHO-Modules')
+      await fs.mkdir(path.join(modulesRoot, 'metadata', 'modules'), { recursive: true })
+      await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: '2026-06-10T00:00:00.000Z',
+        modules: [
+          {
+            id: 'echomissioncore',
+            name: 'ECHO: MissionCore',
+            channel: 'beta',
+            requires: ['echocore', 'echonetcore', 'echoweathercore']
+          },
+          {
+            id: 'echoweathercore',
+            name: 'ECHO: WeatherCore',
+            channel: 'beta',
+            requires: ['echocore'],
+            provides: ['weather.events']
+          }
+        ]
+      }, null, 2), 'utf8')
+      process.env.ECHO_MODULES_DIR = modulesRoot
+      const project = path.join(root, 'project')
+      await fs.mkdir(project, { recursive: true })
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest({
+        target: { experiences: ['ashfall'], modules: ['echo:mission_core'] },
+        dependencies: { required: ['echo:core'], optional: [] }
+      }), null, 2), 'utf8')
+
+      const { packageAddon } = await import('../../main/packageService')
+      const result = await packageAddon(project)
+      const packageManifest = JSON.parse(await fs.readFile(result.packageManifestPath ?? '', 'utf8'))
+      const releaseManifest = JSON.parse(await fs.readFile(result.releaseManifestPath ?? '', 'utf8'))
+      const packageDependencyIds = packageManifest.dependencies.map((dep: { id: string }) => dep.id)
+      const releaseDependencyIds = releaseManifest.dependencies.map((dep: { id: string }) => dep.id)
+
+      expect(packageDependencyIds).toEqual(expect.arrayContaining(['echo:mission_core', 'echo:weather_core']))
+      expect(releaseDependencyIds).toEqual(expect.arrayContaining(['echo:mission_core', 'echo:weather_core']))
+    } finally {
+      if (previousModulesDir === undefined) delete process.env.ECHO_MODULES_DIR
+      else process.env.ECHO_MODULES_DIR = previousModulesDir
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('includes dev workspace errors in package reports without pre-package artifact warnings', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
     try {

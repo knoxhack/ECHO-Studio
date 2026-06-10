@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createOptionsFromTemplate, templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
-import { buildManifest, buildProjectFiles } from '../templates'
+import { buildAddonPackageManifest, buildManifest, buildProjectFiles } from '../templates'
 import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry, resolveProjectModulePlan } from '../moduleCatalog'
 import type { CreateAddonOptions } from '../types'
 
@@ -156,6 +156,41 @@ describe('TEMPLATES', () => {
     expect(plan.requiredModules.map((mod) => mod.id)).toContain('echoweathercore')
     expect(plan.missingRequired).toEqual([])
     expect(plan.closure.map((mod) => mod.id)).toContain('echoweathercore')
+  })
+
+  it('builds package manifests from required and target module closure only', () => {
+    const opts: CreateAddonOptions = {
+      workspaceDir: '',
+      type: 'mission_pack',
+      target: 'ashfall',
+      namespace: 'teamnova',
+      addonId: 'signal_route',
+      name: 'Signal Route',
+      description: 'A test mission project.',
+      runtimes: ['neoforge'],
+      options: {
+        includeExample: true,
+        includeHoloMap: true,
+        includeIndex: true,
+        includeRewards: true,
+        includeLocalization: true,
+        includePreviewProfile: true
+      }
+    }
+    const manifest = buildManifest(opts)
+    manifest.dependencies.optional = ['echo:theme_core']
+    const pkg = buildAddonPackageManifest(manifest)
+    const dependencyIds = pkg.dependencies.map((dep) => dep.id)
+
+    expect(dependencyIds).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core',
+      'echo:mission_core',
+      'echo:holomap',
+      'echo:index'
+    ]))
+    expect(dependencyIds).not.toContain('echo:theme_core')
   })
 
   it('keeps every bundled template starter module graph complete', () => {

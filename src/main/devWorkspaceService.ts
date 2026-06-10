@@ -1060,7 +1060,13 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
   }
 
   if (options.mode === 'full') {
-    await writeIfAllowed(join(projectPath, 'META-INF', 'echo-addon-package.json'), JSON.stringify(buildAddonPackageManifest(manifest), null, 2), force, written, skipped)
+    await writeIfAllowed(
+      join(projectPath, 'META-INF', 'echo-addon-package.json'),
+      JSON.stringify(buildAddonPackageManifest(manifest, moduleCatalog.catalog), null, 2),
+      force,
+      written,
+      skipped
+    )
     const releaseDir = join(projectPath, 'release')
     const releaseExists = await exists(releaseDir)
     await fs.mkdir(releaseDir, { recursive: true })

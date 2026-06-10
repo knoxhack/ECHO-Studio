@@ -367,7 +367,8 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
   const report = await fullProjectReport(projectPath, devWorkspace)
-  const packageManifest = buildAddonPackageManifest(manifest)
+  const moduleCatalog = await listEchoModules(projectPath)
+  const packageManifest = buildAddonPackageManifest(manifest, moduleCatalog.catalog)
 
   const zip = new AdmZip()
   const entries = await fs.readdir(projectPath, { withFileTypes: true })

@@ -70,6 +70,17 @@ describe('module catalog', () => {
     expect(preferredModuleAlias(findEchoModule('echoweathercore', catalog)!)).toBe('echo:weather_core')
   })
 
+  it('keeps imported Core aliases on echo:core', () => {
+    const imported = moduleFromIndexEntry({
+      id: 'echocore',
+      name: 'ECHO: Core',
+      channel: 'stable'
+    })
+    const catalog = mergeModuleCatalog([imported], ECHO_MODULE_CATALOG)
+    expect(findEchoModule('echocore', catalog)?.aliases).not.toContain('echo:_core')
+    expect(preferredModuleAlias(findEchoModule('echocore', catalog)!)).toBe('echo:core')
+  })
+
   it('preserves trust and blocked metadata from local ECHO-Modules index entries', () => {
     const imported = moduleFromIndexEntry({
       id: 'echounsafe',

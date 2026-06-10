@@ -1,5 +1,11 @@
 import { SDK_VERSION } from './constants'
-import { ECHO_MODULE_CATALOG, getModuleDependencyClosure, preferredModuleAlias, type EchoModuleRecord } from './moduleCatalog'
+import {
+  ECHO_MODULE_CATALOG,
+  getModuleDependencyClosure,
+  normalizeModuleId,
+  preferredModuleAlias,
+  type EchoModuleRecord
+} from './moduleCatalog'
 import type { AddonManifest, AddonType, CreateAddonOptions } from './types'
 import type { AddonPackageManifest } from './addonPackageContract'
 
@@ -108,7 +114,22 @@ export function buildManifest(opts: CreateAddonOptions, catalog: EchoModuleRecor
   }
 }
 
-export function buildAddonPackageManifest(manifest: AddonManifest): AddonPackageManifest {
+function packageDependencyAliases(manifest: AddonManifest, catalog: EchoModuleRecord[]): string[] {
+  const out = new Map<string, string>()
+  for (const mod of getModuleDependencyClosure([...manifest.dependencies.required, ...manifest.target.modules], catalog)) {
+    out.set(mod.id, preferredModuleAlias(mod))
+  }
+  for (const id of manifest.dependencies.required) {
+    const normalized = normalizeModuleId(id, catalog)
+    if (!out.has(normalized)) out.set(normalized, id)
+  }
+  return Array.from(out.values())
+}
+
+export function buildAddonPackageManifest(
+  manifest: AddonManifest,
+  catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG
+): AddonPackageManifest {
   const addonId = manifest.id.includes(':') ? manifest.id.split(':')[1] : manifest.id
   const targets = manifest.runtime.supports.map((runtime) => (runtime === 'echo_native' ? 'native' : runtime))
   return {
@@ -120,7 +141,7 @@ export function buildAddonPackageManifest(manifest: AddonManifest): AddonPackage
       githubRepo: `${addonId}-addon`
     },
     targets,
-    dependencies: manifest.dependencies.required.map((id) => ({ id, kind: 'module' as const, version: '*' })),
+    dependencies: packageDependencyAliases(manifest, catalog).map((id) => ({ id, kind: 'module' as const, version: '*' })),
     artifacts: {
       ...(targets.includes('native') ? { native: `${addonId}-${manifest.version}.echo-addon` } : {}),
       ...(targets.includes('neoforge') ? { neoforge: `${addonId}-${manifest.version}-neoforge.jar` } : {}),
