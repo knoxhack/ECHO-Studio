@@ -5,9 +5,9 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { runPackOSCheck } from '@shared/validation'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 import { ADDON_TYPE_LABELS, RUNTIME_LABELS, TARGET_LABELS } from '@shared/constants'
-import type { AddonProject } from '@shared/types'
+import type { AddonProject, PublishStatus } from '@shared/types'
 
-const FILTERS = ['All', 'Drafts', 'Ready', 'Submitted', 'Published', 'Needs Fixes', 'Needs Modules'] as const
+const FILTERS = ['All', 'Drafts', 'Ready', 'In Review', 'Published', 'Needs Fixes', 'Needs Modules'] as const
 type Filter = (typeof FILTERS)[number]
 
 export default function MyAddons(): JSX.Element {
@@ -32,7 +32,7 @@ export default function MyAddons(): JSX.Element {
         return project.publishStatus === 'draft'
       case 'Ready':
         return report.publishingReady && project.publishStatus === 'draft'
-      case 'Submitted':
+      case 'In Review':
         return ['submitted', 'in_validation', 'changes_requested'].includes(project.publishStatus)
       case 'Published':
         return project.publishStatus === 'published'
@@ -166,7 +166,7 @@ export default function MyAddons(): JSX.Element {
                     </span>
                   </div>
                   <div>
-                    Publish: <span className="badge local">{p.publishStatus}</span>
+                    Publish: <span className="badge local">{publishStatusLabel(p.publishStatus)}</span>
                   </div>
                 </div>
                 {moduleIssueCount > 0 && (
@@ -206,6 +206,20 @@ export default function MyAddons(): JSX.Element {
       )}
     </Page>
   )
+}
+
+function publishStatusLabel(status: PublishStatus): string {
+  const labels: Record<PublishStatus, string> = {
+    draft: 'Draft',
+    ready: 'Ready',
+    submitted: 'In review',
+    in_validation: 'Validating',
+    changes_requested: 'Needs changes',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    published: 'Published'
+  }
+  return labels[status] ?? status
 }
 
 function guessType(projectClass: string, perms: string[]) {

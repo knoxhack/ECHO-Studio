@@ -12,7 +12,7 @@ type IndexLane = 'all' | 'local' | 'handoff' | 'review' | 'indexed' | 'blocked'
 const LANES: Array<{ id: IndexLane; label: string; detail: string; badge: string }> = [
   { id: 'local', label: 'Local Draft', detail: 'Build and validate before handoff.', badge: 'local' },
   { id: 'handoff', label: 'Handoff Ready', detail: 'Release assets can be reviewed for ingestion.', badge: 'ready' },
-  { id: 'review', label: 'In Review', detail: 'Submitted, validating, or awaiting changes.', badge: 'community' },
+  { id: 'review', label: 'In Review', detail: 'In review, validating, or awaiting changes.', badge: 'community' },
   { id: 'indexed', label: 'Indexed', detail: 'Approved or published through the Release Index.', badge: 'verified' },
   { id: 'blocked', label: 'Blocked', detail: 'Rejected or blocked from public install.', badge: 'fixes' }
 ]

@@ -4,7 +4,7 @@ Desktop app for building ECHO experiences, addons, modules, local dev workspaces
 
 ## Purpose
 
-ECHO Studio is the creator and developer workspace for the ECHO ecosystem. It keeps the local loop first: choose modules, generate a Gradle workspace, run preview clients, validate PackOS, package releases, and optionally publish through GitHub.
+ECHO Studio is the creator and developer workspace for the ECHO ecosystem. It keeps the local loop first: choose modules, generate a Gradle workspace, run preview clients, pass validation, package releases, and optionally publish through GitHub.
 
 ## What Lives Here
 
