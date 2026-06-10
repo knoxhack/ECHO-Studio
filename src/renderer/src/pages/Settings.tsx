@@ -3,7 +3,7 @@ import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { SDK_VERSION } from '@shared/constants'
 import { ROLE_LABELS } from '@shared/profile'
-import type { DeveloperRole } from '@shared/types'
+import type { DeveloperRole, Runtime } from '@shared/types'
 
 function validNamespace(ns: string): boolean {
   return /^[a-z][a-z0-9_]*$/.test(ns) && ns.length >= 2 && ns.length <= 32
@@ -26,6 +26,8 @@ interface UpdateStatus {
 }
 
 const ECHO_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
+type RuntimeToolKey = 'echoNativeExecutable' | 'standaloneExecutable'
+type PreviewRuntime = Extract<Runtime, 'echo_native' | 'standalone'>
 
 export default function Settings(): JSX.Element {
   const { workspaceDir, chooseWorkspace, refresh, profile, config, updateProfile, updateConfig, toast } =
@@ -49,6 +51,21 @@ export default function Settings(): JSX.Element {
       case 'error': return `Update error: ${value.message}`
       default: return value.status
     }
+  }
+
+  const chooseRuntimeExecutable = async (key: RuntimeToolKey, runtime: PreviewRuntime): Promise<void> => {
+    const res = await window.studio.chooseRuntimeExecutable(runtime)
+    if (res.ok && res.data) {
+      await updateConfig({ runtimeTools: { ...config.runtimeTools, [key]: res.data } })
+      toast('Runtime executable selected')
+    } else if (!res.ok) {
+      toast(res.error || 'Unable to choose runtime executable')
+    }
+  }
+
+  const clearRuntimeExecutable = async (key: RuntimeToolKey): Promise<void> => {
+    await updateConfig({ runtimeTools: { ...config.runtimeTools, [key]: '' } })
+    toast('Runtime executable cleared')
   }
 
   return (
@@ -188,6 +205,18 @@ export default function Settings(): JSX.Element {
               }
             />
           </label>
+          <div className="btn-row" style={{ marginTop: 6 }}>
+            <button className="btn ghost" onClick={() => chooseRuntimeExecutable('echoNativeExecutable', 'echo_native')}>
+              Browse
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.runtimeTools.echoNativeExecutable}
+              onClick={() => clearRuntimeExecutable('echoNativeExecutable')}
+            >
+              Clear
+            </button>
+          </div>
           <label className="field" style={{ marginTop: 8 }}>
             <span>Standalone executable</span>
             <input
@@ -198,6 +227,18 @@ export default function Settings(): JSX.Element {
               }
             />
           </label>
+          <div className="btn-row" style={{ marginTop: 6 }}>
+            <button className="btn ghost" onClick={() => chooseRuntimeExecutable('standaloneExecutable', 'standalone')}>
+              Browse
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.runtimeTools.standaloneExecutable}
+              onClick={() => clearRuntimeExecutable('standaloneExecutable')}
+            >
+              Clear
+            </button>
+          </div>
           <p className="dim" style={{ fontSize: 12 }}>
             Dev Workspace setup writes these paths into gradle.properties for native and standalone preview tasks.
           </p>

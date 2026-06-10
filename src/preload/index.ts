@@ -5,7 +5,8 @@ import type {
   CreateAddonOptions,
   FileNode,
   IpcResult,
-  PublishStatus
+  PublishStatus,
+  Runtime
 } from '../shared/types'
 import type { ContentRecord, ContentType } from '../shared/content/schemas'
 import type { PackOSReport } from '../shared/types'
@@ -45,6 +46,8 @@ const api = {
   chooseWorkspace: () => invoke<string | null>('workspace:choose'),
   chooseImportFile: () => invoke<string | null>('projects:chooseImport'),
   chooseImportFolder: () => invoke<string | null>('projects:chooseImportFolder'),
+  chooseRuntimeExecutable: (runtime: Extract<Runtime, 'echo_native' | 'standalone'>) =>
+    invoke<string | null>('runtime:chooseExecutable', runtime),
 
   listProjects: (workspaceDir: string) => invoke<AddonProject[]>('projects:list', workspaceDir),
   createAddon: (opts: CreateAddonOptions) => invoke<string>('projects:create', opts),

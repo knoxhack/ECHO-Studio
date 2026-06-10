@@ -1,6 +1,6 @@
 import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { promises as fs } from 'fs'
-import type { CreateAddonOptions, AddonManifest, IpcResult, PublishStatus } from '../shared/types'
+import type { CreateAddonOptions, AddonManifest, IpcResult, PublishStatus, Runtime } from '../shared/types'
 import type { ContentType } from '../shared/content/schemas'
 import {
   createAddon,
@@ -93,6 +93,25 @@ export function registerIpc(): void {
   handle('projects:chooseImportFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()
     const res = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
+    if (res.canceled || res.filePaths.length === 0) return null
+    return res.filePaths[0]
+  })
+
+  handle('runtime:chooseExecutable', async (runtime: Extract<Runtime, 'echo_native' | 'standalone'>) => {
+    const win = BrowserWindow.getFocusedWindow()
+    const runtimeLabel = runtime === 'echo_native' ? 'ECHO Native' : 'Standalone Runtime'
+    const executableFilters = process.platform === 'win32'
+      ? [
+          { name: 'Executables', extensions: ['exe', 'cmd', 'bat'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      : [{ name: 'All files', extensions: ['*'] }]
+    const res = await dialog.showOpenDialog(win!, {
+      title: `Select ${runtimeLabel} executable`,
+      buttonLabel: 'Use Executable',
+      properties: ['openFile'],
+      filters: executableFilters
+    })
     if (res.canceled || res.filePaths.length === 0) return null
     return res.filePaths[0]
   })
