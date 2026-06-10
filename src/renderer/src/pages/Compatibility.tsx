@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { RUNTIME_LABELS, ALLOWED_PERMISSIONS, BLOCKED_PERMISSIONS } from '@shared/constants'
-import { findEchoModule } from '@shared/moduleCatalog'
+import { normalizeModuleId, preferredModuleAlias, resolveProjectModulePlan } from '@shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '@shared/types'
 
 export default function Compatibility(): JSX.Element {
-  const { activeProject } = useWorkspace()
+  const { activeProject, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const [m, setM] = useState<AddonManifest | null>(null)
   const [report, setReport] = useState<PackOSReport | null>(null)
 
@@ -21,18 +21,22 @@ export default function Compatibility(): JSX.Element {
     window.studio.fullCheck(activeProject.path).then((r) => r.ok && setReport(r.data!))
   }, [activeProject])
 
+  const modulePlan = useMemo(() => m ? resolveProjectModulePlan(m, moduleCatalog) : null, [m, moduleCatalog])
+
   if (!activeProject)
     return (
       <Page title="Compatibility" subtitle="Runtime and experience compatibility report.">
         <NoProject />
       </Page>
     )
-  if (!m || !report) return <Page title="Compatibility"><div className="empty">Loading...</div></Page>
+
+  if (!m || !report || !modulePlan) return <Page title="Compatibility"><div className="empty">Loading...</div></Page>
 
   const hs = report.healthScore
   const blockedUsed = m.permissions.filter((p) => p in BLOCKED_PERMISSIONS)
   const unknownUsed = m.permissions.filter((p) => !(ALLOWED_PERMISSIONS as readonly string[]).includes(p) && !(p in BLOCKED_PERMISSIONS))
-  const missingDeps = m.dependencies.required.filter((d) => !findEchoModule(d) && !d.includes(':'))
+  const blockedModules = modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
+  const targetModuleIds = new Set(modulePlan.targetModules.map((mod) => normalizeModuleId(mod.id, moduleCatalog)))
 
   return (
     <Page title="Compatibility" subtitle="Deep analysis of runtime, permissions, dependencies and content coverage.">
@@ -81,9 +85,17 @@ export default function Compatibility(): JSX.Element {
               <span className="dim">{e}</span>
             </div>
           ))}
-          {m.target.modules.length > 0 && (
-            <div style={{ marginTop: 8, fontSize: 12 }} className="dim">
-              SDK modules: {m.target.modules.join(', ')}
+          {(modulePlan.targetModules.length > 0 || m.target.modules.length > 0) && (
+            <div style={{ marginTop: 10 }}>
+              <div className="dim" style={{ fontSize: 12, marginBottom: 6 }}>Target modules</div>
+              <div className="btn-row">
+                {modulePlan.targetModules.map((mod) => (
+                  <span className="badge ready" key={mod.id}>{mod.name}</span>
+                ))}
+                {m.target.modules
+                  .filter((id) => !targetModuleIds.has(normalizeModuleId(id, moduleCatalog)))
+                  .map((id) => <span className="badge local" key={id}>{id}</span>)}
+              </div>
             </div>
           )}
         </div>
@@ -113,20 +125,56 @@ export default function Compatibility(): JSX.Element {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Dependency Graph</h3>
-        <div style={{ marginBottom: 8 }}>Required: <b>{m.dependencies.required.length}</b> - Optional: <b>{m.dependencies.optional.length}</b></div>
-        {m.dependencies.required.map((d) => (
-          <div className="list-row" key={d} style={{ padding: '6px 10px', marginBottom: 4 }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{d}</span>
-            <span className="dim" style={{ fontSize: 11 }}>
-              {findEchoModule(d)?.name ?? 'Third-party'}
-            </span>
+        <div className="btn-row" style={{ marginBottom: 10 }}>
+          <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+            {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in module catalog'}
+          </span>
+          <span className="badge">{modulePlan.targetModules.length} target</span>
+          <span className="badge">{modulePlan.requiredModules.length} required</span>
+          <span className="badge">{modulePlan.optionalModules.length} optional</span>
+          <span className="badge">{modulePlan.closure.length} resolved</span>
+        </div>
+        {moduleCatalogResult?.warnings.length ? (
+          <div className="issue WARNING" style={{ marginBottom: 10 }}>
+            <span className="lvl">WARNING</span>
+            {moduleCatalogResult.warnings.join(' ')}
           </div>
-        ))}
-        {missingDeps.length > 0 && (
-          <div style={{ color: 'var(--warn)', fontSize: 13, marginTop: 8 }}>
-            Warning: dependencies without a namespace may be internal references.
+        ) : null}
+        {modulePlan.unknown.length > 0 && (
+          <div className="issue WARNING" style={{ marginBottom: 10 }}>
+            <span className="lvl">UNKNOWN</span>
+            Unknown dependencies or modules: {modulePlan.unknown.join(', ')}.
           </div>
         )}
+        {modulePlan.missingRequired.length > 0 && (
+          <div className="issue WARNING" style={{ marginBottom: 10 }}>
+            <span className="lvl">CLOSURE</span>
+            Missing required closure entries: {modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.
+            <div className="fix">Open Modules or Codex Tasks to add the full required module closure before setup, preview, or release.</div>
+          </div>
+        )}
+        {blockedModules.length > 0 && (
+          <div className="issue BLOCKER" style={{ marginBottom: 10 }}>
+            <span className="lvl">BLOCKED</span>
+            Blocked modules in resolved graph: {blockedModules.map((mod) => mod.name).join(', ')}.
+          </div>
+        )}
+        <div style={{ marginBottom: 8 }}>
+          Manifest required: <b>{m.dependencies.required.length}</b> - Optional: <b>{m.dependencies.optional.length}</b> - Resolved closure: <b>{modulePlan.closure.length}</b>
+        </div>
+        {modulePlan.closure.map((mod) => {
+          const declared = modulePlan.requiredModules.some((item) => normalizeModuleId(item.id, moduleCatalog) === mod.id)
+          const target = modulePlan.targetModules.some((item) => normalizeModuleId(item.id, moduleCatalog) === mod.id)
+          return (
+            <div className="list-row" key={mod.id} style={{ padding: '6px 10px', marginBottom: 4 }}>
+              <span style={{ flex: 1 }}>
+                <b>{mod.name}</b> <span className="mono dim" style={{ fontSize: 11 }}>{preferredModuleAlias(mod)}</span>
+              </span>
+              <span className={`badge ${declared ? 'ready' : 'local'}`}>{declared ? 'required' : target ? 'target' : 'transitive'}</span>
+              <span className={`badge ${mod.blocked || mod.trustLevel === 'blocked' ? 'fixes' : mod.status === 'stable' ? 'ready' : 'local'}`}>{mod.status}</span>
+            </div>
+          )
+        })}
       </div>
 
       <div className="card">
