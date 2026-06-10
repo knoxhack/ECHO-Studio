@@ -1,5 +1,5 @@
 ﻿# Public Alpha Release Status
 
-This brand-new repository is staged for the ECHO Native Platform public alpha.
+This repository is staged for the ECHO Studio public alpha.
 
-Public release assets are staged through GitHub draft releases first. The official ECHO website is the public download hub.
+Public app installers are routed through the ECHO Release Index product entry. Creator project releases are prepared locally first, then staged through GitHub draft releases with Release Index handoff metadata.
