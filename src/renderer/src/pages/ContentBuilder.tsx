@@ -21,7 +21,7 @@ export default function ContentBuilder(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="Content Builder" subtitle="The central editor for all your addon content.">
+      <Page title="Content Builder" subtitle="The central editor for all your project content.">
         <NoProject />
       </Page>
     )

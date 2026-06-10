@@ -79,7 +79,7 @@ export function buildManifest(opts: CreateAddonOptions, catalog: EchoModuleRecor
     id: `${opts.namespace}:${opts.addonId}`,
     name: opts.name,
     version: '0.1.0',
-    description: opts.description || `${opts.name} - a community addon for ECHO.`,
+    description: opts.description || `${opts.name} - a community ECHO project.`,
     developerType: 'addon_developer',
     publisher: {
       id: opts.namespace,

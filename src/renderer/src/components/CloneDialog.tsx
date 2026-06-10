@@ -73,7 +73,7 @@ export function CloneDialog({
           <input value={namespace} onChange={(event) => setNamespace(event.target.value)} />
         </label>
         <label className="field">
-          <span>Addon ID</span>
+          <span>Project ID</span>
           <input value={addonId} onChange={(event) => setAddonId(event.target.value)} />
         </label>
         <label className="field">

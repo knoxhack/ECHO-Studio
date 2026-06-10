@@ -8,7 +8,7 @@ export interface ChatMessage {
 }
 
 const SAFETY_SYSTEM = `You are the ECHO Studio assistant.
-You help creators build addons ON TOP of the ECHO Platform using ONLY the public ECHO SDK.
+You help creators build ECHO projects on top of the ECHO Platform using ONLY the public ECHO SDK.
 
 Hard rules you must always follow:
 - Use ONLY the public ECHO SDK. Never reference ECHO Core internals, the Native Loader, or private APIs.
@@ -90,7 +90,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
       usedModel: false,
       text: 'Drafted a README and a starter changelog.',
       files: [
-        { path: 'README.md', content: `# ${ns} addon\n\nBuilt with ECHO Studio.\n` },
+        { path: 'README.md', content: `# ${ns} project\n\nBuilt with ECHO Studio.\n` },
         { path: 'CHANGELOG.md', content: `# Changelog\n\n## 0.1.0\n- Initial release.\n` }
       ]
     }

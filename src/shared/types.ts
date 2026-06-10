@@ -84,7 +84,7 @@ export interface AddonManifest {
   tags?: string[]
 }
 
-// Lightweight project summary used in lists (My Addons, Dashboard).
+// Lightweight project summary used in lists (Project Library, Dashboard).
 export interface AddonProject {
   path: string
   folderName: string

@@ -18,7 +18,7 @@ interface AssistantRouteState {
 const SUGGESTIONS = [
   'Create a mission pack for Ashfall about a lost convoy.',
   'Generate a grinder recipe for ash alloy.',
-  'Write a README and changelog for my addon.',
+  'Write a README and changelog for my project.',
   'How do I fix PackOS errors?'
 ]
 

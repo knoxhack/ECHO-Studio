@@ -37,7 +37,7 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
     issues.push({
       level: 'ERROR',
       category: 'Manifest',
-      message: `Addon ID "${manifest.id}" is not a valid namespaced ID.`,
+      message: `Project ID "${manifest.id}" is not a valid namespaced ID.`,
       fix: 'Use the format namespace:addon_id (lowercase, underscores).',
       file: 'echo.mod.json',
       aiFixable: true
@@ -56,7 +56,7 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
       level: 'WARNING',
       category: 'Publishing requirements',
       message: 'Description is missing or too short for the community catalog.',
-      fix: 'Add a clear description of what your addon does.',
+      fix: 'Add a clear description of what your project does.',
       aiFixable: true
     })
   }

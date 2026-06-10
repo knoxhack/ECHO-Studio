@@ -58,7 +58,7 @@ export function generateAiReply(prompt: string): AiReply {
 
   if (p.includes('readme') || p.includes('changelog') || p.includes('docs')) {
     return {
-      text: 'I drafted documentation for your addon, including a README and a starter CHANGELOG entry.',
+      text: 'I drafted documentation for your project, including a README and a starter CHANGELOG entry.',
       files: ['README.md', 'CHANGELOG.md'],
       actions: [{ label: 'Apply Fix' }]
     }
