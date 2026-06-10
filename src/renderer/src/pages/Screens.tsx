@@ -73,7 +73,7 @@ export default function Screens(): JSX.Element {
       {draft && (
         <div className="grid cols-2">
           <div className="card">
-            <h3>XML · {preview}</h3>
+            <h3>XML - {preview}</h3>
             <label className="field">
               <span>Screen ID</span>
               <input value={draft.id} onChange={(e) => update({ id: e.target.value })} />
@@ -111,7 +111,7 @@ export default function Screens(): JSX.Element {
             </div>
             {checks.map(([label, ok]) => (
               <div className="checkbox" key={label}>
-                <span style={{ color: ok ? 'var(--good)' : 'var(--warn)' }}>{ok ? '✓' : '⚠'}</span>
+                <span style={{ color: ok ? 'var(--good)' : 'var(--warn)' }}>{ok ? 'OK' : 'Check'}</span>
                 {label}
               </div>
             ))}

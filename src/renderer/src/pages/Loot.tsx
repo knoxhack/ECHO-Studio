@@ -104,7 +104,7 @@ export default function Loot(): JSX.Element {
                     className="btn ghost"
                     onClick={() => update({ entries: draft.entries.filter((_, j) => j !== i) })}
                   >
-                    ✕
+                    Remove
                   </button>
                 </div>
               ))}

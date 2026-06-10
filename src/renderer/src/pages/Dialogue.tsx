@@ -100,7 +100,7 @@ export default function DialogueBuilder(): JSX.Element {
                       className="btn ghost"
                       onClick={() => update({ lines: draft.lines.filter((_, j) => j !== i) })}
                     >
-                      ✕
+                      Remove
                     </button>
                   </div>
                   <textarea

@@ -62,14 +62,14 @@ export default function Compatibility(): JSX.Element {
             return (
               <div className="checkbox" key={r}>
                 <span style={{ color: supported ? 'var(--good)' : 'var(--text-faint)' }}>
-                  {supported ? '✓' : '○'}
+                  {supported ? 'Yes' : 'No'}
                 </span>
                 {RUNTIME_LABELS[r]}: <span className="dim">{status}</span>
               </div>
             )
           })}
           <div style={{ marginTop: 10, fontSize: 12 }} className="dim">
-            Minimum SDK: <b>{m.runtime.minimumEchoSdk}</b> · Native readiness: <b>{m.runtime.nativeReadiness}</b>
+            Minimum SDK: <b>{m.runtime.minimumEchoSdk}</b> - Native readiness: <b>{m.runtime.nativeReadiness}</b>
           </div>
         </div>
 
@@ -77,7 +77,7 @@ export default function Compatibility(): JSX.Element {
           <h3>Target Experiences</h3>
           {m.target.experiences.map((e) => (
             <div className="checkbox" key={e}>
-              <span style={{ color: 'var(--good)' }}>✓</span>
+              <span style={{ color: 'var(--good)' }}>Yes</span>
               <span className="dim">{e}</span>
             </div>
           ))}
@@ -105,7 +105,7 @@ export default function Compatibility(): JSX.Element {
         <div className="grid cols-3" style={{ gap: 8 }}>
           {m.permissions.map((p) => (
             <span key={p} className="badge" style={{ fontSize: 11 }}>
-              {p} {p in BLOCKED_PERMISSIONS ? '⚠ BLOCKED' : ''}
+              {p} {p in BLOCKED_PERMISSIONS ? 'BLOCKED' : ''}
             </span>
           ))}
         </div>
@@ -113,7 +113,7 @@ export default function Compatibility(): JSX.Element {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Dependency Graph</h3>
-        <div style={{ marginBottom: 8 }}>Required: <b>{m.dependencies.required.length}</b> · Optional: <b>{m.dependencies.optional.length}</b></div>
+        <div style={{ marginBottom: 8 }}>Required: <b>{m.dependencies.required.length}</b> - Optional: <b>{m.dependencies.optional.length}</b></div>
         {m.dependencies.required.map((d) => (
           <div className="list-row" key={d} style={{ padding: '6px 10px', marginBottom: 4 }}>
             <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{d}</span>
@@ -124,7 +124,7 @@ export default function Compatibility(): JSX.Element {
         ))}
         {missingDeps.length > 0 && (
           <div style={{ color: 'var(--warn)', fontSize: 13, marginTop: 8 }}>
-            ⚠ Dependencies without a namespace may be internal references.
+            Warning: dependencies without a namespace may be internal references.
           </div>
         )}
       </div>
@@ -132,10 +132,10 @@ export default function Compatibility(): JSX.Element {
       <div className="card">
         <h3>Publishing Readiness</h3>
         <div style={{ fontSize: 13, lineHeight: 2 }}>
-          <div>Description length: <b>{m.description?.length ?? 0}</b> chars {(!m.description || m.description.length < 10) && <span style={{ color: 'var(--warn)' }}>⚠ too short</span>}</div>
-          <div>Tags: <b>{m.tags?.length ?? 0}</b> {(m.tags?.length ?? 0) === 0 && <span style={{ color: 'var(--warn)' }}>⚠ none set</span>}</div>
-          <div>Support link: {m.support?.issues ? <span style={{ color: 'var(--good)' }}>✓ set</span> : <span style={{ color: 'var(--warn)' }}>⚠ missing</span>}</div>
-          <div>Trust level: <b>{m.trust.level}</b> · Signed: <b>{m.trust.signed ? 'Yes' : 'No'}</b> · Verified: <b>{m.trust.verified ? 'Yes' : 'No'}</b></div>
+          <div>Description length: <b>{m.description?.length ?? 0}</b> chars {(!m.description || m.description.length < 10) && <span style={{ color: 'var(--warn)' }}>too short</span>}</div>
+          <div>Tags: <b>{m.tags?.length ?? 0}</b> {(m.tags?.length ?? 0) === 0 && <span style={{ color: 'var(--warn)' }}>none set</span>}</div>
+          <div>Support link: {m.support?.issues ? <span style={{ color: 'var(--good)' }}>set</span> : <span style={{ color: 'var(--warn)' }}>missing</span>}</div>
+          <div>Trust level: <b>{m.trust.level}</b> - Signed: <b>{m.trust.signed ? 'Yes' : 'No'}</b> - Verified: <b>{m.trust.verified ? 'Yes' : 'No'}</b></div>
         </div>
       </div>
     </Page>

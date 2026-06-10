@@ -146,7 +146,7 @@ export default function Recipes(): JSX.Element {
                     className="btn ghost"
                     onClick={() => update({ inputs: draft.inputs.filter((_, j) => j !== i) })}
                   >
-                    ✕
+                    Remove
                   </button>
                 </div>
               ))}

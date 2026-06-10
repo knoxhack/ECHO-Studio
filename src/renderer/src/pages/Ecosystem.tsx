@@ -169,7 +169,7 @@ export default function Ecosystem(): JSX.Element {
               {result.warnings.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   {result.warnings.map((w, i) => (
-                    <div key={i} className="dim" style={{ fontSize: 12 }}>⚠ {w}</div>
+                    <div key={i} className="dim" style={{ fontSize: 12 }}>Warning: {w}</div>
                   ))}
                 </div>
               )}
@@ -190,7 +190,7 @@ export default function Ecosystem(): JSX.Element {
               {result.warnings.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   {result.warnings.map((w, i) => (
-                    <div key={i} className="dim" style={{ fontSize: 12 }}>⚠ {w}</div>
+                    <div key={i} className="dim" style={{ fontSize: 12 }}>Warning: {w}</div>
                   ))}
                 </div>
               )}

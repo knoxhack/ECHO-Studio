@@ -120,14 +120,14 @@ export default function Assets(): JSX.Element {
           {report?.assets.map((a) => (
             <div className="list-row" key={a.rel} style={{ background: 'var(--bg-2)' }}>
               <span style={{ color: a.valid ? 'var(--good)' : 'var(--bad)' }}>
-                {a.valid ? '✓' : '✕'}
+                {a.valid ? 'OK' : 'Issue'}
               </span>
               <div style={{ flex: 1 }}>
                 <span className="mono" style={{ fontSize: 12 }}>{a.rel}</span>
                 <div className="faint" style={{ fontSize: 11 }}>
                   {a.kind}
-                  {a.width ? ` · ${a.width}×${a.height}` : ''} · {a.bytes} B
-                  {a.issues.length > 0 && <span style={{ color: 'var(--warn)' }}> · {a.issues.join(', ')}</span>}
+                  {a.width ? ` - ${a.width}x${a.height}` : ''} - {a.bytes} B
+                  {a.issues.length > 0 && <span style={{ color: 'var(--warn)' }}> - {a.issues.join(', ')}</span>}
                 </div>
               </div>
             </div>
