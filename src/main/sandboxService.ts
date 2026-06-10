@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { readManifest, listProjects } from './fsService'
 import { listContent } from './contentService'
 import type { AddonProject, Runtime } from '../shared/types'
-import { computeSandboxScore, type SandboxResult, type SandboxOptions, type SandboxLog } from '../shared/sandbox'
+import { computePreviewScore, type PreviewScanResult, type PreviewScanOptions, type PreviewScanLog } from '../shared/sandbox'
 import { findEchoModule, normalizeModuleId } from '../shared/moduleCatalog'
 import { listEchoModules } from './moduleCatalogService'
 
@@ -54,20 +54,20 @@ async function listWorkspaceProjects(workspaceDir: string): Promise<AddonProject
   }
 }
 
-function logOptions(options: SandboxOptions, log: (level: SandboxLog['level'], message: string) => void): void {
+function logOptions(options: PreviewScanOptions, log: (level: PreviewScanLog['level'], message: string) => void): void {
   if (options.debugOverlay) log('info', 'Debug overlay enabled.')
   if (options.fakePlayer) log('ok', 'Fake player profile enabled.')
   if (options.testInventory) log('ok', 'Test inventory enabled.')
   if (options.loadOnlySelected) log('info', 'Loading only the selected project; workspace dependency scan is disabled.')
 }
 
-export async function runSandbox(
+export async function runPreviewScan(
   projectPath: string,
   workspaceDir: string,
   profile: string,
-  options: SandboxOptions
-): Promise<SandboxResult> {
-  const logs: SandboxLog[] = []
+  options: PreviewScanOptions
+): Promise<PreviewScanResult> {
+  const logs: PreviewScanLog[] = []
   const warnings: string[] = []
   const errors: string[] = []
   const missingDependencies: string[] = []
@@ -75,7 +75,7 @@ export async function runSandbox(
   let contentFailed = 0
 
   const now = () => new Date().toISOString().split('T')[1].slice(0, 8)
-  const log = (level: SandboxLog['level'], message: string) => logs.push({ time: now(), level, message })
+  const log = (level: PreviewScanLog['level'], message: string) => logs.push({ time: now(), level, message })
 
   log('info', `Initializing compatibility scan... (${profile})`)
   logOptions(options, log)
@@ -162,7 +162,7 @@ export async function runSandbox(
     log('error', `${contentFailed} content file(s) failed to load.`)
   }
 
-  const score = computeSandboxScore(missingDependencies.length, warnings.length, errors.length, contentFailed)
+  const score = computePreviewScore(missingDependencies.length, warnings.length, errors.length, contentFailed)
 
   log('ok', `Compatibility scan complete. Score: ${score}%`)
 
@@ -178,4 +178,5 @@ export async function runSandbox(
   }
 }
 
-export { computeSandboxScore } from '../shared/sandbox'
+export const runSandbox = runPreviewScan
+export { computePreviewScore, computeSandboxScore } from '../shared/sandbox'

@@ -4,7 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
-import type { SandboxResult, SandboxOptions } from '@shared/sandbox'
+import type { PreviewScanResult, PreviewScanOptions } from '@shared/sandbox'
 
 const PROFILES = [
   'Ashfall Compatibility',
@@ -21,19 +21,19 @@ const RUNTIME_TASKS: DevTaskId[] = [
   'preview:standalone'
 ]
 
-export default function TestSandbox(): JSX.Element {
+export default function Preview(): JSX.Element {
   const { activeProject, workspaceDir, config, toast } = useWorkspace()
   const nav = useNavigate()
   const [profile, setProfile] = useState(config.preview.defaultProfile || PROFILES[0])
   const [running, setRunning] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [runtimeStopping, setRuntimeStopping] = useState(false)
-  const [result, setResult] = useState<SandboxResult | null>(null)
+  const [result, setResult] = useState<PreviewScanResult | null>(null)
   const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [runtimeRun, setRuntimeRun] = useState<DevTaskRun | null>(null)
   const [runtimeLog, setRuntimeLog] = useState('')
   const [error, setError] = useState('')
-  const [options, setOptions] = useState<SandboxOptions>({
+  const [options, setOptions] = useState<PreviewScanOptions>({
     loadOnlySelected: false,
     debugOverlay: true,
     fakePlayer: false,
@@ -71,7 +71,7 @@ export default function TestSandbox(): JSX.Element {
     }
   }, [activeProject, runtimeRun?.logPath, runtimeRun?.status])
 
-  const toggleOption = (key: keyof SandboxOptions): void => {
+  const toggleOption = (key: keyof PreviewScanOptions): void => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
@@ -80,7 +80,7 @@ export default function TestSandbox(): JSX.Element {
     setRunning(true)
     setError('')
     setResult(null)
-    const res = await window.studio.runSandbox(activeProject.path, workspaceDir, profile, options)
+    const res = await window.studio.runPreviewScan(activeProject.path, workspaceDir, profile, options)
     setRunning(false)
     if (res.ok && res.data) {
       setResult(res.data)
@@ -300,7 +300,7 @@ export default function TestSandbox(): JSX.Element {
             { key: 'debugOverlay', label: 'Enable debug overlay checks' },
             { key: 'fakePlayer', label: 'Enable fake player profile' },
             { key: 'testInventory', label: 'Enable test inventory' }
-          ] as { key: keyof SandboxOptions; label: string }[]).map((field) => (
+          ] as { key: keyof PreviewScanOptions; label: string }[]).map((field) => (
             <label className="checkbox" key={field.key}>
               <input
                 type="checkbox"

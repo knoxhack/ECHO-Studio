@@ -1,12 +1,12 @@
-export interface SandboxLog {
+export interface PreviewScanLog {
   time: string
   level: 'info' | 'ok' | 'warn' | 'error'
   message: string
 }
 
-export interface SandboxResult {
+export interface PreviewScanResult {
   profile: string
-  logs: SandboxLog[]
+  logs: PreviewScanLog[]
   compatibilityScore: number
   missingDependencies: string[]
   warnings: string[]
@@ -15,14 +15,14 @@ export interface SandboxResult {
   contentFailed: number
 }
 
-export interface SandboxOptions {
+export interface PreviewScanOptions {
   loadOnlySelected: boolean
   debugOverlay: boolean
   fakePlayer: boolean
   testInventory: boolean
 }
 
-export function computeSandboxScore(
+export function computePreviewScore(
   missingDeps: number,
   warningCount: number,
   errorCount: number,
@@ -35,3 +35,8 @@ export function computeSandboxScore(
   score -= contentFailed * 5
   return Math.max(0, Math.min(100, score))
 }
+
+export type SandboxLog = PreviewScanLog
+export type SandboxResult = PreviewScanResult
+export type SandboxOptions = PreviewScanOptions
+export const computeSandboxScore = computePreviewScore

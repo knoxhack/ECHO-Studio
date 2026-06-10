@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, it, expect, vi } from 'vitest'
-import { computeSandboxScore } from '../sandbox'
+import { computePreviewScore } from '../sandbox'
 import type { AddonManifest, Runtime } from '../types'
 
 vi.mock('electron', () => ({
@@ -56,39 +56,39 @@ const DEFAULT_OPTIONS = {
   testInventory: false
 }
 
-describe('computeSandboxScore', () => {
+describe('computePreviewScore', () => {
   it('returns 100 for a perfect run', () => {
-    expect(computeSandboxScore(0, 0, 0, 0)).toBe(100)
+    expect(computePreviewScore(0, 0, 0, 0)).toBe(100)
   })
 
   it('deducts 10 per missing dependency', () => {
-    expect(computeSandboxScore(2, 0, 0, 0)).toBe(80)
+    expect(computePreviewScore(2, 0, 0, 0)).toBe(80)
   })
 
   it('deducts 3 per warning', () => {
-    expect(computeSandboxScore(0, 5, 0, 0)).toBe(85)
+    expect(computePreviewScore(0, 5, 0, 0)).toBe(85)
   })
 
   it('deducts 15 per error', () => {
-    expect(computeSandboxScore(0, 0, 2, 0)).toBe(70)
+    expect(computePreviewScore(0, 0, 2, 0)).toBe(70)
   })
 
   it('deducts 5 per content failure', () => {
-    expect(computeSandboxScore(0, 0, 0, 4)).toBe(80)
+    expect(computePreviewScore(0, 0, 0, 4)).toBe(80)
   })
 
   it('clamps to a minimum of 0', () => {
-    expect(computeSandboxScore(100, 100, 100, 100)).toBe(0)
+    expect(computePreviewScore(100, 100, 100, 100)).toBe(0)
   })
 })
 
-describe('runSandbox', () => {
+describe('runPreviewScan', () => {
   it('warns when a standalone compatibility profile is launched for a project without standalone support', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
-      const { runSandbox } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
+      const result = await runPreviewScan(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
 
       expect(result.warnings).toContain('Addon does not declare support for runtime "standalone".')
       expect(result.logs.some((log) => log.message.includes('Runtime mismatch'))).toBe(true)
@@ -105,10 +105,10 @@ describe('runSandbox', () => {
         name: 'Shared Dep',
         dependencies: { required: [], optional: [] }
       }))
-      const { runSandbox } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/sandboxService')
 
-      const workspaceResult = await runSandbox(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
-      const selectedOnlyResult = await runSandbox(project, root, 'Ashfall Compatibility', {
+      const workspaceResult = await runPreviewScan(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
+      const selectedOnlyResult = await runPreviewScan(project, root, 'Ashfall Compatibility', {
         ...DEFAULT_OPTIONS,
         loadOnlySelected: true
       })
@@ -122,9 +122,9 @@ describe('runSandbox', () => {
   it('reports enabled preview options in compatibility scan logs', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
-      const { runSandbox } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Ashfall Compatibility', {
+      const result = await runPreviewScan(project, root, 'Ashfall Compatibility', {
         loadOnlySelected: false,
         debugOverlay: true,
         fakePlayer: true,
@@ -157,9 +157,9 @@ describe('runSandbox', () => {
         permissions: ['mission.register', 'screen.custom_ui', 'index.entries'],
         runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' }
       }))
-      const { runSandbox } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
+      const result = await runPreviewScan(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
 
       expect(result.warnings.some((warning) => warning.includes('Unknown permissions'))).toBe(false)
       expect(result.logs.some((log) => log.message.includes('Unknown permissions'))).toBe(false)

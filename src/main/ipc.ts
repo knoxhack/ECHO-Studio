@@ -42,8 +42,8 @@ import { createExperience, exportServerPack } from './bundleService'
 import { chat } from './aiService'
 import type { ChatMessage } from './aiService'
 import type { AppConfig, AiFile } from '../shared/config'
-import { runSandbox } from './sandboxService'
-import type { SandboxOptions } from '../shared/sandbox'
+import { runPreviewScan } from './sandboxService'
+import type { PreviewScanOptions } from '../shared/sandbox'
 import { gitStatus, gitInit, gitCommit, gitLog, gitDiff, gitBranch, gitCheckout, gitPush, gitPull, gitRemote, gitAddRemote } from './gitService'
 import { join, basename } from 'path'
 import { inspectDevWorkspace, readDevTaskLog, runDevTask, setupDevWorkspace, stopDevTask } from './devWorkspaceService'
@@ -217,8 +217,11 @@ export function registerIpc(): void {
     exportServerPack(workspaceDir, name, members)
   )
 
-  handle('sandbox:run', (projectPath: string, workspaceDir: string, profile: string, options: SandboxOptions) =>
-    runSandbox(projectPath, workspaceDir, profile, options)
+  handle('preview:scan', (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
+    runPreviewScan(projectPath, workspaceDir, profile, options)
+  )
+  handle('sandbox:run', (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
+    runPreviewScan(projectPath, workspaceDir, profile, options)
   )
 
   handle('modules:list', (projectPath?: string) => listEchoModules(projectPath))

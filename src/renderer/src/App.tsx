@@ -25,7 +25,7 @@ import Items from './pages/Items'
 import Loot from './pages/Loot'
 import DialogueBuilder from './pages/Dialogue'
 import Assets from './pages/Assets'
-import TestSandbox from './pages/TestSandbox'
+import Preview from './pages/TestSandbox'
 import PackOSCheck from './pages/PackOSCheck'
 import Compatibility from './pages/Compatibility'
 import SubmitAddon from './pages/SubmitAddon'
@@ -83,8 +83,8 @@ export default function App(): JSX.Element {
             <Route path="/loot" element={<Loot />} />
             <Route path="/dialogue" element={<DialogueBuilder />} />
             <Route path="/assets" element={<Assets />} />
-            <Route path="/preview" element={<TestSandbox />} />
-            <Route path="/sandbox" element={<TestSandbox />} />
+            <Route path="/preview" element={<Preview />} />
+            <Route path="/sandbox" element={<Preview />} />
             <Route path="/validation" element={<PackOSCheck />} />
             <Route path="/packos" element={<PackOSCheck />} />
             <Route path="/compatibility" element={<Compatibility />} />

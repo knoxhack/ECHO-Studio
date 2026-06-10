@@ -24,7 +24,7 @@ import type {
 import type { AppConfig, AiChatResult, AiFile } from '../shared/config'
 import type { CreatorProfile } from '../shared/profile'
 import type { ExperienceResult, ServerPackResult } from '../shared/bundles'
-import type { SandboxResult, SandboxOptions } from '../shared/sandbox'
+import type { PreviewScanResult, PreviewScanOptions } from '../shared/sandbox'
 import type { GitStatus, GitCommit, GitDiff, GitResult, GitBranch } from '../shared/git'
 import type { DevSetupResult, DevTaskId, DevTaskRun, DevTaskStopResult, DevWorkspaceOptions, DevWorkspaceState } from '../shared/devWorkspace'
 import type { EchoModuleCatalogResult } from '../shared/moduleCatalog'
@@ -106,8 +106,10 @@ const api = {
   exportServerPack: (workspaceDir: string, name: string, members: string[]) =>
     invoke<ServerPackResult>('bundle:serverPack', workspaceDir, name, members),
 
-  runSandbox: (projectPath: string, workspaceDir: string, profile: string, options: SandboxOptions) =>
-    invoke<SandboxResult>('sandbox:run', projectPath, workspaceDir, profile, options),
+  runPreviewScan: (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
+    invoke<PreviewScanResult>('preview:scan', projectPath, workspaceDir, profile, options),
+  runSandbox: (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
+    invoke<PreviewScanResult>('sandbox:run', projectPath, workspaceDir, profile, options),
 
   listEchoModules: (projectPath?: string) =>
     invoke<EchoModuleCatalogResult>('modules:list', projectPath),
