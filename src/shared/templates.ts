@@ -1,4 +1,5 @@
 import { SDK_VERSION } from './constants'
+import { getModuleDependencyClosure, preferredModuleAlias } from './moduleCatalog'
 import type { AddonManifest, AddonType, CreateAddonOptions } from './types'
 import type { AddonPackageManifest } from './addonPackageContract'
 
@@ -56,8 +57,19 @@ function defaultsForType(type: AddonType): { permissions: string[]; modules: str
   }
 }
 
+function requiredModuleClosure(required: string[], modules: string[]): string[] {
+  const out: string[] = []
+  const add = (id: string): void => {
+    if (!out.includes(id)) out.push(id)
+  }
+  for (const id of required) add(id)
+  for (const mod of getModuleDependencyClosure([...required, ...modules])) add(preferredModuleAlias(mod))
+  return out
+}
+
 export function buildManifest(opts: CreateAddonOptions): AddonManifest {
   const d = defaultsForType(opts.type)
+  const required = requiredModuleClosure(d.required, d.modules)
   return {
     schemaVersion: 1,
     id: `${opts.namespace}:${opts.addonId}`,
@@ -83,8 +95,8 @@ export function buildManifest(opts: CreateAddonOptions): AddonManifest {
     },
     permissions: d.permissions,
     dependencies: {
-      required: d.required,
-      optional: opts.type === 'mission_pack' ? ['echo:holomap', 'echo:index'] : []
+      required,
+      optional: opts.type === 'mission_pack' ? ['echo:holomap', 'echo:index'].filter((id) => !required.includes(id)) : []
     },
     trust: { level: 'community', signed: false, verified: false },
     support: { tier: 'creator_supported' },

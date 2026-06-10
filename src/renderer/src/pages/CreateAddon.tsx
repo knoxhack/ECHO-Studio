@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { buildManifest } from '@shared/templates'
+import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 import {
   ADDON_TYPE_LABELS,
   RESERVED_NAMESPACE,
@@ -10,7 +12,7 @@ import {
 } from '@shared/constants'
 import type { AddonType, CreateAddonOptions, Runtime, TargetExperience } from '@shared/types'
 
-const STEPS = ['Type', 'Target', 'Namespace', 'Runtime', 'Options', 'Generate']
+const STEPS = ['Type', 'Target', 'Identity', 'Runtime', 'Modules', 'Options', 'Generate']
 
 export default function CreateAddon(): JSX.Element {
   const { workspaceDir, refresh, setActiveProject, toast } = useWorkspace()
@@ -37,6 +39,19 @@ export default function CreateAddon(): JSX.Element {
 
   const nsBlocked = namespace.trim().toLowerCase() === RESERVED_NAMESPACE
   const idValid = /^[a-z0-9_]+$/.test(addonId) && /^[a-z0-9_]+$/.test(namespace)
+  const currentOptions = useMemo<CreateAddonOptions>(() => ({
+    workspaceDir,
+    type,
+    target,
+    namespace: namespace.trim(),
+    addonId: addonId.trim(),
+    name: name.trim() || addonId.trim() || 'Untitled Project',
+    description: description.trim(),
+    runtimes: runtimes.length ? runtimes : ['neoforge'],
+    options: opts
+  }), [addonId, description, name, namespace, opts, runtimes, target, type, workspaceDir])
+  const modulePlan = useMemo(() => resolveProjectModulePlan(buildManifest(currentOptions)), [currentOptions])
+  const moduleIssues = modulePlan.missingRequired.length + modulePlan.unknown.length + modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked').length
 
   const toggleRuntime = (r: Runtime): void =>
     setRuntimes((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]))
@@ -44,18 +59,7 @@ export default function CreateAddon(): JSX.Element {
   const generate = async (): Promise<void> => {
     setError(null)
     setBusy(true)
-    const payload: CreateAddonOptions = {
-      workspaceDir,
-      type,
-      target,
-      namespace: namespace.trim(),
-      addonId: addonId.trim(),
-      name: name.trim() || addonId,
-      description: description.trim(),
-      runtimes: runtimes.length ? runtimes : ['neoforge'],
-      options: opts
-    }
-    const res = await window.studio.createAddon(payload)
+    const res = await window.studio.createAddon(currentOptions)
     setBusy(false)
     if (!res.ok) {
       setError(res.error || 'Failed to create project.')
@@ -63,8 +67,8 @@ export default function CreateAddon(): JSX.Element {
     }
     await refresh()
     if (res.data) setActiveProject(res.data)
-    toast(`Created ${namespace}:${addonId}`)
-    nav('/manifest')
+    toast(`Created ${namespace}:${addonId}. Review modules next.`)
+    nav('/modules')
   }
 
   const canNext =
@@ -181,6 +185,55 @@ export default function CreateAddon(): JSX.Element {
       )}
 
       {step === 4 && (
+        <>
+          <div className="section-title">Starter module plan</div>
+          <div className="grid cols-2">
+            <div className="card">
+              <h3>Selected Modules</h3>
+              <p className="dim" style={{ fontSize: 13 }}>
+                These are written into the new project manifest from the type, target, and runtime choices.
+              </p>
+              <div className="btn-row">
+                {modulePlan.enabled.map((mod) => (
+                  <span className={`badge ${mod.blocked || mod.trustLevel === 'blocked' ? 'fixes' : 'ready'}`} key={mod.id}>
+                    {mod.name}
+                  </span>
+                ))}
+                {modulePlan.enabled.length === 0 && <span className="dim">No modules selected.</span>}
+              </div>
+            </div>
+            <div className="card">
+              <h3>Resolved Closure</h3>
+              <p className="dim" style={{ fontSize: 13 }}>
+                Studio also writes required transitive modules so validation, preview, and packaging start from a complete graph.
+              </p>
+              <div className="btn-row">
+                {modulePlan.closure.map((mod) => (
+                  <span className={`badge ${mod.status === 'stable' ? 'ready' : 'local'}`} key={mod.id}>
+                    {mod.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {modulePlan.optionalAvailable.length > 0 && (
+            <div className="issue INFO" style={{ marginTop: 12 }}>
+              <span className="lvl">OPTIONAL</span>
+              Optional modules available after creation: {modulePlan.optionalAvailable.map((mod) => mod.name).join(', ')}.
+              <div className="fix">Open Modules after generation to add optional capabilities or remove modules before setup.</div>
+            </div>
+          )}
+          {moduleIssues > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 12 }}>
+              <span className="lvl">MODULES</span>
+              This scaffold has {moduleIssues} module issue{moduleIssues === 1 ? '' : 's'} to review.
+              <div className="fix">Open Modules after generation before running Dev Workspace setup.</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {step === 5 && (
         <div className="card" style={{ maxWidth: 560 }}>
           <div className="section-title" style={{ marginTop: 0 }}>
             Template options
@@ -207,7 +260,7 @@ export default function CreateAddon(): JSX.Element {
         </div>
       )}
 
-      {step === 5 && (
+      {step === 6 && (
         <div className="card" style={{ maxWidth: 620 }}>
           <h3>Ready to generate</h3>
           <div className="code" style={{ marginBottom: 14 }}>
@@ -218,6 +271,8 @@ export default function CreateAddon(): JSX.Element {
             <div>Target: {TARGET_LABELS[target]}</div>
             <div className="mono">ID: {namespace}:{addonId}</div>
             <div>Runtime: {runtimes.map((r) => RUNTIME_LABELS[r]).join(' + ')}</div>
+            <div>Modules: {modulePlan.enabled.length} selected / {modulePlan.closure.length} in resolved closure</div>
+            <div>Next: review Modules, then run Dev Workspace setup.</div>
           </div>
           {error && (
             <div className="issue ERROR" style={{ marginTop: 12 }}>

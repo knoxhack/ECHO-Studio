@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
 import { buildManifest, buildProjectFiles } from '../templates'
+import { resolveProjectModulePlan } from '../moduleCatalog'
 import type { CreateAddonOptions } from '../types'
 
 describe('templateById', () => {
@@ -57,6 +58,56 @@ describe('TEMPLATES', () => {
     const files = buildProjectFiles(opts, buildManifest(opts))
     expect(files['preview/compatibility-profile.json']).toContain('ashfall_compatibility')
     expect(files['sandbox/test_profile.json']).toBeUndefined()
+  })
+
+  it('scaffolds manifests with the full required ECHO module closure', () => {
+    const opts: CreateAddonOptions = {
+      workspaceDir: '',
+      type: 'mission_pack',
+      target: 'ashfall',
+      namespace: 'teamnova',
+      addonId: 'signal_route',
+      name: 'Signal Route',
+      description: 'A test mission project.',
+      runtimes: ['neoforge', 'echo_native'],
+      options: {
+        includeExample: true,
+        includeHoloMap: true,
+        includeIndex: true,
+        includeRewards: true,
+        includeLocalization: true,
+        includePreviewProfile: true
+      }
+    }
+
+    const manifest = buildManifest(opts)
+    const plan = resolveProjectModulePlan(manifest)
+
+    expect(plan.missingRequired).toEqual([])
+    expect(manifest.dependencies.required).toEqual(expect.arrayContaining(['echo:adapter_core', 'echo:core', 'echo:net_core', 'echo:mission_core']))
+  })
+
+  it('keeps every bundled template starter module graph complete', () => {
+    const incomplete = TEMPLATES.map((template) => {
+      const opts: CreateAddonOptions = {
+        workspaceDir: '',
+        type: template.type,
+        target: template.target,
+        namespace: 'teamnova',
+        addonId: template.id,
+        name: template.name,
+        description: template.description,
+        runtimes: template.runtimes,
+        options: template.options
+      }
+      const plan = resolveProjectModulePlan(buildManifest(opts))
+      return {
+        template: template.id,
+        missing: plan.missingRequired.map((mod) => mod.id)
+      }
+    }).filter((result) => result.missing.length > 0)
+
+    expect(incomplete).toEqual([])
   })
 
   it('keeps legacy includeSandbox callers mapped to preview profiles', () => {
