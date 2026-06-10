@@ -111,7 +111,7 @@ export default function Dashboard(): JSX.Element {
         <div className="card">
           <h3>Local Loop</h3>
           <p className="dim" style={{ fontSize: 13 }}>
-            Choose modules, generate a dev workspace, run a preview, pass validation, then package local release assets before GitHub publishing.
+            Choose modules, generate a dev workspace, run a preview, pass validation, then prepare release assets before GitHub publishing.
           </p>
           <div className="btn-row">
             <button className="btn" onClick={() => nav('/modules')}>

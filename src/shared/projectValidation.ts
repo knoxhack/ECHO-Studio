@@ -273,7 +273,7 @@ export function runProjectCheck(input: ProjectCheckInput): ValidationReport {
         level: 'SUGGESTION',
         category: 'Release readiness',
         message: 'No local artifacts have been built yet.',
-        fix: 'Run Build All or Package Local Release before publishing.',
+        fix: 'Run Build All or Prepare Release Assets before publishing.',
         aiFixable: false
       })
     }
@@ -284,7 +284,7 @@ export function runProjectCheck(input: ProjectCheckInput): ValidationReport {
         level: 'WARNING',
         category: 'Release readiness',
         message: 'Built artifacts are missing echo-release.json or checksums.sha256.',
-        fix: 'Use Release to prepare the local release package.',
+        fix: 'Use Release to prepare release assets.',
         aiFixable: false
       })
     }

@@ -199,7 +199,7 @@ describe('previewRuntimeDisabledReason', () => {
           }
         ]
       }
-    }), 'running Package Local Release')).toBe('Add required ECHO module closure before running Package Local Release: MissionCore.')
+    }), 'running Prepare Release Assets')).toBe('Add required ECHO module closure before running Prepare Release Assets: MissionCore.')
 
     expect(moduleReadinessDisabledReason(workspace({
       modulePlan: {

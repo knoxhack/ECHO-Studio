@@ -413,8 +413,8 @@ export const DEV_TASKS: DevTask[] = [
   },
   {
     id: 'package:local',
-    label: 'Package Local Release',
-    description: 'Build local ECHO release assets and sidecar manifests.',
+    label: 'Prepare Release Assets',
+    description: 'Build local ECHO release artifacts, checksums, sidecars, and Release Index handoff files.',
     command: 'studioPackage',
     kind: 'package'
   }

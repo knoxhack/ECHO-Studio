@@ -135,12 +135,12 @@ function validateReleaseDraftMetadata(draft: ReleaseDraftFile, assets: DraftAsse
   const assetsByName = new Map(assets.map((asset) => [assetName(asset), asset]))
   for (const sidecar of REQUIRED_RELEASE_DRAFT_SIDECARS) {
     if (!assetsByName.has(sidecar)) {
-      throw new Error(`Release draft is missing required sidecar asset ${sidecar}. Run Prepare Assets again.`)
+      throw new Error(`Release draft is missing required sidecar asset ${sidecar}. Run Gate + Prepare Assets again.`)
     }
   }
 
   if (!isRecord(draft.releaseIndexHandoff)) {
-    throw new Error('Release draft must include releaseIndexHandoff metadata. Run Prepare Assets again.')
+    throw new Error('Release draft must include releaseIndexHandoff metadata. Run Gate + Prepare Assets again.')
   }
   const handoff = draft.releaseIndexHandoff
   if (handoff.schemaVersion !== 'echo.release.index.handoff.v1') {

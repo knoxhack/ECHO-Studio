@@ -305,7 +305,7 @@ function releasePackageTask(store: CodexTaskStore, context: ProjectContext): Cod
   const ready = context.report.publishingReady && context.releaseSidecarsReady && context.releasePackageReady
   return {
     id: 'release:package-local',
-    title: 'Prepare local release package',
+    title: 'Prepare release assets',
     kind: 'release_package',
     lane: taskLane('release:package-local', ready ? 'suggested' : 'ready', store),
     summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, Release Index handoff, review notes, and GitHub release draft payload.',
@@ -318,7 +318,7 @@ function releasePackageTask(store: CodexTaskStore, context: ProjectContext): Cod
     affectedFiles: ['exports/', 'release/', 'META-INF/echo-addon-package.json'],
     fileChanges: [],
     canApply: true,
-    applyLabel: ready ? 'Rebuild release assets' : 'Package local release',
+    applyLabel: ready ? 'Rebuild release assets' : 'Prepare release assets',
     rejectable: true,
     validationBefore: validationSnapshot(context.report)
   }

@@ -358,13 +358,13 @@ export default function PublishAssistant(): JSX.Element {
       key: 'sdk',
       ready: sdkReady,
       label: 'Package contract',
-      detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} contract issue(s) need review.`) : 'Run Prepare Assets to validate the package manifest.'
+      detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} contract issue(s) need review.`) : 'Run Gate + Prepare Assets to validate the package manifest.'
     },
     {
       key: 'validation',
       ready: validationReady,
       label: 'Validation',
-      detail: readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}.` : 'Run project validation or Prepare Assets.'
+      detail: readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}.` : 'Run project validation or Gate + Prepare Assets.'
     },
     {
       key: 'modules',
@@ -380,7 +380,7 @@ export default function PublishAssistant(): JSX.Element {
       key: 'sidecars',
       ready: releaseSidecarsReady,
       label: 'Release sidecars',
-      detail: releaseSidecarsReady ? 'All package sidecars and draft metadata were generated.' : 'Run Prepare Assets to write checksums, package manifest, release manifest, handoff, review notes, and draft JSON.'
+      detail: releaseSidecarsReady ? 'All package sidecars and draft metadata were generated.' : 'Run Gate + Prepare Assets to write checksums, package manifest, release manifest, handoff, review notes, and draft JSON.'
     },
     {
       key: 'handoff',
@@ -408,7 +408,7 @@ export default function PublishAssistant(): JSX.Element {
         ? handoffTargetReady
           ? `Matches ${pkg.releaseIndexHandoff.sourceRepo}@${pkg.releaseIndexHandoff.releaseTag}.`
           : `Generated handoff targets ${pkg.releaseIndexHandoff.sourceRepo}@${pkg.releaseIndexHandoff.releaseTag}; selected ${selectedRepository}@${tag.trim() || '(missing)'}.`
-        : 'Prepare Assets to generate the handoff source repository and release tag.'
+        : 'Run Gate + Prepare Assets to generate the handoff source repository and release tag.'
     },
     {
       key: 'auth',
@@ -648,7 +648,7 @@ export default function PublishAssistant(): JSX.Element {
         <div className="card">
           <h3>Local Release Pipeline</h3>
           <StepRow done={releaseGateReady} label="Local release gate" detail={releaseGateDetail} />
-          <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
+          <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Gate + Prepare Assets to validate echo-addon-package.json.'} />
           <StepRow done={validationReady} label="Project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
           <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md (review notes), and github-release-draft.json." />
           <StepRow

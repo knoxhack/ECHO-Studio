@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 const SNIPPETS: Record<string, string> = {
   'Getting Started':
-    'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Run Validation.\n5. Package local release assets before GitHub publishing.',
+    'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Run Validation.\n5. Prepare release assets before GitHub publishing.',
   'ECHO Modules':
     'ECHO Modules provide the public contracts creators build against:\n- MissionCore (missions, objectives, rewards)\n- RecipeCore (crafting recipes, machine recipes)\n- ScreenCore (custom UI screens)\n- HoloMap (map layers and markers)\n- Index (lore entries)\n\nAll content must be namespaced to the creator.\nUse only documented module APIs and permissions.',
   'Manifest Reference':

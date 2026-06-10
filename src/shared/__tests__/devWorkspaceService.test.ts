@@ -287,7 +287,7 @@ describe('setupDevWorkspace', () => {
       expect(result.stdout).toContain('Release gate: pass')
       expect(result.stdout).toContain('Module lock: current')
       expect(result.stdout).toContain('Module workspace: current')
-      expect(result.stdout).toContain('Next action: Run Package Local Release')
+      expect(result.stdout).toContain('Next action: Prepare release assets')
       expect(log).toContain('ECHO Studio task: studio:releaseGate')
       expect(log).toContain('[status] completed')
     })

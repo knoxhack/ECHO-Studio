@@ -1049,10 +1049,11 @@ ID: ${manifest.id}
 Version: ${manifest.version}
 
 1. Run Gradle tests from ECHO Studio.
-2. Run Package Local Release from ECHO Studio.
-3. Review exports/echo-release.json, exports/checksums.sha256, and exports/release-index-submission.md.
-4. Create the GitHub draft from Release when the local package is ready.
-5. Send release-index-handoff.json with release-index-submission.md for Release Index ingestion review.
+2. Run the local release gate from Release.
+3. Run Gate + Prepare Assets from Release.
+4. Review exports/echo-release.json, exports/checksums.sha256, and exports/release-index-submission.md.
+5. Create the GitHub draft from Release when the assets are ready.
+6. Send release-index-handoff.json with release-index-submission.md for Release Index ingestion review.
 `
 }
 
@@ -1301,7 +1302,7 @@ function validationIssueText(report: Awaited<ReturnType<typeof fullProjectReport
 function releaseGateSummary(report: Awaited<ReturnType<typeof fullProjectReport>>, state: DevWorkspaceState): string {
   const releaseState = report.publishingReady ? 'pass' : 'fail'
   const nextAction = report.publishingReady
-    ? 'Run Package Local Release, then upload the generated assets and sidecars to the release draft.'
+    ? 'Prepare release assets, then upload the generated artifacts and sidecars to the release draft.'
     : 'Fix blockers and errors before packaging release assets.'
   return [
     `Release gate: ${releaseState}`,
