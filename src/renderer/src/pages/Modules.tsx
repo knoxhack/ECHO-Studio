@@ -9,6 +9,7 @@ import {
   modulesForCapability,
   normalizeModuleId,
   resolveProjectModulePlan,
+  type EchoModuleCatalogResult,
   type EchoModuleRecord
 } from '@shared/moduleCatalog'
 import type { AddonManifest } from '@shared/types'
@@ -28,21 +29,44 @@ const CAPABILITIES = [
 export default function Modules(): JSX.Element {
   const { activeProject, refresh, toast } = useWorkspace()
   const [manifest, setManifest] = useState<AddonManifest | null>(null)
+  const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
+  const [catalogResult, setCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
   const [filter, setFilter] = useState<Filter>('All')
   const [selectedId, setSelectedId] = useState('echomissioncore')
+
+  const loadCatalog = (projectPath?: string): void => {
+    window.studio
+      .listEchoModules(projectPath)
+      .then((result) => {
+        if (result.ok && result.data) {
+          setCatalog(result.data.catalog)
+          setCatalogResult(result.data)
+        }
+      })
+      .catch((error) => {
+        setCatalog(ECHO_MODULE_CATALOG)
+        setCatalogResult({
+          catalog: ECHO_MODULE_CATALOG,
+          source: 'builtin',
+          warnings: [`Could not load local module catalog: ${error instanceof Error ? error.message : String(error)}`]
+        })
+      })
+  }
 
   useEffect(() => {
     if (!activeProject) {
       setManifest(null)
+      loadCatalog()
       return
     }
     window.studio.readManifest(activeProject.path).then((result) => {
       if (result.ok && result.data) setManifest(result.data)
     })
+    loadCatalog(activeProject.path)
   }, [activeProject])
 
-  const plan = useMemo(() => manifest ? resolveProjectModulePlan(manifest) : null, [manifest])
-  const selected = findEchoModule(selectedId) ?? ECHO_MODULE_CATALOG[0]
+  const plan = useMemo(() => manifest ? resolveProjectModulePlan(manifest, catalog) : null, [manifest, catalog])
+  const selected = findEchoModule(selectedId, catalog) ?? catalog[0] ?? ECHO_MODULE_CATALOG[0]
   const enabledIds = new Set(plan?.enabled.map((mod) => mod.id) ?? [])
 
   if (!activeProject) {
@@ -61,7 +85,7 @@ export default function Modules(): JSX.Element {
     )
   }
 
-  const filtered = ECHO_MODULE_CATALOG.filter((mod) => {
+  const filtered = catalog.filter((mod) => {
     if (filter === 'Enabled') return enabledIds.has(mod.id)
     if (filter === 'Foundation') return mod.kind === 'foundation'
     if (filter === 'UI') return mod.kind === 'ui_pack'
@@ -83,8 +107,8 @@ export default function Modules(): JSX.Element {
   }
 
   const appendUnique = (list: string[], id: string): string[] => {
-    const normalized = normalizeModuleId(id)
-    if (list.some((item) => normalizeModuleId(item) === normalized)) return list
+    const normalized = normalizeModuleId(id, catalog)
+    if (list.some((item) => normalizeModuleId(item, catalog) === normalized)) return list
     return [...list, id]
   }
 
@@ -104,7 +128,7 @@ export default function Modules(): JSX.Element {
   }
 
   const addClosure = (mod: EchoModuleRecord): void => {
-    const closure = getModuleDependencyClosure([mod.id]).map((item) => item.id)
+    const closure = getModuleDependencyClosure([mod.id], catalog).map((item) => item.id)
     const next: AddonManifest = {
       ...manifest,
       target: {
@@ -120,7 +144,7 @@ export default function Modules(): JSX.Element {
   }
 
   const removeModule = (mod: EchoModuleRecord): void => {
-    const remove = (list: string[]): string[] => list.filter((id) => normalizeModuleId(id) !== mod.id)
+    const remove = (list: string[]): string[] => list.filter((id) => normalizeModuleId(id, catalog) !== mod.id)
     const next: AddonManifest = {
       ...manifest,
       target: {
@@ -149,6 +173,7 @@ export default function Modules(): JSX.Element {
       actions={
         <>
           <button className="btn" onClick={() => addClosure(selected)}>Add Closure</button>
+          <button className="btn" onClick={() => loadCatalog(activeProject.path)}>Refresh Catalog</button>
           <button className="btn primary" onClick={() => addModule(selected, 'required')}>Add Required</button>
         </>
       }
@@ -157,10 +182,28 @@ export default function Modules(): JSX.Element {
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Enabled" value={String(plan.enabled.length)} />
+        <Metric label="Catalog" value={String(catalog.length)} />
         <Metric label="Missing Required" value={String(plan.missingRequired.length)} tone={plan.missingRequired.length ? 'var(--warn)' : 'var(--good)'} />
-        <Metric label="Optional Fits" value={String(plan.optionalAvailable.length)} />
         <Metric label="Unknown" value={String(plan.unknown.length)} tone={plan.unknown.length ? 'var(--bad)' : 'var(--good)'} />
       </div>
+
+      {catalogResult && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className={`badge ${catalogResult.source === 'local-index' ? 'ready' : 'local'}`}>
+              {catalogResult.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in catalog'}
+            </span>
+            {catalogResult.indexPath && <span className="mono dim" style={{ fontSize: 11 }}>{catalogResult.indexPath}</span>}
+            {catalogResult.generatedAt && <span className="dim" style={{ fontSize: 11 }}>generated {new Date(catalogResult.generatedAt).toLocaleString()}</span>}
+          </div>
+          {catalogResult.warnings.length > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">WARNING</span>
+              {catalogResult.warnings.join(' ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {plan.missingRequired.length > 0 && (
         <div className="issue WARNING" style={{ marginBottom: 16 }}>
@@ -189,7 +232,7 @@ export default function Modules(): JSX.Element {
                 className="tile"
                 style={{ textAlign: 'left', padding: 12 }}
                 onClick={() => {
-                  const mods = modulesForCapability(capability)
+                  const mods = modulesForCapability(capability, catalog)
                   const next: AddonManifest = {
                     ...manifest,
                     target: {
@@ -205,7 +248,7 @@ export default function Modules(): JSX.Element {
                 }}
               >
                 <h4>{label}</h4>
-                <p>{modulesForCapability(capability).map((mod) => mod.name).join(', ')}</p>
+                <p>{modulesForCapability(capability, catalog).map((mod) => mod.name).join(', ')}</p>
               </button>
             ))}
           </div>
@@ -278,7 +321,9 @@ export default function Modules(): JSX.Element {
           <p className="dim" style={{ fontSize: 13 }}>{selected.creatorUse}</p>
           <div style={{ fontSize: 12, lineHeight: 1.9 }}>
             <div>ID: <span className="mono">{selected.id}</span></div>
+            {selected.version && <div>Version: {selected.version}</div>}
             <div>Status: <b style={{ color: statusColor(selected.status) }}>{selected.status}</b></div>
+            <div>Channel: {selected.channel}</div>
             <div>API: {selected.publicApi}</div>
             <div>Role: {selected.role}</div>
             <div>Runtimes: {selected.runtimes.join(', ')}</div>
@@ -296,12 +341,12 @@ export default function Modules(): JSX.Element {
             <p className="dim" style={{ fontSize: 12 }}>No required module dependencies.</p>
           ) : (
             selected.requires.map((id) => {
-              const dep = findEchoModule(id)
+              const dep = findEchoModule(id, catalog)
               return (
                 <div className="list-row" key={id} style={{ padding: '6px 8px' }}>
                   <span style={{ flex: 1 }}>{dep?.name ?? id}</span>
-                  <span className={`badge ${enabledIds.has(normalizeModuleId(id)) ? 'ready' : 'local'}`}>
-                    {enabledIds.has(normalizeModuleId(id)) ? 'set' : 'needed'}
+                  <span className={`badge ${enabledIds.has(normalizeModuleId(id, catalog)) ? 'ready' : 'local'}`}>
+                    {enabledIds.has(normalizeModuleId(id, catalog)) ? 'set' : 'needed'}
                   </span>
                 </div>
               )
@@ -309,6 +354,7 @@ export default function Modules(): JSX.Element {
           )}
 
           <div className="btn-row" style={{ marginTop: 14 }}>
+            {selected.source && <span className="badge">{selected.source}</span>}
             {enabledIds.has(selected.id) ? (
               <button className="btn" onClick={() => removeModule(selected)}>Remove</button>
             ) : (
@@ -319,6 +365,20 @@ export default function Modules(): JSX.Element {
             )}
             <button className="btn ghost" onClick={() => addClosure(selected)}>Add Closure</button>
           </div>
+          {(selected.moduleDir || selected.descriptorPath) && (
+            <div className="btn-row" style={{ marginTop: 10 }}>
+              {selected.moduleDir && (
+                <button className="btn ghost" onClick={() => window.studio.openPath(selected.moduleDir!)}>
+                  Open Module Folder
+                </button>
+              )}
+              {selected.descriptorPath && (
+                <button className="btn ghost" onClick={() => window.studio.openPath(selected.descriptorPath!)}>
+                  Open Descriptor
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Page>

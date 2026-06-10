@@ -7,6 +7,7 @@ export interface EchoModuleRecord {
   id: string
   aliases: string[]
   name: string
+  version?: string
   role: string
   kind: EchoModuleKind
   status: EchoModuleStatus
@@ -18,8 +19,52 @@ export interface EchoModuleRecord {
   requires: string[]
   optional: string[]
   provides: string[]
+  consumes?: string[]
   runtimes: Array<'neoforge' | 'echo_native' | 'standalone'>
   creatorUse: string
+  source?: 'builtin' | 'local-index' | 'release-index'
+  moduleDir?: string
+  descriptorPath?: string
+  catalogPath?: string
+}
+
+export interface EchoModulesIndexEntry {
+  id: string
+  name?: string
+  version?: string
+  kind?: string
+  role?: string
+  channel?: string
+  official?: boolean
+  trustLevel?: string
+  side?: string
+  standalone?: boolean
+  launcherVisible?: boolean
+  ashfallRequired?: boolean
+  descriptorPath?: string
+  moduleDir?: string
+  requires?: string[]
+  optional?: string[]
+  provides?: string[]
+  consumes?: string[]
+  apiStability?: string
+}
+
+export interface EchoModulesIndex {
+  schemaVersion?: number | string
+  generatedFrom?: string
+  generatedAt?: string
+  moduleCount?: number
+  modules?: EchoModulesIndexEntry[]
+}
+
+export interface EchoModuleCatalogResult {
+  catalog: EchoModuleRecord[]
+  source: 'builtin' | 'local-index'
+  indexPath?: string
+  moduleRoot?: string
+  generatedAt?: string
+  warnings: string[]
 }
 
 export interface ProjectModulePlan {
@@ -359,37 +404,40 @@ export const ECHO_MODULE_CATALOG: EchoModuleRecord[] = [
   }
 ]
 
-const aliasToId = new Map<string, string>()
-for (const mod of ECHO_MODULE_CATALOG) {
-  aliasToId.set(mod.id, mod.id)
-  aliasToId.set(mod.id.replace(/^echo/, 'echo:'), mod.id)
-  for (const alias of mod.aliases) aliasToId.set(alias.toLowerCase(), mod.id)
+function buildAliasMap(catalog: EchoModuleRecord[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const mod of catalog) {
+    map.set(mod.id, mod.id)
+    map.set(mod.id.replace(/^echo/, 'echo:'), mod.id)
+    for (const alias of mod.aliases) map.set(alias.toLowerCase(), mod.id)
+  }
+  return map
 }
 
-export function normalizeModuleId(id: string): string {
+export function normalizeModuleId(id: string, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): string {
   const key = id.trim().toLowerCase()
   if (!key) return key
-  const alias = aliasToId.get(key)
+  const alias = buildAliasMap(catalog).get(key)
   if (alias) return alias
   if (key.startsWith('echo:')) return `echo${key.slice(5).replace(/_/g, '')}`
   return key.replace(/_/g, '')
 }
 
-export function findEchoModule(id: string): EchoModuleRecord | undefined {
-  const normalized = normalizeModuleId(id)
-  return ECHO_MODULE_CATALOG.find((mod) => mod.id === normalized)
+export function findEchoModule(id: string, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): EchoModuleRecord | undefined {
+  const normalized = normalizeModuleId(id, catalog)
+  return catalog.find((mod) => mod.id === normalized)
 }
 
-export function dependencyIncludes(dependencies: string[], id: string): boolean {
-  const target = normalizeModuleId(id)
-  return dependencies.some((dep) => normalizeModuleId(dep) === target)
+export function dependencyIncludes(dependencies: string[], id: string, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): boolean {
+  const target = normalizeModuleId(id, catalog)
+  return dependencies.some((dep) => normalizeModuleId(dep, catalog) === target)
 }
 
-export function getModuleDependencyClosure(ids: string[]): EchoModuleRecord[] {
+export function getModuleDependencyClosure(ids: string[], catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): EchoModuleRecord[] {
   const seen = new Set<string>()
   const out: EchoModuleRecord[] = []
   const visit = (id: string): void => {
-    const mod = findEchoModule(id)
+    const mod = findEchoModule(id, catalog)
     if (!mod || seen.has(mod.id)) return
     seen.add(mod.id)
     for (const dep of mod.requires) visit(dep)
@@ -399,7 +447,7 @@ export function getModuleDependencyClosure(ids: string[]): EchoModuleRecord[] {
   return out
 }
 
-export function resolveProjectModulePlan(manifest: AddonManifest): ProjectModulePlan {
+export function resolveProjectModulePlan(manifest: AddonManifest, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): ProjectModulePlan {
   const declared = Array.from(
     new Set([
       ...manifest.dependencies.required,
@@ -407,15 +455,15 @@ export function resolveProjectModulePlan(manifest: AddonManifest): ProjectModule
       ...manifest.target.modules
     ])
   )
-  const normalizedDeclared = Array.from(new Set(declared.map(normalizeModuleId).filter(Boolean)))
-  const enabled = normalizedDeclared.map(findEchoModule).filter((mod): mod is EchoModuleRecord => Boolean(mod))
+  const normalizedDeclared = Array.from(new Set(declared.map((id) => normalizeModuleId(id, catalog)).filter(Boolean)))
+  const enabled = normalizedDeclared.map((id) => findEchoModule(id, catalog)).filter((mod): mod is EchoModuleRecord => Boolean(mod))
   const knownIds = new Set(enabled.map((mod) => mod.id))
-  const unknown = declared.filter((id) => !findEchoModule(id))
-  const closure = getModuleDependencyClosure(normalizedDeclared)
+  const unknown = declared.filter((id) => !findEchoModule(id, catalog))
+  const closure = getModuleDependencyClosure(normalizedDeclared, catalog)
   const missingRequired = closure.filter((mod) => !knownIds.has(mod.id))
   const optionalAvailable = enabled
     .flatMap((mod) => mod.optional)
-    .map(findEchoModule)
+    .map((id) => findEchoModule(id, catalog))
     .filter((mod): mod is EchoModuleRecord => Boolean(mod))
     .filter((mod, index, arr) => !knownIds.has(mod.id) && arr.findIndex((other) => other.id === mod.id) === index)
 
@@ -430,7 +478,10 @@ export function resolveProjectModulePlan(manifest: AddonManifest): ProjectModule
   }
 }
 
-export function modulesForCapability(capability: 'missions' | 'recipes' | 'interface' | 'map' | 'knowledge' | 'developer'): EchoModuleRecord[] {
+export function modulesForCapability(
+  capability: 'missions' | 'recipes' | 'interface' | 'map' | 'knowledge' | 'developer',
+  catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG
+): EchoModuleRecord[] {
   const map: Record<typeof capability, string[]> = {
     missions: ['echomissioncore', 'echoindex', 'echoholomap'],
     recipes: ['echorecipecore', 'echoindex'],
@@ -439,5 +490,99 @@ export function modulesForCapability(capability: 'missions' | 'recipes' | 'inter
     knowledge: ['echoindex', 'echowiki', 'echoterminal'],
     developer: ['echoagentcore', 'echoscriptcore', 'echoruntimeguard']
   }
-  return map[capability].map(findEchoModule).filter((mod): mod is EchoModuleRecord => Boolean(mod))
+  return map[capability].map((id) => findEchoModule(id, catalog)).filter((mod): mod is EchoModuleRecord => Boolean(mod))
+}
+
+function inferKind(entry: EchoModulesIndexEntry): EchoModuleKind {
+  const role = (entry.role ?? '').toLowerCase()
+  const kind = (entry.kind ?? '').toLowerCase()
+  if (kind === 'ui_pack' || ['terminal', 'theme', 'map', 'scanner', 'knowledge'].includes(role)) return 'ui_pack'
+  if (kind === 'developer_tool' || role.includes('agent') || role.includes('script') || role.includes('tool')) return 'developer_tool'
+  if (['foundation', 'platform', 'sdk_spine', 'safety', 'data'].includes(role)) return 'foundation'
+  if (['story', 'official pack'].includes(role)) return 'story'
+  if (['world', 'survival'].includes(role)) return 'world'
+  if (['tech', 'recipes', 'networking'].includes(role)) return 'tech'
+  if (kind === 'library' || kind === 'public_api') return 'library'
+  return kind === 'addon' ? 'addon' : 'library'
+}
+
+function inferStatus(entry: EchoModulesIndexEntry): EchoModuleStatus {
+  const channel = (entry.channel ?? '').toLowerCase()
+  const api = (entry.apiStability ?? '').toLowerCase()
+  if (channel.includes('internal') || api.includes('internal')) return 'internal'
+  if (channel.includes('deprecated') || api.includes('deprecated')) return 'deprecated'
+  if (channel === 'stable' || api === 'stable') return 'stable'
+  if (channel === 'beta' || api === 'beta') return 'beta'
+  return 'experimental'
+}
+
+function inferChannel(entry: EchoModulesIndexEntry): EchoModuleRecord['channel'] {
+  const value = (entry.channel ?? '').toLowerCase()
+  if (value === 'stable' || value === 'beta' || value === 'alpha' || value === 'internal') return value
+  return inferStatus(entry) === 'stable' ? 'stable' : inferStatus(entry) === 'beta' ? 'beta' : 'alpha'
+}
+
+function inferPublicApi(entry: EchoModulesIndexEntry): EchoModuleRecord['publicApi'] {
+  const value = (entry.apiStability ?? '').toLowerCase()
+  if (value === 'stable' || value === 'beta' || value === 'experimental' || value === 'internal' || value === 'deprecated') return value
+  return inferStatus(entry)
+}
+
+function inferRuntimes(entry: EchoModulesIndexEntry): EchoModuleRecord['runtimes'] {
+  const out: EchoModuleRecord['runtimes'] = ['neoforge', 'echo_native']
+  if (entry.standalone) out.push('standalone')
+  return out
+}
+
+function moduleName(entry: EchoModulesIndexEntry): string {
+  return (entry.name ?? entry.id)
+    .replace(/^ECHO:\s*/i, '')
+    .replace(/\s+by ECHO Labs$/i, '')
+}
+
+function aliasForId(id: string): string[] {
+  if (!id.startsWith('echo')) return []
+  const raw = id.slice(4)
+  if (!raw) return ['echo:core']
+  const snake = raw.replace(/core$/i, '_core')
+  return Array.from(new Set([`echo:${raw}`, `echo:${snake}`]))
+}
+
+export function moduleFromIndexEntry(entry: EchoModulesIndexEntry, context?: { catalogPath?: string; moduleRoot?: string }): EchoModuleRecord {
+  const id = normalizeModuleId(entry.id)
+  const name = moduleName(entry)
+  return {
+    id,
+    aliases: aliasForId(id),
+    name,
+    version: entry.version,
+    role: entry.role ?? 'module',
+    kind: inferKind(entry),
+    status: inferStatus(entry),
+    channel: inferChannel(entry),
+    standaloneReady: Boolean(entry.standalone),
+    launcherVisible: entry.launcherVisible ?? inferStatus(entry) !== 'internal',
+    ashfallRequired: Boolean(entry.ashfallRequired),
+    publicApi: inferPublicApi(entry),
+    requires: (entry.requires ?? []).map((dep) => normalizeModuleId(dep)),
+    optional: (entry.optional ?? []).map((dep) => normalizeModuleId(dep)),
+    provides: entry.provides ?? [],
+    consumes: entry.consumes ?? [],
+    runtimes: inferRuntimes(entry),
+    creatorUse: `${name} provides ${(entry.provides ?? []).slice(0, 3).join(', ') || entry.role || 'ECHO module capabilities'}.`,
+    source: 'local-index',
+    moduleDir: entry.moduleDir,
+    descriptorPath: entry.descriptorPath,
+    catalogPath: context?.catalogPath
+  }
+}
+
+export function mergeModuleCatalog(imported: EchoModuleRecord[], base: EchoModuleRecord[] = ECHO_MODULE_CATALOG): EchoModuleRecord[] {
+  const merged = new Map<string, EchoModuleRecord>()
+  for (const mod of base) merged.set(mod.id, { ...mod, source: mod.source ?? 'builtin' })
+  for (const mod of imported) {
+    const existing = merged.get(mod.id)
+    merged.set(mod.id, existing ? { ...existing, ...mod, aliases: Array.from(new Set([...existing.aliases, ...mod.aliases])) } : mod)
+  }
+  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name))
 }

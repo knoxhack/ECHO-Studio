@@ -48,6 +48,7 @@ import { gitStatus, gitInit, gitCommit, gitLog, gitDiff, gitBranch, gitCheckout,
 import { join, basename } from 'path'
 import { inspectDevWorkspace, runDevTask, setupDevWorkspace } from './devWorkspaceService'
 import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
+import { listEchoModules } from './moduleCatalogService'
 
 // Wrap a handler so every channel returns a uniform IpcResult.
 function handle<TArgs extends unknown[], TResult>(
@@ -127,6 +128,8 @@ export function registerIpc(): void {
   handle('project:fullCheck', async (projectPath: string) => {
     const manifest = await readManifest(projectPath)
     if (!manifest) throw new Error('Missing echo.mod.json')
+    const moduleCatalog = await listEchoModules(projectPath)
+    const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
     const all = await readAllContent(projectPath)
     const content: Record<string, { id: string; data: unknown }[]> = {}
     for (const [type, records] of Object.entries(all)) {
@@ -134,7 +137,14 @@ export function registerIpc(): void {
     }
     const langKeys = await readLangKeys(projectPath)
     const assetFiles = await listAssetFiles(projectPath)
-    return runProjectCheck({ manifest, content: content as never, langKeys, assetFiles })
+    return runProjectCheck({
+      manifest,
+      content: content as never,
+      langKeys,
+      assetFiles,
+      moduleCatalog: moduleCatalog.catalog,
+      devWorkspace
+    })
   })
 
   handle('assets:scan', (projectPath: string) => scanAssets(projectPath))
@@ -187,6 +197,8 @@ export function registerIpc(): void {
   handle('sandbox:run', (projectPath: string, workspaceDir: string, profile: string, options: SandboxOptions) =>
     runSandbox(projectPath, workspaceDir, profile, options)
   )
+
+  handle('modules:list', (projectPath?: string) => listEchoModules(projectPath))
 
   handle('dev:inspect', (projectPath: string) => inspectDevWorkspace(projectPath))
   handle('dev:setup', (projectPath: string, options: DevWorkspaceOptions) =>

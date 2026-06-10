@@ -3,7 +3,7 @@ import {
   BLOCKED_PERMISSIONS,
   RESERVED_NAMESPACE
 } from './constants'
-import { dependencyIncludes, resolveProjectModulePlan } from './moduleCatalog'
+import { dependencyIncludes, resolveProjectModulePlan, type EchoModuleRecord } from './moduleCatalog'
 import type {
   AddonManifest,
   IssueLevel,
@@ -13,7 +13,7 @@ import type {
 
 // PackOS Check — the core safety gate. Pure function over a manifest so it can
 // run in either process and be unit-tested easily.
-export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
+export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModuleRecord[]): PackOSReport {
   const issues: ValidationIssue[] = []
 
   // --- Namespace / identity --------------------------------------------------
@@ -78,7 +78,7 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
 
   // --- Dependencies ----------------------------------------------------------
   const required = manifest.dependencies.required
-  if (!dependencyIncludes(required, 'echocore')) {
+  if (!dependencyIncludes(required, 'echocore', moduleCatalog)) {
     issues.push({
       level: 'ERROR',
       category: 'Dependencies',
@@ -87,7 +87,7 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
       aiFixable: true
     })
   }
-  if (manifest.permissions.includes('mission.register') && !dependencyIncludes(required, 'echomissioncore')) {
+  if (manifest.permissions.includes('mission.register') && !dependencyIncludes(required, 'echomissioncore', moduleCatalog)) {
     issues.push({
       level: 'ERROR',
       category: 'Dependencies',
@@ -96,7 +96,7 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
       aiFixable: true
     })
   }
-  if (manifest.permissions.includes('recipe.register') && !dependencyIncludes(required, 'echorecipecore')) {
+  if (manifest.permissions.includes('recipe.register') && !dependencyIncludes(required, 'echorecipecore', moduleCatalog)) {
     issues.push({
       level: 'WARNING',
       category: 'Dependencies',
@@ -106,7 +106,7 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
     })
   }
 
-  const modulePlan = resolveProjectModulePlan(manifest)
+  const modulePlan = resolveProjectModulePlan(manifest, moduleCatalog)
   for (const dep of modulePlan.unknown) {
     issues.push({
       level: 'WARNING',
@@ -123,6 +123,23 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
       fix: `Add ${dep.id} or let Studio add the full required module closure.`,
       aiFixable: true
     })
+  }
+  for (const mod of modulePlan.enabled) {
+    if (mod.status === 'deprecated') {
+      issues.push({
+        level: 'ERROR',
+        category: 'ECHO Modules',
+        message: `${mod.name} is deprecated and should not be used for new releases.`,
+        fix: 'Remove the deprecated module or replace it with its supported successor.'
+      })
+    } else if (mod.status === 'internal') {
+      issues.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: `${mod.name} is marked internal and may not be accepted for public release.`,
+        fix: 'Use public stable/beta modules for catalog-ready projects.'
+      })
+    }
   }
 
   // --- Runtime / native readiness -------------------------------------------

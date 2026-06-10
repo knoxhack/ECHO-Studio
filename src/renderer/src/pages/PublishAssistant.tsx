@@ -174,6 +174,12 @@ export default function PublishAssistant(): JSX.Element {
           <button className="btn secondary" onClick={() => pkg?.releaseDraftPath && window.studio.openPath(pkg.releaseDraftPath)} disabled={!pkg?.releaseDraftPath}>
             Open Draft JSON
           </button>
+          <button className="btn secondary" onClick={() => pkg?.releaseManifestPath && window.studio.openPath(pkg.releaseManifestPath)} disabled={!pkg?.releaseManifestPath}>
+            Open echo-release.json
+          </button>
+          <button className="btn secondary" onClick={() => pkg?.checksumsPath && window.studio.openPath(pkg.checksumsPath)} disabled={!pkg?.checksumsPath}>
+            Open Checksums
+          </button>
         </div>
         {pkg && (
           <div className="grid gap-2" style={{ marginTop: 12 }}>
@@ -181,7 +187,20 @@ export default function PublishAssistant(): JSX.Element {
             <div className="badge">SDK Contract: {pkg.sdkValidation.ok ? 'ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
             <div className="badge">Built Assets: {pkg.assetPaths.length}</div>
             <div className="badge">Checksums: {pkg.checksumsPath ?? 'not written'}</div>
+            <div className="badge">Package Manifest: {pkg.packageManifestPath ?? 'not written'}</div>
+            <div className="badge">Release Manifest: {pkg.releaseManifestPath ?? 'not written'}</div>
             <div className="badge">Draft JSON: {pkg.releaseDraftPath ?? 'not written'}</div>
+          </div>
+        )}
+        {pkg?.releaseIndexPreview !== undefined && (
+          <div className="card" style={{ marginTop: 12, background: 'var(--bg-2)' }}>
+            <h3>Release Index Preview</h3>
+            <p className="dim" style={{ fontSize: 12 }}>
+              This is the exact local entry Studio writes to echo-release.json before GitHub publishing or Release Index ingestion.
+            </p>
+            <div className="code" style={{ maxHeight: 280 }}>
+              {JSON.stringify(pkg.releaseIndexPreview, null, 2) ?? 'null'}
+            </div>
           </div>
         )}
         {releaseUrl && (

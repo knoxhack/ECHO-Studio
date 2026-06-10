@@ -43,6 +43,7 @@ export interface PackageResult {
   packageManifestPath?: string
   releaseManifestPath?: string
   releaseDraftPath?: string
+  releaseIndexPreview?: unknown
 }
 
 export type GitHubAuthProvider = 'github-app' | 'gh-cli' | 'none'

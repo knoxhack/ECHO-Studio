@@ -1,5 +1,7 @@
 import { runPackOSCheck } from './validation'
 import type { AddonManifest, PackOSReport, ValidationIssue } from './types'
+import type { EchoModuleRecord } from './moduleCatalog'
+import type { DevWorkspaceState } from './devWorkspace'
 import type {
   ContentType,
   HoloMapLayer,
@@ -21,12 +23,14 @@ export interface ProjectCheckInput {
   content: Partial<Record<ContentType, { id: string; data: unknown }[]>>
   langKeys: string[]
   assetFiles: string[] // relative paths under assets/
+  moduleCatalog?: EchoModuleRecord[]
+  devWorkspace?: DevWorkspaceState
 }
 
 // Runs the manifest PackOS check PLUS cross-content relationship validation,
 // then merges everything into a single report (re-scored).
 export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
-  const base = runPackOSCheck(input.manifest)
+  const base = runPackOSCheck(input.manifest, input.moduleCatalog)
   const extra: ValidationIssue[] = []
 
   const missions = pick<Mission>(input, 'mission')
@@ -112,6 +116,48 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
     const key = `mission.${flat(m.id)}`
     if (input.langKeys.length > 0 && !langSet.has(key)) {
       extra.push({ level: 'SUGGESTION', category: 'Localization', message: `Missing localization key ${key} for mission ${m.id}.`, aiFixable: true })
+    }
+  }
+
+  // --- Local developer workspace -------------------------------------------
+  if (input.devWorkspace) {
+    if (!input.devWorkspace.gradleReady) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Dev Workspace',
+        message: 'Gradle project files are not set up yet.',
+        fix: 'Open Dev Workspace and run Set Up Workspace.',
+        aiFixable: false
+      })
+    }
+    if (!input.devWorkspace.sourceReady) {
+      extra.push({
+        level: 'SUGGESTION',
+        category: 'Dev Workspace',
+        message: 'Source scaffold is missing.',
+        fix: 'Generate source folders from Dev Workspace before running local builds.',
+        aiFixable: false
+      })
+    }
+    if (input.devWorkspace.artifacts.length === 0) {
+      extra.push({
+        level: 'SUGGESTION',
+        category: 'Release readiness',
+        message: 'No local artifacts have been built yet.',
+        fix: 'Run Build All or Package Local Release before publishing.',
+        aiFixable: false
+      })
+    }
+    const hasReleaseManifest = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'echo-release.json')
+    const hasChecksums = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'checksums.sha256')
+    if (input.devWorkspace.artifacts.length > 0 && (!hasReleaseManifest || !hasChecksums)) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Release readiness',
+        message: 'Built artifacts are missing echo-release.json or checksums.sha256.',
+        fix: 'Use Release Builder to prepare the local release package.',
+        aiFixable: false
+      })
     }
   }
 

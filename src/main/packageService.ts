@@ -13,6 +13,7 @@ import { validateAddonPackageManifest } from '../shared/addonPackageContract'
 import type { PackOSReport } from '../shared/types'
 import type { PackageResult } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
+import { listEchoModules } from './moduleCatalogService'
 
 const EXCLUDE_DIRS = new Set(['.studio', 'exports', 'node_modules', '.git'])
 const execFileAsync = promisify(execFile)
@@ -178,7 +179,8 @@ export async function fullProjectReport(projectPath: string): Promise<PackOSRepo
   }
   const langKeys = await readLangKeys(projectPath)
   const assetFiles = await listAssetFiles(projectPath)
-  return runProjectCheck({ manifest, content: content as never, langKeys, assetFiles })
+  const moduleCatalog = await listEchoModules(projectPath)
+  return runProjectCheck({ manifest, content: content as never, langKeys, assetFiles, moduleCatalog: moduleCatalog.catalog })
 }
 
 // Build a distributable .echo-addon of the project (excludes .studio/, exports/, etc.),
@@ -297,6 +299,7 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
     checksumsPath,
     packageManifestPath,
     releaseManifestPath,
-    releaseDraftPath
+    releaseDraftPath,
+    releaseIndexPreview: releaseManifest
   }
 }
