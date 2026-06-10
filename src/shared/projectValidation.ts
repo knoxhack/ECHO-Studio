@@ -63,7 +63,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
 
   // --- Missions -------------------------------------------------------------
   for (const m of missions) {
-    if (m.rewards.length === 0) {
+    if ((m.rewards ?? []).length === 0) {
       extra.push({ level: 'WARNING', category: 'Missions', message: `Mission ${m.id} has no reward.`, fix: 'Add at least one reward.', file: `missions/${local(m.id)}.json`, aiFixable: true })
     }
     if (m.unlockAfter && !missionIds.has(m.unlockAfter)) {
@@ -73,7 +73,14 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
       extra.push({ level: 'WARNING', category: 'Missions', message: `Mission ${m.id} uses unknown target ID ${m.objective.target}.`, file: `missions/${local(m.id)}.json` })
     }
     if (m.holomapMarker && !markerExists(layers, m.holomapMarker)) {
-      extra.push({ level: 'WARNING', category: 'HoloMap', message: `Mission ${m.id} references missing HoloMap marker ${m.holomapMarker}.`, aiFixable: false })
+      extra.push({
+        level: 'WARNING',
+        category: 'HoloMap',
+        message: `Mission ${m.id} references missing HoloMap marker ${m.holomapMarker}.`,
+        fix: 'Generate a HoloMap mission marker layer or link the mission to an existing marker.',
+        file: `missions/${local(m.id)}.json`,
+        aiFixable: true
+      })
     }
     if (m.indexEntry && !indexIds.has(m.indexEntry)) {
       extra.push({ level: 'SUGGESTION', category: 'Index', message: `Mission ${m.id} references missing Index entry ${m.indexEntry}.`, aiFixable: true })
@@ -104,9 +111,9 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
       if (mk.linkedMission && !missionIds.has(mk.linkedMission)) {
         extra.push({ level: 'WARNING', category: 'HoloMap', message: `Marker ${mk.id} references missing mission ${mk.linkedMission}.`, aiFixable: false })
       }
-      const MAP_BOUNDS = 100 // Percentage-based coordinate system (0–100)
+      const MAP_BOUNDS = 100 // Percentage-based coordinate system (0-100)
       if (mk.x < 0 || mk.x > MAP_BOUNDS || mk.z < 0 || mk.z > MAP_BOUNDS) {
-        extra.push({ level: 'INFO', category: 'HoloMap', message: `Marker ${mk.id} is outside the valid region bounds (0–${MAP_BOUNDS}).` })
+        extra.push({ level: 'INFO', category: 'HoloMap', message: `Marker ${mk.id} is outside the valid region bounds (0-${MAP_BOUNDS}).` })
       }
     }
   }

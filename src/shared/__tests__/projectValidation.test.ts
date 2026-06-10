@@ -170,6 +170,34 @@ describe('runProjectCheck', () => {
     expect(report.issues.some((i) => i.message.includes('no reward'))).toBe(true)
   })
 
+  it('marks missing HoloMap mission markers as AI-fixable', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {
+        mission: [
+          {
+            id: 'teamnova:m1',
+            data: {
+              id: 'teamnova:m1',
+              title: 'M1',
+              rewards: [{ item: 'teamnova:reward', count: 1 }],
+              objective: { type: 'visit_location', target: 'teamnova:site' },
+              holomapMarker: 'teamnova:m1_marker'
+            }
+          }
+        ],
+        holomap: []
+      },
+      langKeys: [],
+      assetFiles: []
+    })
+    const issue = report.issues.find((item) => item.message.includes('references missing HoloMap marker'))
+
+    expect(issue?.aiFixable).toBe(true)
+    expect(issue?.file).toBe('missions/m1.json')
+    expect(issue?.fix).toContain('Generate a HoloMap mission marker layer')
+  })
+
   it('detects recipe cycle', () => {
     const report = runProjectCheck({
       manifest: makeManifest(),

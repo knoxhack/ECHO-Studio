@@ -173,4 +173,47 @@ describe('codex task service', () => {
       expect(afterTasks.some((item) => item.id === 'content:index-entries')).toBe(false)
     })
   })
+
+  it('proposes and applies missing HoloMap mission markers', async () => {
+    await withProject(async (project) => {
+      const missionPath = path.join(project, 'missions', 'first_contact.json')
+      const mission = JSON.parse(await fs.readFile(missionPath, 'utf8'))
+      mission.description = 'Locate the weather beacon and report home.'
+      mission.holomapMarker = 'teamnova:first_contact_marker'
+      mission.indexEntry = 'teamnova:first_contact_entry'
+      await fs.writeFile(missionPath, JSON.stringify(mission, null, 2), 'utf8')
+
+      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'content:holomap-markers')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('holomap_marker_fix')
+      expect(task?.lane).toBe('waiting_review')
+      expect(task?.fileChanges[0].path).toBe('holomap/mission_markers.json')
+      expect(task?.fileChanges[0].diff).toContain('+      "id": "teamnova:first_contact_marker",')
+      expect(task?.fileChanges[0].diff).toContain('+      "linkedMission": "teamnova:first_contact",')
+      expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
+
+      const result = await applyCodexTask(project, 'content:holomap-markers')
+      const layer = JSON.parse(await fs.readFile(path.join(project, 'holomap', 'mission_markers.json'), 'utf8'))
+      const afterTasks = await listCodexTasks(project)
+
+      expect(result.filesChanged).toEqual(['holomap/mission_markers.json'])
+      expect(layer).toMatchObject({
+        id: 'teamnova:mission_markers',
+        title: 'Mission Markers',
+        type: 'mission_route',
+        markers: [{
+          id: 'teamnova:first_contact_marker',
+          title: 'First Contact',
+          icon: 'mission',
+          linkedMission: 'teamnova:first_contact',
+          linkedIndex: 'teamnova:first_contact_entry'
+        }]
+      })
+      expect(afterTasks.some((item) => item.id === 'content:holomap-markers')).toBe(false)
+    })
+  })
 })

@@ -9,6 +9,7 @@ export type CodexTaskKind =
   | 'localization_fix'
   | 'mission_reward_fix'
   | 'index_entry_fix'
+  | 'holomap_marker_fix'
   | 'dev_workspace_setup'
   | 'release_package'
   | 'navigation'

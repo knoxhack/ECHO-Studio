@@ -13,7 +13,7 @@ import { preferredModuleAlias, resolveProjectModulePlan, type EchoModuleRecord }
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
-import type { ContentRecord, ContentType, IndexEntry, Mission, Recipe } from '../shared/content/schemas'
+import type { ContentRecord, ContentType, HoloMapLayer, HoloMapMarker, IndexEntry, Mission, Recipe } from '../shared/content/schemas'
 import { idToFileName } from '../shared/content/paths'
 import { listAssetFiles, readManifest, writeManifest } from './fsService'
 import { readAllContent, readLangKeys } from './contentService'
@@ -344,6 +344,36 @@ function recipeIndexEntry(manifest: AddonManifest, recipe: Recipe): IndexEntry |
   }
 }
 
+function allHoloMapMarkerIds(layers: ContentRecord[]): Set<string> {
+  return new Set(layers.flatMap((record) => (record.data as HoloMapLayer).markers?.map((marker) => marker.id) ?? []))
+}
+
+function missionMarker(mission: Mission, index: number): HoloMapMarker | null {
+  if (!mission.holomapMarker) return null
+  return {
+    id: mission.holomapMarker,
+    title: mission.title?.trim() || titleFromId(mission.id),
+    description: mission.description,
+    icon: 'mission',
+    x: 20 + ((index * 17) % 60),
+    z: 25 + ((index * 23) % 50),
+    visibleByDefault: true,
+    linkedMission: mission.id,
+    ...(mission.indexEntry ? { linkedIndex: mission.indexEntry } : {})
+  }
+}
+
+function mergeMarkers(current: HoloMapMarker[], next: HoloMapMarker[]): HoloMapMarker[] {
+  const byId = new Map(current.map((marker) => [marker.id, marker]))
+  for (const marker of next) {
+    byId.set(marker.id, {
+      ...marker,
+      ...(byId.get(marker.id) ?? {})
+    })
+  }
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
+}
+
 async function readLangDocument(projectPath: string): Promise<{ path: string; before: string; entries: Record<string, string> }> {
   const path = join(projectPath, 'lang', 'en_us.json')
   try {
@@ -355,6 +385,64 @@ async function readLangDocument(projectPath: string): Promise<{ path: string; be
     return { path, before, entries }
   } catch {
     return { path, before: '', entries: {} }
+  }
+}
+
+async function holomapMarkersTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+  const markerIds = allHoloMapMarkerIds(context.content.holomap)
+  const missingMarkers = context.content.mission
+    .map((record, index) => missionMarker(record.data as Mission, index))
+    .filter((marker): marker is HoloMapMarker => Boolean(marker && !markerIds.has(marker.id)))
+  if (missingMarkers.length === 0) return null
+
+  const changePath = 'holomap/mission_markers.json'
+  const absolutePath = join(projectPath, changePath)
+  const existingRecord = context.content.holomap.find((record) => relativeProjectPath(projectPath, record.path) === changePath)
+  const existingLayer = existingRecord?.data as HoloMapLayer | undefined
+  const before = await fs.readFile(absolutePath, 'utf8').catch(() => '')
+  const nextLayer: HoloMapLayer = {
+    id: existingLayer?.id || `${context.manifest.namespace}:mission_markers`,
+    title: existingLayer?.title || 'Mission Markers',
+    type: existingLayer?.type || 'mission_route',
+    markers: mergeMarkers(existingLayer?.markers ?? [], missingMarkers)
+  }
+  const after = jsonDocument(nextLayer)
+  const nextRecord: ContentRecord<HoloMapLayer> = {
+    id: nextLayer.id,
+    fileName: 'mission_markers.json',
+    path: absolutePath,
+    data: nextLayer
+  }
+  const nextHolomap = [
+    ...context.content.holomap.filter((record) => relativeProjectPath(projectPath, record.path) !== changePath),
+    nextRecord
+  ]
+  const afterReport = reportFromContext(context, {
+    content: {
+      ...context.content,
+      holomap: nextHolomap
+    }
+  })
+  return {
+    id: 'content:holomap-markers',
+    title: 'Generate missing HoloMap mission markers',
+    kind: 'holomap_marker_fix',
+    lane: taskLane('content:holomap-markers', 'waiting_review', store),
+    summary: 'Creates a mission marker layer for missions that reference missing HoloMap marker IDs.',
+    reason: `${missingMarkers.length} HoloMap marker${missingMarkers.length === 1 ? ' is' : 's are'} missing: ${missingMarkers.map((marker) => marker.id).join(', ')}.`,
+    route: '/holomap',
+    affectedFiles: [changePath],
+    fileChanges: [{
+      path: changePath,
+      before,
+      after,
+      diff: buildUnifiedTextDiff(changePath, before, after)
+    }],
+    canApply: true,
+    applyLabel: missingMarkers.length === 1 ? 'Write HoloMap marker' : 'Write HoloMap markers',
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report),
+    validationAfter: validationSnapshot(afterReport)
   }
 }
 
@@ -534,6 +622,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
     moduleClosureTask(store, context),
     packosFixTask(store, context),
     indexEntriesTask(projectPath, store, context),
+    holomapMarkersTask(projectPath, store, context),
     missionLocalizationTask(projectPath, store, context),
     missionRewardsTask(projectPath, store, context),
     Promise.resolve(devWorkspaceTask(store, context)),
@@ -569,7 +658,8 @@ function assertAllowedFileChange(projectPath: string, taskId: string, changePath
   const allowed =
     (taskId === 'content:mission-localization' && normalized === 'lang/en_us.json') ||
     (taskId === 'content:mission-rewards' && /^missions\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
-    (taskId === 'content:index-entries' && /^index\/[A-Za-z0-9._-]+\.json$/.test(normalized))
+    (taskId === 'content:index-entries' && /^index\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
+    (taskId === 'content:holomap-markers' && normalized === 'holomap/mission_markers.json')
   if (!allowed) throw new Error(`Task ${taskId} cannot write ${changePath}.`)
   const target = resolve(projectPath, normalized)
   const root = resolve(projectPath)
@@ -607,6 +697,7 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
   if (taskId === 'content:mission-localization') return applyFileProposal(projectPath, taskId)
   if (taskId === 'content:mission-rewards') return applyFileProposal(projectPath, taskId)
   if (taskId === 'content:index-entries') return applyFileProposal(projectPath, taskId)
+  if (taskId === 'content:holomap-markers') return applyFileProposal(projectPath, taskId)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
