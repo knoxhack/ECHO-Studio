@@ -9,7 +9,7 @@ import {
   type CodexTaskActionResult,
   type CodexTaskLane
 } from '../shared/codexTasks'
-import { preferredModuleAlias, resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
+import { addRequiredModuleClosureToManifest, resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
@@ -41,18 +41,13 @@ interface ProjectContext {
   sourceReady: boolean
   moduleLockReady: boolean
   moduleWorkspaceReady: boolean
+  runtimeLaunchersReady: boolean
+  releasePackageReady: boolean
+  releaseSidecarsReady: boolean
   artifactNames: string[]
 }
 
 const STORE_PATH = join('.echo-studio', 'codex-tasks.json')
-
-function cloneManifest(manifest: AddonManifest): AddonManifest {
-  return JSON.parse(JSON.stringify(manifest)) as AddonManifest
-}
-
-function appendUnique(list: string[], value: string): string[] {
-  return list.includes(value) ? list : [...list, value]
-}
 
 function taskLane(id: string, preferred: CodexTaskLane, store: CodexTaskStore): CodexTaskLane {
   return store.rejected[id] ? 'rejected' : preferred
@@ -133,6 +128,12 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
     sourceReady: Boolean(devWorkspace?.sourceReady),
     moduleLockReady: Boolean(devWorkspace?.moduleLock.upToDate),
     moduleWorkspaceReady: Boolean(devWorkspace?.moduleWorkspace.upToDate),
+    runtimeLaunchersReady: Boolean(devWorkspace?.runtimeLaunchers.ready),
+    releasePackageReady: Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name.endsWith('.echo-addon'))),
+    releaseSidecarsReady: Boolean(
+      devWorkspace?.artifacts.some((artifact) => artifact.name === 'echo-release.json') &&
+      devWorkspace.artifacts.some((artifact) => artifact.name === 'checksums.sha256')
+    ),
     artifactNames: devWorkspace?.artifacts.map((artifact) => artifact.name) ?? []
   }
 }
@@ -176,11 +177,7 @@ async function manifestTask(
 async function moduleClosureTask(store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
   const plan = resolveProjectModulePlan(context.manifest, context.moduleCatalog)
   if (plan.missingRequired.length === 0) return null
-  const proposed = cloneManifest(context.manifest)
-  const closureAliases = plan.closure.map(preferredModuleAlias)
-  const missingAliases = plan.missingRequired.map(preferredModuleAlias)
-  proposed.target.modules = closureAliases.reduce(appendUnique, [...proposed.target.modules])
-  proposed.dependencies.required = missingAliases.reduce(appendUnique, [...proposed.dependencies.required])
+  const proposed = addRequiredModuleClosureToManifest(context.manifest, plan.closure, context.moduleCatalog)
   return manifestTask(
     store,
     context,
@@ -231,11 +228,31 @@ function devWorkspaceTask(store: CodexTaskStore, context: ProjectContext): Codex
   }
 }
 
+function previewLauncherTask(store: CodexTaskStore, context: ProjectContext): CodexTask | null {
+  if (!context.devWorkspace?.lastSetupAt || context.runtimeLaunchersReady) return null
+  const missing = [
+    context.devWorkspace.runtimeLaunchers.nativeExpected && !context.devWorkspace.runtimeLaunchers.nativeConfigured ? 'ECHO Native executable' : '',
+    context.devWorkspace.runtimeLaunchers.standaloneExpected && !context.devWorkspace.runtimeLaunchers.standaloneConfigured ? 'Standalone executable' : ''
+  ].filter(Boolean)
+  if (missing.length === 0) return null
+  return {
+    id: 'preview:configure-runtime-launchers',
+    title: 'Configure preview runtime launchers',
+    kind: 'runtime_preview_setup',
+    lane: taskLane('preview:configure-runtime-launchers', 'suggested', store),
+    summary: 'Points Settings at local ECHO Native or Standalone runtime executables, then Dev Workspace setup can write them into gradle.properties.',
+    reason: `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} missing for selected preview targets.`,
+    route: '/settings',
+    affectedFiles: [context.devWorkspace.runtimeLaunchers.gradlePropertiesPath],
+    fileChanges: [],
+    canApply: false,
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report)
+  }
+}
+
 function releasePackageTask(store: CodexTaskStore, context: ProjectContext): CodexTask {
-  const hasReleaseManifest = context.artifactNames.includes('echo-release.json')
-  const hasChecksums = context.artifactNames.includes('checksums.sha256')
-  const hasPackage = context.artifactNames.some((name) => name.endsWith('.echo-addon'))
-  const ready = context.report.publishingReady && hasReleaseManifest && hasChecksums && hasPackage
+  const ready = context.report.publishingReady && context.releaseSidecarsReady && context.releasePackageReady
   return {
     id: 'release:package-local',
     title: 'Prepare local release package',
@@ -244,7 +261,9 @@ function releasePackageTask(store: CodexTaskStore, context: ProjectContext): Cod
     summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, Release Index handoff, submission notes, and GitHub release draft payload.',
     reason: ready
       ? 'Release assets exist; rerun this before publishing if project content changed.'
-      : 'Release assets are missing or stale for the current local loop.',
+      : context.releasePackageReady && !context.releaseSidecarsReady
+        ? 'Runtime packages exist, but Release Index sidecars or checksums are missing.'
+        : `Release artifact health is ${context.report.healthScore.assets}%; local packages or sidecars are missing for the current loop.`,
     route: '/release',
     affectedFiles: ['exports/', 'release/', 'META-INF/echo-addon-package.json'],
     fileChanges: [],
@@ -681,6 +700,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
     missionLocalizationTask(projectPath, store, context),
     missionRewardsTask(projectPath, store, context),
     Promise.resolve(devWorkspaceTask(store, context)),
+    Promise.resolve(previewLauncherTask(store, context)),
     Promise.resolve(manualValidationTask(store, context)),
     Promise.resolve(releasePackageTask(store, context))
   ])

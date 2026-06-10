@@ -11,6 +11,7 @@ export type CodexTaskKind =
   | 'index_entry_fix'
   | 'holomap_marker_fix'
   | 'dev_workspace_setup'
+  | 'runtime_preview_setup'
   | 'release_package'
   | 'navigation'
 

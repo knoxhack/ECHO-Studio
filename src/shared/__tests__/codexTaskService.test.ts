@@ -67,6 +67,69 @@ async function withProject(run: (project: string) => Promise<void>): Promise<voi
 }
 
 describe('codex task service', () => {
+  it('proposes full transitive module closure repairs for declared modules', async () => {
+    await withProject(async (project) => {
+      const nextManifest = manifest()
+      nextManifest.target.modules = ['echo:mission_core']
+      nextManifest.dependencies.required = ['echo:core', 'echo:mission_core']
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
+
+      const { listCodexTasks } = await import('../../main/codexTaskService')
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'manifest:module-closure')
+      const proposed = JSON.parse(task?.fileChanges[0].after ?? '{}') as AddonManifest
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('module_closure')
+      expect(task?.route).toBe('/modules')
+      expect(proposed.dependencies.required).toEqual(expect.arrayContaining([
+        'echo:adapter_core',
+        'echo:core',
+        'echo:net_core',
+        'echo:mission_core'
+      ]))
+      expect(proposed.target.modules).toEqual(expect.arrayContaining([
+        'echo:adapter_core',
+        'echo:core',
+        'echo:net_core',
+        'echo:mission_core'
+      ]))
+      expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
+    })
+  })
+
+  it('suggests configuring preview launchers when selected runtimes lack executable paths', async () => {
+    await withProject(async (project) => {
+      const nextManifest = manifest()
+      nextManifest.runtime = {
+        supports: ['echo_native', 'standalone'],
+        nativeReadiness: 'partial',
+        minimumEchoSdk: '1.4.0'
+      }
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
+
+      const { setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['echo_native', 'standalone'],
+        force: false
+      })
+
+      const { listCodexTasks } = await import('../../main/codexTaskService')
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'preview:configure-runtime-launchers')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('runtime_preview_setup')
+      expect(task?.lane).toBe('suggested')
+      expect(task?.route).toBe('/settings')
+      expect(task?.canApply).toBe(false)
+      expect(task?.affectedFiles).toEqual(['gradle.properties'])
+      expect(task?.reason).toContain('ECHO Native executable')
+      expect(task?.reason).toContain('Standalone executable')
+    })
+  })
+
   it('uses configured runtime executables when applying dev workspace setup', async () => {
     await withProject(async (project) => {
       const configPath = path.join(os.tmpdir(), 'config.json')
