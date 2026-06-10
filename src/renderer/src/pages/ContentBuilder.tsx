@@ -138,7 +138,7 @@ function TreeView({
         style={{ paddingLeft: depth * 12 + 6 }}
         onClick={() => onOpen(node.path)}
       >
-        📄 {node.name}
+        [file] {node.name}
       </div>
     )
   }
@@ -150,7 +150,7 @@ function TreeView({
         style={{ paddingLeft: depth * 12 + 6 }}
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? '▾' : '▸'} {node.name}
+        {open ? 'v' : '>'} {node.name}
       </div>
       {open &&
         visibleChildren.map((c) => (

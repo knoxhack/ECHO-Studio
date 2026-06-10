@@ -11,11 +11,12 @@ export interface NavGroup {
 
 export const NAV: NavGroup[] = [
   {
-    title: 'Studio',
+    title: 'Start',
     items: [
       { path: '/', label: 'Home', icon: 'H' },
       { path: '/projects', label: 'Projects', icon: 'P' },
       { path: '/create', label: 'Create', icon: '+' },
+      { path: '/templates', label: 'Templates', icon: 'T' },
       { path: '/experience', label: 'Experience', icon: 'E' }
     ]
   },
@@ -24,10 +25,17 @@ export const NAV: NavGroup[] = [
     items: [
       { path: '/modules', label: 'Modules', icon: 'M' },
       { path: '/dev-workspace', label: 'Dev Workspace', icon: 'D' },
-      { path: '/assets', label: 'Assets', icon: 'A' },
+      { path: '/content', label: 'Content', icon: 'C' },
+      { path: '/assets', label: 'Assets', icon: 'A' }
+    ]
+  },
+  {
+    title: 'Author',
+    items: [
       { path: '/gameplay', label: 'Gameplay', icon: 'G' },
       { path: '/missions', label: 'Missions', icon: 'Q' },
-      { path: '/interface', label: 'Interface', icon: 'U' }
+      { path: '/interface', label: 'Interface', icon: 'U' },
+      { path: '/index', label: 'Index', icon: 'I' }
     ]
   },
   {
@@ -35,7 +43,8 @@ export const NAV: NavGroup[] = [
     items: [
       { path: '/preview', label: 'Preview', icon: 'P' },
       { path: '/validation', label: 'Validation', icon: 'V' },
-      { path: '/release', label: 'Release', icon: 'R' }
+      { path: '/release', label: 'Release', icon: 'R' },
+      { path: '/catalog', label: 'Catalog', icon: 'C' }
     ]
   },
   {
@@ -48,8 +57,9 @@ export const NAV: NavGroup[] = [
   {
     title: 'System',
     items: [
-      { path: '/advanced', label: 'Advanced', icon: '>' },
-      { path: '/settings', label: 'Settings', icon: 'S' }
+      { path: '/git', label: 'Version Control', icon: 'G' },
+      { path: '/settings', label: 'Settings', icon: 'S' },
+      { path: '/shortcuts', label: 'Shortcuts', icon: '?' }
     ]
   }
 ]
@@ -60,6 +70,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/templates': 'Templates',
   '/manifest': 'Experience',
   '/manifest-editor': 'Manifest JSON',
+  '/advanced': 'Content Builder',
   '/content': 'Content Builder',
   '/graph': 'Content Graph',
   '/recipes': 'Recipes',
