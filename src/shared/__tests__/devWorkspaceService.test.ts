@@ -213,7 +213,7 @@ describe('setupDevWorkspace', () => {
     })
   })
 
-  it('blocks package tasks when generated module locks are stale', async () => {
+  it('blocks release tasks when generated module locks are stale', async () => {
     await withProject(async (project) => {
       const { runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
       await setupDevWorkspace(project, {
@@ -227,6 +227,7 @@ describe('setupDevWorkspace', () => {
       next.dependencies.required = ['echo:core', 'echo:mission_core']
       await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(next, null, 2), 'utf8')
 
+      await expect(runDevTask(project, 'studio:releaseGate')).rejects.toThrow('Refresh Dev Workspace so generated module locks match the current manifest.')
       await expect(runDevTask(project, 'package:local')).rejects.toThrow('Refresh Dev Workspace so generated module locks match the current manifest.')
     })
   })
@@ -264,6 +265,56 @@ describe('setupDevWorkspace', () => {
       expect(result.stdout).toContain('Publishing ready: no')
       expect(result.stderr).toContain('BLOCKER Manifest')
       expect(result.stderr).toContain('reserved namespace')
+      expect(log).toContain('[status] failed')
+    })
+  })
+
+  it('runs the local release gate after module locks are current', async () => {
+    await withProject(async (project) => {
+      const { readDevTaskLog, runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
+
+      const result = await runDevTask(project, 'studio:releaseGate')
+      const log = await readDevTaskLog(project, result.logPath!)
+
+      expect(result.status).toBe('completed')
+      expect(result.command).toBe('ECHO Studio local release gate')
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('Release gate: pass')
+      expect(result.stdout).toContain('Module lock: current')
+      expect(result.stdout).toContain('Module workspace: current')
+      expect(result.stdout).toContain('Next action: Run Package Local Release')
+      expect(log).toContain('ECHO Studio task: studio:releaseGate')
+      expect(log).toContain('[status] completed')
+    })
+  })
+
+  it('fails the local release gate when validation is not publishable', async () => {
+    await withProject(async (project) => {
+      const broken = manifest()
+      broken.namespace = 'echo'
+      broken.id = 'echo:weather_pack'
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(broken, null, 2), 'utf8')
+
+      const { readDevTaskLog, runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
+      const result = await runDevTask(project, 'studio:releaseGate')
+      const log = await readDevTaskLog(project, result.logPath!)
+
+      expect(result.status).toBe('failed')
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain('Release gate: fail')
+      expect(result.stdout).toContain('Publishing ready: no')
+      expect(result.stdout).toContain('Next action: Fix blockers and errors')
+      expect(result.stderr).toContain('BLOCKER Manifest')
       expect(log).toContain('[status] failed')
     })
   })

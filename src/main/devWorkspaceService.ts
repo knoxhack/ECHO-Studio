@@ -1297,6 +1297,21 @@ function validationIssueText(report: Awaited<ReturnType<typeof fullProjectReport
   }).join('\n')
 }
 
+function releaseGateSummary(report: Awaited<ReturnType<typeof fullProjectReport>>, state: DevWorkspaceState): string {
+  const releaseState = report.publishingReady ? 'pass' : 'fail'
+  const nextAction = report.publishingReady
+    ? 'Run Package Local Release, then upload the generated assets and sidecars to the release draft.'
+    : 'Fix blockers and errors before packaging release assets.'
+  return [
+    `Release gate: ${releaseState}`,
+    `Module lock: ${state.moduleLock.upToDate ? 'current' : 'stale'}`,
+    `Module workspace: ${state.moduleWorkspace.upToDate ? 'current' : 'stale'}`,
+    `Local module sources: ${state.moduleWorkspace.localModuleCount}/${state.moduleWorkspace.moduleCount}`,
+    validationSummary(report),
+    `Next action: ${nextAction}`
+  ].join('\n')
+}
+
 async function echoModulesTaskCommand(projectPath: string, taskId: DevTaskId): Promise<{ command: string; cwd: string }> {
   const catalog = await listEchoModules(projectPath)
   if (!catalog.moduleRoot) throw new Error('Local ECHO-Modules metadata/modules/index.json was not found.')
@@ -1376,6 +1391,54 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       const stdout = validationSummary(report)
       const stderr = validationIssueText(report)
       const failed = report.counts.BLOCKER > 0 || report.counts.ERROR > 0
+      const status = failed ? 'failed' : 'completed'
+      const finishedAt = new Date().toISOString()
+      await appendTaskLog(logPath, 'stdout', stdout)
+      await appendTaskLog(logPath, 'issues', stderr)
+      await finishTaskLog(logPath, status, finishedAt, failed ? 1 : 0)
+      return {
+        taskId,
+        status,
+        command,
+        cwd: projectPath,
+        logPath,
+        exitCode: failed ? 1 : 0,
+        stdout,
+        stderr,
+        startedAt,
+        finishedAt,
+        artifacts: await collectCurrentArtifacts(projectPath)
+      }
+    } catch (error) {
+      const finishedAt = new Date().toISOString()
+      const message = error instanceof Error ? error.message : String(error)
+      await appendTaskLog(logPath, 'error', message)
+      await finishTaskLog(logPath, 'failed', finishedAt, 1)
+      return {
+        taskId,
+        status: 'failed',
+        command,
+        cwd: projectPath,
+        logPath,
+        exitCode: 1,
+        stdout: '',
+        stderr: message,
+        startedAt,
+        finishedAt,
+        artifacts: await collectCurrentArtifacts(projectPath)
+      }
+    }
+  }
+
+  if (task.id === 'studio:releaseGate') {
+    const command = 'ECHO Studio local release gate'
+    const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
+    try {
+      const state = await inspectDevWorkspace(projectPath)
+      const report = await fullProjectReport(projectPath, state)
+      const stdout = releaseGateSummary(report, state)
+      const stderr = validationIssueText(report)
+      const failed = !report.publishingReady
       const status = failed ? 'failed' : 'completed'
       const finishedAt = new Date().toISOString()
       await appendTaskLog(logPath, 'stdout', stdout)

@@ -229,6 +229,7 @@ export interface DevSetupResult {
 
 export type DevTaskId =
   | 'studio:validate'
+  | 'studio:releaseGate'
   | 'gradle:tasks'
   | 'gradle:build'
   | 'gradle:test'
@@ -291,6 +292,13 @@ export const DEV_TASKS: DevTask[] = [
     label: 'Run Studio Validation',
     description: 'Run the full ECHO Studio validation report with module, toolchain, content, asset, and release readiness checks.',
     command: 'studioValidation',
+    kind: 'test'
+  },
+  {
+    id: 'studio:releaseGate',
+    label: 'Run Local Release Gate',
+    description: 'Check the current manifest, module locks, workspace map, and validation report before packaging release assets.',
+    command: 'studioReleaseGate',
     kind: 'test'
   },
   {

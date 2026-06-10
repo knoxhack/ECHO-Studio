@@ -40,8 +40,8 @@ const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks
   {
     id: 'release',
     title: 'Release Assets',
-    description: 'Package the local addon release with sidecar manifests, checksums, and Release Index handoff files.',
-    tasks: ['package:local']
+    description: 'Gate the local release, then package sidecar manifests, checksums, and Release Index handoff files.',
+    tasks: ['studio:releaseGate', 'package:local']
   }
 ]
 

@@ -13,6 +13,7 @@ export const MODULE_READY_TASKS: DevTaskId[] = [
   'gradle:test',
   'gradle:runData',
   'modules:releaseSelected',
+  'studio:releaseGate',
   'package:local'
 ]
 
