@@ -120,6 +120,8 @@ const api = {
     invoke<DevSetupResult>('dev:setup', projectPath, options),
   runDevTask: (projectPath: string, taskId: DevTaskId) =>
     invoke<DevTaskRun>('dev:runTask', projectPath, taskId),
+  listRunningDevTasks: (projectPath: string) =>
+    invoke<DevTaskRun[]>('dev:listRunningTasks', projectPath),
   stopDevTask: (projectPath: string, logPath: string) =>
     invoke<DevTaskStopResult>('dev:stopTask', projectPath, logPath),
   readDevTaskLog: (projectPath: string, logPath: string) =>

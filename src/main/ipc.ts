@@ -46,7 +46,7 @@ import { runPreviewScan } from './previewScanService'
 import type { PreviewScanOptions } from '../shared/previewScan'
 import { gitStatus, gitInit, gitCommit, gitLog, gitDiff, gitBranch, gitCheckout, gitPush, gitPull, gitRemote, gitAddRemote } from './gitService'
 import { join, basename } from 'path'
-import { inspectDevWorkspace, readDevTaskLog, runDevTask, setupDevWorkspace, stopDevTask } from './devWorkspaceService'
+import { inspectDevWorkspace, listRunningDevTasks, readDevTaskLog, runDevTask, setupDevWorkspace, stopDevTask } from './devWorkspaceService'
 import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
 import { listEchoModules } from './moduleCatalogService'
 import { applyCodexTask, listCodexTasks, setCodexTaskRejected } from './codexTaskService'
@@ -232,6 +232,9 @@ export function registerIpc(): void {
   )
   handle('dev:runTask', (projectPath: string, taskId: DevTaskId) =>
     runDevTask(projectPath, taskId)
+  )
+  handle('dev:listRunningTasks', (projectPath: string) =>
+    listRunningDevTasks(projectPath)
   )
   handle('dev:stopTask', (projectPath: string, logPath: string) =>
     stopDevTask(projectPath, logPath)

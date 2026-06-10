@@ -20,6 +20,7 @@ interface RunningDevProcess {
   command: string
   cwd: string
   logPath: string
+  startedAt: string
   stopping: boolean
 }
 
@@ -1229,6 +1230,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       command,
       cwd: projectPath,
       logPath: taskLogPath,
+      startedAt,
       stopping: false
     }
     runningDevProcesses.set(taskLogPath, running)
@@ -1281,6 +1283,26 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
     finishedAt,
     artifacts: await collectArtifacts(projectPath)
   }
+}
+
+export async function listRunningDevTasks(projectPath: string): Promise<DevTaskRun[]> {
+  const projectRoot = resolve(projectPath)
+  const artifacts = await collectArtifacts(projectPath)
+  return [...runningDevProcesses.values()]
+    .filter((running) => resolve(running.cwd) === projectRoot)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map((running) => ({
+      taskId: running.taskId,
+      status: 'started',
+      command: running.command,
+      cwd: running.cwd,
+      ...(running.child.pid ? { pid: running.child.pid } : {}),
+      logPath: running.logPath,
+      stdout: `Started ${running.taskId} as process ${running.child.pid}.`,
+      stderr: '',
+      startedAt: running.startedAt,
+      artifacts
+    }))
 }
 
 export async function stopDevTask(projectPath: string, logPath: string): Promise<DevTaskStopResult> {

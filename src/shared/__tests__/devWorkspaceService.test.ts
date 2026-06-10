@@ -448,19 +448,30 @@ describe('setupDevWorkspace', () => {
       )
       if (process.platform !== 'win32') await fs.chmod(shLauncher, 0o755)
 
-      const { readDevTaskLog, runDevTask, stopDevTask } = await import('../../main/devWorkspaceService')
+      const { listRunningDevTasks, readDevTaskLog, runDevTask, stopDevTask } = await import('../../main/devWorkspaceService')
       const started = await runDevTask(project, 'gradle:runClient')
 
       expect(started.status).toBe('started')
       expect(started.logPath).toBeDefined()
 
+      const running = await listRunningDevTasks(project)
       const stopped = await stopDevTask(project, started.logPath!)
       const stoppedAgain = await stopDevTask(project, started.logPath!)
+      const runningAfterStop = await listRunningDevTasks(project)
       const log = await readDevTaskLog(project, started.logPath!)
 
+      expect(running).toHaveLength(1)
+      expect(running[0]).toMatchObject({
+        taskId: 'gradle:runClient',
+        status: 'started',
+        command: started.command,
+        cwd: started.cwd,
+        logPath: started.logPath
+      })
       expect(stopped.status).toBe('stopped')
       expect(stopped.taskId).toBe('gradle:runClient')
       expect(stoppedAgain.status).toBe('not_running')
+      expect(runningAfterStop).toHaveLength(0)
       expect(log).toContain('Stop requested from ECHO Studio.')
       expect(log).toContain('[status] stopped')
     })

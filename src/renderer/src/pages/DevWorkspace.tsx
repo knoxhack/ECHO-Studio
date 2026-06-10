@@ -65,15 +65,31 @@ export default function DevWorkspace(): JSX.Element {
   const [liveLog, setLiveLog] = useState('')
   const [setupSummary, setSetupSummary] = useState<{ written: string[]; skipped: string[] } | null>(null)
 
+  const hydrateRunningTask = useCallback(async () => {
+    if (!activeProject) return
+    const result = await window.studio.listRunningDevTasks(activeProject.path)
+    if (!result.ok || !result.data) return
+    setLastRun((current) => {
+      const running = result.data!
+      if (running.length > 0) {
+        return running.find((task) => task.logPath === current?.logPath) ?? running[0]
+      }
+      return current?.status === 'started' ? null : current
+    })
+  }, [activeProject])
+
   const inspect = useCallback(async () => {
     if (!activeProject) return
-    const result = await window.studio.inspectDevWorkspace(activeProject.path)
+    const [result] = await Promise.all([
+      window.studio.inspectDevWorkspace(activeProject.path),
+      hydrateRunningTask()
+    ])
     if (result.ok && result.data) {
       setState(result.data)
       setMode(result.data.lastSetupAt ? result.data.mode : 'gradle')
       if (result.data.runtimeTargets.length > 0) setRuntimes(result.data.runtimeTargets)
     }
-  }, [activeProject])
+  }, [activeProject, hydrateRunningTask])
 
   useEffect(() => {
     void inspect()

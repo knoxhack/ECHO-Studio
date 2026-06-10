@@ -40,14 +40,30 @@ export default function Preview(): JSX.Element {
     testInventory: false
   })
 
+  const hydrateRunningRuntime = useCallback(async () => {
+    if (!activeProject) return
+    const result = await window.studio.listRunningDevTasks(activeProject.path)
+    if (!result.ok || !result.data) return
+    const runtimeTasks = result.data.filter((task) => RUNTIME_TASKS.includes(task.taskId))
+    setRuntimeRun((current) => {
+      if (runtimeTasks.length > 0) {
+        return runtimeTasks.find((task) => task.logPath === current?.logPath) ?? runtimeTasks[0]
+      }
+      return current?.status === 'started' ? null : current
+    })
+  }, [activeProject])
+
   const inspectDevWorkspace = useCallback(async () => {
     if (!activeProject) {
       setDevWorkspace(null)
       return
     }
-    const res = await window.studio.inspectDevWorkspace(activeProject.path)
+    const [res] = await Promise.all([
+      window.studio.inspectDevWorkspace(activeProject.path),
+      hydrateRunningRuntime()
+    ])
     if (res.ok && res.data) setDevWorkspace(res.data)
-  }, [activeProject])
+  }, [activeProject, hydrateRunningRuntime])
 
   useEffect(() => {
     void inspectDevWorkspace()
