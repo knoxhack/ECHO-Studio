@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../components/Page'
+import { useWorkspace } from '../state/WorkspaceContext'
+import { ECHO_MODULE_CATALOG, resolveProjectModulePlan, type EchoModuleRecord } from '@shared/moduleCatalog'
 
 const CATEGORIES = [
   'Getting Started',
-  'Addon SDK',
+  'ECHO SDK',
   'Manifest Reference',
   'Package Contract',
   'Content Types',
@@ -23,10 +25,10 @@ const CATEGORIES = [
 const SNIPPETS: Record<string, string> = {
   'Getting Started':
     'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Validate with PackOS.\n5. Package local release assets before GitHub publishing.',
-  'Addon SDK':
+  'ECHO SDK':
     'The ECHO Addon SDK provides public APIs for:\n- MissionCore (missions, objectives, rewards)\n- RecipeCore (crafting recipes, machine recipes)\n- ScreenCore (custom UI screens)\n- HoloMap (map layers and markers)\n- Index (lore entries)\n\nAll content must be namespaced to the creator.\nUse ONLY the permissions listed in the SDK documentation.',
   'Manifest Reference':
-    '{\n  "schemaVersion": 1,\n  "id": "teamnova:orbital_colonies",\n  "name": "Orbital Colonies",\n  "version": "0.3.0",\n  "namespace": "teamnova",\n  "description": "A brief description of what your addon does.",\n  "developerType": "addon_developer",\n  "publisher": {\n    "id": "teamnova",\n    "name": "Team Nova",\n    "type": "team"\n  },\n  "projectClass": "gameplay_addon",\n  "target": {\n    "experiences": ["ashfall"],\n    "modules": []\n  },\n  "runtime": {\n    "supports": ["neoforge"],\n    "nativeReadiness": "none",\n    "minimumEchoSdk": "1.4.0"\n  },\n  "permissions": ["mission.register", "holomap.layers"],\n  "dependencies": {\n    "required": ["echo:core", "echo:mission_core"],\n    "optional": []\n  },\n  "trust": {\n    "level": "community",\n    "signed": false,\n    "verified": false\n  },\n  "support": {\n    "tier": "community",\n    "issues": "https://github.com/teamnova/issues"\n  },\n  "tags": ["echo", "addon", "gameplay"]\n}',
+    '{\n  "schemaVersion": 1,\n  "id": "teamnova:orbital_colonies",\n  "name": "Orbital Colonies",\n  "version": "0.3.0",\n  "namespace": "teamnova",\n  "description": "A brief description of what your project does.",\n  "developerType": "addon_developer",\n  "publisher": {\n    "id": "teamnova",\n    "name": "Team Nova",\n    "type": "team"\n  },\n  "projectClass": "community_addon",\n  "target": {\n    "experiences": ["ashfall"],\n    "modules": [\n      "echo:adapter_core",\n      "echo:core",\n      "echo:net_core",\n      "echo:mission_core",\n      "echo:holomap",\n      "echo:index"\n    ]\n  },\n  "runtime": {\n    "supports": ["neoforge", "echo_native"],\n    "nativeReadiness": "partial",\n    "minimumEchoSdk": "1.4.0"\n  },\n  "permissions": ["mission.register", "holomap.layers", "index.entries", "addon_storage.write"],\n  "dependencies": {\n    "required": [\n      "echo:adapter_core",\n      "echo:core",\n      "echo:net_core",\n      "echo:mission_core",\n      "echo:holomap",\n      "echo:index"\n    ],\n    "optional": []\n  },\n  "trust": {\n    "level": "community",\n    "signed": false,\n    "verified": false\n  },\n  "support": {\n    "tier": "creator_supported",\n    "issues": "https://github.com/teamnova/issues"\n  },\n  "tags": ["echo", "addon", "gameplay"]\n}',
   'Package Contract':
     '{\n  "schemaVersion": "echo.addon.package.v1",\n  "id": "orbital_colonies",\n  "version": "0.3.0",\n  "publisher": {\n    "githubOwner": "teamnova",\n    "githubRepo": "orbital-colonies-addon"\n  },\n  "targets": ["native", "neoforge", "standalone"],\n  "dependencies": [\n    { "id": "echo:core", "kind": "module", "version": "*" }\n  ],\n  "artifacts": {\n    "native": "orbital_colonies-0.3.0.echo-addon",\n    "neoforge": "orbital_colonies-0.3.0-neoforge.jar",\n    "standalone": "orbital_colonies-0.3.0-standalone.jar",\n    "sources": "orbital_colonies-0.3.0-sources.jar"\n  }\n}',
   'Content Types':
@@ -55,9 +57,54 @@ const SNIPPETS: Record<string, string> = {
     'See the Examples page for clonable starter projects:\n\n- Mission Pack Example\n- Recipe Pack Example\n- UI Addon Example\n- HoloMap Layer Example\n- Ashfall Expansion\n\nEach example generates a full project scaffold with working content, validation config and documentation.'
 }
 
+function guideRecommendations(moduleRoles: string[], runtimes: string[]): string[] {
+  const guides = new Set<string>(['Manifest Reference', 'PackOS Validation'])
+  if (moduleRoles.includes('missions')) guides.add('MissionCore')
+  if (moduleRoles.includes('recipes')) guides.add('RecipeCore')
+  if (moduleRoles.some((role) => ['interface', 'theme', 'terminal'].includes(role))) guides.add('ScreenCore')
+  if (moduleRoles.includes('map')) guides.add('HoloMap')
+  if (moduleRoles.includes('knowledge')) guides.add('Index')
+  if (runtimes.includes('echo_native') || runtimes.includes('standalone')) guides.add('Package Contract')
+  guides.add('Publishing')
+  return Array.from(guides)
+}
+
 export default function Docs(): JSX.Element {
+  const { activeProject } = useWorkspace()
   const [cat, setCat] = useState('Getting Started')
+  const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
   const snippet = SNIPPETS[cat]
+  const manifest = activeProject?.manifest ?? null
+
+  useEffect(() => {
+    let cancelled = false
+    window.studio
+      .listEchoModules(activeProject?.path)
+      .then((result) => {
+        if (cancelled) return
+        setCatalog(result.ok && result.data ? result.data.catalog : ECHO_MODULE_CATALOG)
+      })
+      .catch(() => {
+        if (!cancelled) setCatalog(ECHO_MODULE_CATALOG)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProject?.path])
+
+  const modulePlan = useMemo(() => manifest ? resolveProjectModulePlan(manifest, catalog) : null, [catalog, manifest])
+  const guideText = useMemo(() => {
+    if (!manifest || !modulePlan) {
+      return 'Select a project to tailor these docs to its modules, runtimes, and release state.'
+    }
+    const roles = Array.from(new Set(modulePlan.enabled.map((mod) => mod.role)))
+    const modules = modulePlan.enabled.length
+      ? modulePlan.enabled.map((mod) => mod.name).slice(0, 4).join(', ')
+      : 'no recognized modules yet'
+    const guides = guideRecommendations(roles, manifest.runtime.supports)
+    return `${manifest.name} uses ${modules}. Recommended: ${guides.join(', ')}.`
+  }, [manifest, modulePlan])
+
   return (
     <Page title="Docs" subtitle="SDK documentation built into the app. Detects your project and recommends guides.">
       <div className="split" style={{ gridTemplateColumns: '240px 1fr' }}>
@@ -76,8 +123,7 @@ export default function Docs(): JSX.Element {
         <div className="card">
           <h3>{cat}</h3>
           <p className="dim" style={{ fontSize: 12 }}>
-            This project uses MissionCore. Recommended: Mission Pack Guide, HoloMap Marker Guide,
-            Reward Setup Guide.
+            {guideText}
           </p>
           {snippet ? (
             <>
