@@ -15,7 +15,16 @@ import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } fro
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
 import { listEchoModules } from './moduleCatalogService'
 
-const EXCLUDE_DIRS = new Set(['.studio', 'exports', 'node_modules', '.git'])
+const EXCLUDE_DIRS = new Set([
+  '.studio',
+  '.echo-studio',
+  '.gradle',
+  '.git',
+  'build',
+  'exports',
+  'node_modules',
+  'release'
+])
 const execFileAsync = promisify(execFile)
 const TARGET_COMPATIBILITY: Record<AddonPackageTarget, string> = {
   native: 'ashfall-native-edition',
@@ -252,7 +261,7 @@ export async function fullProjectReport(projectPath: string): Promise<PackOSRepo
   return runProjectCheck({ manifest, content: content as never, langKeys, assetFiles, moduleCatalog: moduleCatalog.catalog })
 }
 
-// Build a distributable .echo-addon of the project (excludes .studio/, exports/, etc.),
+// Build a distributable .echo-addon of the project (excludes local Studio state and build outputs),
 // writes packos.report.json into the bundle, and returns a content hash.
 export async function packageAddon(projectPath: string): Promise<PackageResult> {
   const manifest = await readManifest(projectPath)

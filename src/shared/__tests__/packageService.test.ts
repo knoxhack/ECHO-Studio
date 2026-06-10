@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
+import AdmZip from 'adm-zip'
 import { describe, expect, it, vi } from 'vitest'
 import type { AddonManifest } from '../types'
 
@@ -44,10 +45,30 @@ describe('packageAddon', () => {
       await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest(), null, 2), 'utf8')
       await fs.mkdir(path.join(project, 'assets'), { recursive: true })
       await fs.writeFile(path.join(project, 'assets', 'icon.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+      await fs.mkdir(path.join(project, '.echo-studio', 'logs'), { recursive: true })
+      await fs.writeFile(path.join(project, '.echo-studio', 'logs', 'dev-client.log'), 'local runtime log', 'utf8')
+      await fs.mkdir(path.join(project, '.gradle', 'cache'), { recursive: true })
+      await fs.writeFile(path.join(project, '.gradle', 'cache', 'state.bin'), 'gradle cache', 'utf8')
+      await fs.mkdir(path.join(project, 'build', 'libs'), { recursive: true })
+      await fs.writeFile(path.join(project, 'build', 'libs', 'stale.jar'), 'stale build output', 'utf8')
+      await fs.mkdir(path.join(project, 'release'), { recursive: true })
+      await fs.writeFile(path.join(project, 'release', 'scratch.txt'), 'release scratch', 'utf8')
 
       const { packageAddon } = await import('../../main/packageService')
       const result = await packageAddon(project)
       const assetNames = result.assetPaths.map((assetPath) => path.basename(assetPath)).sort()
+      const addonEntries = new AdmZip(result.zipPath).getEntries().map((entry) => entry.entryName)
+      const sourcesPath = result.assetPaths.find((assetPath) => assetPath.endsWith('-sources.jar'))
+      expect(sourcesPath).toBeDefined()
+      const sourceEntries = new AdmZip(sourcesPath ?? '').getEntries().map((entry) => entry.entryName)
+      for (const entries of [addonEntries, sourceEntries]) {
+        expect(entries.some((entry) => entry.startsWith('.echo-studio/'))).toBe(false)
+        expect(entries.some((entry) => entry.startsWith('.gradle/'))).toBe(false)
+        expect(entries.some((entry) => entry.startsWith('build/'))).toBe(false)
+        expect(entries.some((entry) => entry.startsWith('release/'))).toBe(false)
+        expect(entries.some((entry) => entry.startsWith('exports/'))).toBe(false)
+      }
+      expect(addonEntries).toContain('assets/icon.png')
 
       expect(result.sdkValidation).toEqual({ ok: true, issues: [] })
       expect(assetNames).toEqual([
