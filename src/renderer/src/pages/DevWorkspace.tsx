@@ -17,6 +17,42 @@ const MODES: Array<{ id: DevWorkspaceMode; label: string; description: string }>
   { id: 'full', label: 'Full Developer Workspace', description: 'Generate pinned Gradle setup plus multi-runtime preview and release scaffolding.' }
 ]
 
+const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks: DevTaskId[] }> = [
+  {
+    id: 'gradle',
+    title: 'Gradle Build Loop',
+    description: 'Inspect tasks, build, test, clean, and generate NeoForge data from the pinned workspace.',
+    tasks: ['gradle:tasks', 'gradle:build', 'gradle:test', 'gradle:clean', 'gradle:runData']
+  },
+  {
+    id: 'runtime',
+    title: 'Runtime Preview',
+    description: 'Start local clients and runtime previews for the targets selected during setup.',
+    tasks: ['gradle:runClient', 'gradle:runServer', 'preview:native', 'preview:standalone']
+  },
+  {
+    id: 'modules',
+    title: 'ECHO Modules',
+    description: 'Inspect the selected module closure, validate the local module graph, and build visibility artifacts.',
+    tasks: ['gradle:moduleWorkspace', 'modules:validate', 'modules:releaseSelected', 'modules:releaseAll', 'modules:verifyRelease', 'modules:docsAudit']
+  },
+  {
+    id: 'release',
+    title: 'Release Assets',
+    description: 'Package the local addon release with sidecar manifests, checksums, and Release Index handoff files.',
+    tasks: ['package:local']
+  }
+]
+
+const DEV_TASK_BY_ID = new Map<DevTaskId, (typeof DEV_TASKS)[number]>(DEV_TASKS.map((task) => [task.id, task]))
+
+function projectFilePath(rootPath: string, filePath: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(filePath) || filePath.startsWith('\\\\') || filePath.startsWith('/')) return filePath
+  const separator = rootPath.includes('\\') ? '\\' : '/'
+  const base = rootPath.replace(/[\\/]+$/, '')
+  return `${base}${separator}${filePath.replace(/[\\/]+/g, separator)}`
+}
+
 export default function DevWorkspace(): JSX.Element {
   const { activeProject, config, toast } = useWorkspace()
   const [state, setState] = useState<DevWorkspaceState | null>(null)
@@ -197,6 +233,10 @@ export default function DevWorkspace(): JSX.Element {
     return 'ready'
   }
 
+  const openProjectPath = (filePath: string): void => {
+    window.studio.openPath(projectFilePath(activeProject.path, filePath))
+  }
+
   return (
     <Page
       title="Dev Workspace"
@@ -317,6 +357,21 @@ export default function DevWorkspace(): JSX.Element {
                     Open Modules
                   </button>
                 )}
+                {state.moduleWorkspace.exists && (
+                  <button className="btn ghost" onClick={() => openProjectPath(state.moduleWorkspace.path)}>
+                    Open Workspace Map
+                  </button>
+                )}
+                {state.moduleLock.studioExists && (
+                  <button className="btn ghost" onClick={() => openProjectPath(state.moduleLock.studioLockPath)}>
+                    Open Studio Lock
+                  </button>
+                )}
+                {state.moduleLock.runtimeExists && (
+                  <button className="btn ghost" onClick={() => openProjectPath(state.moduleLock.runtimeLockPath)}>
+                    Open Runtime Lock
+                  </button>
+                )}
               </div>
               {state.moduleCatalog.indexPath && (
                 <div className="mono dim" style={{ fontSize: 11, marginBottom: 10 }}>
@@ -404,22 +459,43 @@ export default function DevWorkspace(): JSX.Element {
         </div>
 
         <div className="card">
-          <h3>Local Tasks</h3>
-          <div className="grid cols-2" style={{ gap: 8 }}>
-            {DEV_TASKS.map((task) => {
-              const reason = taskDisabledReason(task.id)
+          <h3>Local Tool Lanes</h3>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {TASK_GROUPS.map((group) => {
+              const reasons = group.tasks.map((taskId) => taskDisabledReason(taskId))
+              const availableCount = reasons.filter((reason) => !reason).length
               return (
-                <button
-                  key={task.id}
-                  className="tile"
-                  style={{ textAlign: 'left', padding: 12 }}
-                  disabled={busy || Boolean(reason)}
-                  onClick={() => runTask(task.id)}
-                >
-                  <h4>{task.label}</h4>
-                  <p>{reason ?? task.description}</p>
-                  <span className={`badge ${reason ? 'local' : 'ready'}`}>{reason ? 'Unavailable' : task.kind}</span>
-                </button>
+                <div key={group.id}>
+                  <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <h4>{group.title}</h4>
+                      <p>{group.description}</p>
+                    </div>
+                    <span className={`badge ${availableCount > 0 ? 'ready' : 'local'}`}>
+                      {availableCount}/{group.tasks.length} ready
+                    </span>
+                  </div>
+                  <div className="grid cols-2" style={{ gap: 8 }}>
+                    {group.tasks.map((taskId) => {
+                      const task = DEV_TASK_BY_ID.get(taskId)
+                      if (!task) return null
+                      const reason = taskDisabledReason(task.id)
+                      return (
+                        <button
+                          key={task.id}
+                          className="tile"
+                          style={{ textAlign: 'left', padding: 12 }}
+                          disabled={busy || Boolean(reason)}
+                          onClick={() => runTask(task.id)}
+                        >
+                          <h4>{task.label}</h4>
+                          <p>{reason ?? task.description}</p>
+                          <span className={`badge ${reason ? 'local' : 'ready'}`}>{reason ? 'Unavailable' : task.kind}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               )
             })}
           </div>
