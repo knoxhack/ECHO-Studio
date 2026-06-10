@@ -68,6 +68,28 @@ export default function Settings(): JSX.Element {
     toast('Runtime executable cleared')
   }
 
+  const chooseModuleRoot = async (): Promise<void> => {
+    const res = await window.studio.chooseModuleRoot()
+    if (res.ok && res.data) {
+      await updateConfig({ moduleCatalog: { ...config.moduleCatalog, moduleRoot: res.data } })
+      await refresh()
+      toast('ECHO-Modules checkout selected')
+    } else if (!res.ok) {
+      toast(res.error || 'Unable to choose ECHO-Modules checkout')
+    }
+  }
+
+  const clearModuleCatalog = async (): Promise<void> => {
+    await updateConfig({ moduleCatalog: { moduleRoot: '', indexPath: '' } })
+    await refresh()
+    toast('Module catalog settings cleared')
+  }
+
+  const refreshModuleCatalog = async (): Promise<void> => {
+    await refresh()
+    toast('Module catalog refreshed')
+  }
+
   return (
     <Page title="Settings" subtitle="Configure your creator profile, workspace, ECHO contracts, AI, preview tools, and updates. Changes persist.">
       <div className="grid cols-2">
@@ -127,6 +149,65 @@ export default function Settings(): JSX.Element {
             <button className="btn ghost" onClick={() => refresh()}>Rescan Projects</button>
             <button className="btn ghost" onClick={() => window.studio.openPath(workspaceDir)}>Open Folder</button>
           </div>
+        </div>
+
+        <div className="card">
+          <h3>ECHO Modules</h3>
+          <p className="dim" style={{ fontSize: 12 }}>
+            Pin a local ECHO-Modules checkout when you want Studio to use generated module metadata, local source links, and module Gradle builds.
+          </p>
+          <label className="field">
+            <span>Local checkout root</span>
+            <input
+              value={config.moduleCatalog.moduleRoot}
+              placeholder="C:/Development/Github/ECHO-Modules"
+              onChange={(event) =>
+                updateConfig({ moduleCatalog: { ...config.moduleCatalog, moduleRoot: event.target.value } })
+              }
+            />
+          </label>
+          <label className="field">
+            <span>Index path override</span>
+            <input
+              value={config.moduleCatalog.indexPath}
+              placeholder="metadata/modules/index.json"
+              onChange={(event) =>
+                updateConfig({ moduleCatalog: { ...config.moduleCatalog, indexPath: event.target.value } })
+              }
+            />
+          </label>
+          <div className="btn-row">
+            <button className="btn" onClick={chooseModuleRoot}>
+              Browse Checkout
+            </button>
+            <button className="btn ghost" onClick={refreshModuleCatalog}>
+              Rescan Modules
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.moduleCatalog.moduleRoot}
+              onClick={() => window.studio.openPath(config.moduleCatalog.moduleRoot)}
+            >
+              Open Checkout
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.moduleCatalog.indexPath}
+              onClick={() => window.studio.openPath(config.moduleCatalog.indexPath)}
+            >
+              Open Index
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.moduleCatalog.moduleRoot && !config.moduleCatalog.indexPath}
+              onClick={clearModuleCatalog}
+            >
+              Clear
+            </button>
+          </div>
+          <p className="dim" style={{ fontSize: 12 }}>
+            Leave both fields blank to use environment and nearby-repo autodetection. If an index override is set, it takes precedence.
+          </p>
         </div>
 
         <div className="card">

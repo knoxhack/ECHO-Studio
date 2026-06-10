@@ -116,6 +116,17 @@ export function registerIpc(): void {
     return res.filePaths[0]
   })
 
+  handle('modules:chooseRoot', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Select ECHO-Modules checkout',
+      buttonLabel: 'Use ECHO-Modules',
+      properties: ['openDirectory']
+    })
+    if (res.canceled || res.filePaths.length === 0) return null
+    return res.filePaths[0]
+  })
+
   handle('projects:list', (workspaceDir: string) => listProjects(workspaceDir))
   handle('projects:create', (opts: CreateAddonOptions) => createAddon(opts))
   handle(

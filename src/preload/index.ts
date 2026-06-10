@@ -46,6 +46,7 @@ const api = {
   chooseWorkspace: () => invoke<string | null>('workspace:choose'),
   chooseImportFile: () => invoke<string | null>('projects:chooseImport'),
   chooseImportFolder: () => invoke<string | null>('projects:chooseImportFolder'),
+  chooseModuleRoot: () => invoke<string | null>('modules:chooseRoot'),
   chooseRuntimeExecutable: (runtime: Extract<Runtime, 'echo_native' | 'standalone'>) =>
     invoke<string | null>('runtime:chooseExecutable', runtime),
 

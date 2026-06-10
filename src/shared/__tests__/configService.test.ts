@@ -56,4 +56,22 @@ describe('config service', () => {
     expect(raw.preview).toEqual({ defaultProfile: 'Server Compatibility' })
     expect(raw.sandbox).toBeUndefined()
   })
+
+  it('persists local ECHO-Modules catalog settings', async () => {
+    await setConfig({
+      moduleCatalog: {
+        moduleRoot: 'C:\\Development\\Github\\ECHO-Modules',
+        indexPath: 'C:\\Development\\Github\\ECHO-Modules\\metadata\\modules\\index.json'
+      }
+    })
+
+    const config = await getConfig()
+    const raw = await readRawConfig()
+
+    expect(config.moduleCatalog).toEqual({
+      moduleRoot: 'C:\\Development\\Github\\ECHO-Modules',
+      indexPath: 'C:\\Development\\Github\\ECHO-Modules\\metadata\\modules\\index.json'
+    })
+    expect(raw.moduleCatalog).toEqual(config.moduleCatalog)
+  })
 })

@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { promises as fs } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { DEFAULT_CONFIG } from '../shared/config'
 import { PREVIEW_SCAN_PROFILE_NAMES, normalizePreviewScanProfile } from '../shared/previewScan'
 import type { AppConfig } from '../shared/config'
@@ -32,6 +32,7 @@ function normalizeConfig(raw: LegacyAppConfig): AppConfig {
     sdk: { ...DEFAULT_CONFIG.sdk, ...raw.sdk },
     preview: { ...DEFAULT_CONFIG.preview, ...raw.preview, defaultProfile: previewDefault },
     runtimeTools: { ...DEFAULT_CONFIG.runtimeTools, ...raw.runtimeTools },
+    moduleCatalog: { ...DEFAULT_CONFIG.moduleCatalog, ...raw.moduleCatalog },
     git: { ...DEFAULT_CONFIG.git, ...raw.git },
     theme: typeof raw.theme === 'string' ? raw.theme : DEFAULT_CONFIG.theme
   }
@@ -54,8 +55,11 @@ export async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
     sdk: { ...current.sdk, ...patch.sdk },
     preview: { ...current.preview, ...patch.preview },
     runtimeTools: { ...current.runtimeTools, ...patch.runtimeTools },
+    moduleCatalog: { ...current.moduleCatalog, ...patch.moduleCatalog },
     git: { ...current.git, ...patch.git }
   }
-  await fs.writeFile(configPath(), JSON.stringify(next, null, 2), 'utf-8')
+  const target = configPath()
+  await fs.mkdir(dirname(target), { recursive: true })
+  await fs.writeFile(target, JSON.stringify(next, null, 2), 'utf-8')
   return next
 }

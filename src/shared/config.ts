@@ -17,6 +17,10 @@ export interface AppConfig {
     echoNativeExecutable: string
     standaloneExecutable: string
   }
+  moduleCatalog: {
+    moduleRoot: string
+    indexPath: string
+  }
   git: {
     enabled: boolean
   }
@@ -33,6 +37,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   sdk: { autoUpdate: true, targetVersion: '1.4.x' },
   preview: { defaultProfile: 'Ashfall Compatibility' },
   runtimeTools: { echoNativeExecutable: '', standaloneExecutable: '' },
+  moduleCatalog: { moduleRoot: '', indexPath: '' },
   git: { enabled: false },
   theme: 'dark'
 }
