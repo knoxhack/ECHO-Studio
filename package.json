@@ -1,7 +1,8 @@
 {
-  "name": "echo-addon-studio",
+  "name": "echo-studio",
+  "productName": "ECHO Studio",
   "version": "0.1.0",
-  "description": "Build addons, expansions, and custom content for the ECHO Platform.",
+  "description": "Design ECHO experiences, wire modules, run local dev tools, validate PackOS, and package releases.",
   "author": "ECHO Platform",
   "main": "out/main/index.js",
   "scripts": {

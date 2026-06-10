@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
-import { RUNTIME_LABELS, ALLOWED_PERMISSIONS, BLOCKED_PERMISSIONS, SDK_MODULES } from '@shared/constants'
+import { RUNTIME_LABELS, ALLOWED_PERMISSIONS, BLOCKED_PERMISSIONS } from '@shared/constants'
+import { findEchoModule } from '@shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '@shared/types'
 
 export default function Compatibility(): JSX.Element {
@@ -31,7 +32,7 @@ export default function Compatibility(): JSX.Element {
   const hs = report.healthScore
   const blockedUsed = m.permissions.filter((p) => p in BLOCKED_PERMISSIONS)
   const unknownUsed = m.permissions.filter((p) => !(ALLOWED_PERMISSIONS as readonly string[]).includes(p) && !(p in BLOCKED_PERMISSIONS))
-  const missingDeps = m.dependencies.required.filter((d) => !SDK_MODULES.includes(d as any) && !d.includes(':'))
+  const missingDeps = m.dependencies.required.filter((d) => !findEchoModule(d) && !d.includes(':'))
 
   return (
     <Page title="Compatibility" subtitle="Deep analysis of runtime, permissions, dependencies and content coverage.">
@@ -117,7 +118,7 @@ export default function Compatibility(): JSX.Element {
           <div className="list-row" key={d} style={{ padding: '6px 10px', marginBottom: 4 }}>
             <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{d}</span>
             <span className="dim" style={{ fontSize: 11 }}>
-              {SDK_MODULES.includes(d as any) ? 'SDK module' : 'Third-party'}
+              {findEchoModule(d)?.name ?? 'Third-party'}
             </span>
           </div>
         ))}

@@ -3,6 +3,7 @@ import {
   BLOCKED_PERMISSIONS,
   RESERVED_NAMESPACE
 } from './constants'
+import { dependencyIncludes, resolveProjectModulePlan } from './moduleCatalog'
 import type {
   AddonManifest,
   IssueLevel,
@@ -77,30 +78,49 @@ export function runPackOSCheck(manifest: AddonManifest): PackOSReport {
 
   // --- Dependencies ----------------------------------------------------------
   const required = manifest.dependencies.required
-  if (!required.includes('echo:core')) {
+  if (!dependencyIncludes(required, 'echocore')) {
     issues.push({
       level: 'ERROR',
       category: 'Dependencies',
-      message: 'Missing required dependency: echo:core.',
-      fix: 'Add echo:core to required dependencies.',
+      message: 'Missing required dependency: echo:core / echocore.',
+      fix: 'Add echocore or echo:core to required dependencies.',
       aiFixable: true
     })
   }
-  if (manifest.permissions.includes('mission.register') && !required.includes('echo:mission_core')) {
+  if (manifest.permissions.includes('mission.register') && !dependencyIncludes(required, 'echomissioncore')) {
     issues.push({
       level: 'ERROR',
       category: 'Dependencies',
       message: 'Addon registers missions but does not require MissionCore.',
-      fix: 'Add dependency echo:mission_core.',
+      fix: 'Add dependency echomissioncore or echo:mission_core.',
       aiFixable: true
     })
   }
-  if (manifest.permissions.includes('recipe.register') && !required.includes('echo:recipe_core')) {
+  if (manifest.permissions.includes('recipe.register') && !dependencyIncludes(required, 'echorecipecore')) {
     issues.push({
       level: 'WARNING',
       category: 'Dependencies',
       message: 'Addon registers recipes but does not require RecipeCore.',
-      fix: 'Add dependency echo:recipe_core.',
+      fix: 'Add dependency echorecipecore or echo:recipe_core.',
+      aiFixable: true
+    })
+  }
+
+  const modulePlan = resolveProjectModulePlan(manifest)
+  for (const dep of modulePlan.unknown) {
+    issues.push({
+      level: 'WARNING',
+      category: 'ECHO Modules',
+      message: `Unknown module dependency: ${dep}.`,
+      fix: 'Use a module from the ECHO Modules catalog or keep it namespaced as a third-party dependency.'
+    })
+  }
+  for (const dep of modulePlan.missingRequired) {
+    issues.push({
+      level: 'WARNING',
+      category: 'ECHO Modules',
+      message: `${dep.name} requires ${dep.requires.join(', ')}; dependency closure is incomplete.`,
+      fix: `Add ${dep.id} or let Studio add the full required module closure.`,
       aiFixable: true
     })
   }
@@ -208,18 +228,18 @@ export function autoFixManifest(manifest: AddonManifest): AddonManifest {
   )
 
   // Add missing required deps.
-  if (!fixed.dependencies.required.includes('echo:core')) {
+  if (!dependencyIncludes(fixed.dependencies.required, 'echocore')) {
     fixed.dependencies.required.unshift('echo:core')
   }
   if (
     fixed.permissions.includes('mission.register') &&
-    !fixed.dependencies.required.includes('echo:mission_core')
+    !dependencyIncludes(fixed.dependencies.required, 'echomissioncore')
   ) {
     fixed.dependencies.required.push('echo:mission_core')
   }
   if (
     fixed.permissions.includes('recipe.register') &&
-    !fixed.dependencies.required.includes('echo:recipe_core')
+    !dependencyIncludes(fixed.dependencies.required, 'echorecipecore')
   ) {
     fixed.dependencies.required.push('echo:recipe_core')
   }

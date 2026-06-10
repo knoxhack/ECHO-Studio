@@ -58,7 +58,7 @@ export default function CreateAddon(): JSX.Element {
     const res = await window.studio.createAddon(payload)
     setBusy(false)
     if (!res.ok) {
-      setError(res.error || 'Failed to create addon.')
+      setError(res.error || 'Failed to create project.')
       return
     }
     await refresh()
@@ -74,8 +74,8 @@ export default function CreateAddon(): JSX.Element {
 
   return (
     <Page
-      title="Create Addon"
-      subtitle="A guided flow to scaffold a real ECHO addon project on disk."
+      title="Create"
+      subtitle="A guided flow to scaffold an ECHO experience, addon, module, UI pack, mission pack, or local dev project."
     >
       <div className="steps">
         {STEPS.map((s, i) => (
@@ -129,7 +129,7 @@ export default function CreateAddon(): JSX.Element {
             <input value={namespace} onChange={(e) => setNamespace(e.target.value)} />
           </label>
           <label className="field">
-            <span>Addon ID</span>
+            <span>Project ID</span>
             <input value={addonId} onChange={(e) => setAddonId(e.target.value)} />
           </label>
           <label className="field">
@@ -238,7 +238,7 @@ export default function CreateAddon(): JSX.Element {
           </button>
         ) : (
           <button className="btn primary" disabled={busy} onClick={generate}>
-            {busy ? 'Generating…' : 'Generate Project'}
+            {busy ? 'Generating...' : 'Generate Project'}
           </button>
         )}
       </div>
@@ -264,6 +264,23 @@ function typeBlurb(t: AddonType): string {
 }
 
 function previewTree(ns: string, id: string): string {
+  const cleanTree = `${ns}_${id}/
++-- echo.mod.json
++-- META-INF/echo-addon-package.json
++-- packos.validation.json
++-- README.md
++-- CHANGELOG.md
++-- LICENSE
++-- assets/
++-- content/
++-- missions/
++-- recipes/
++-- holomap/
++-- index/
++-- lang/
++-- sandbox/
++-- docs/`
+  return cleanTree
   return `${ns}_${id}/
 ├─ echo.mod.json
 ├─ packos.validation.json

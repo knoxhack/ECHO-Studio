@@ -4,6 +4,7 @@ import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { runPackOSCheck } from '@shared/validation'
 import { SDK_VERSION } from '@shared/constants'
+import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 
 export default function Dashboard(): JSX.Element {
   const { projects, setActiveProject, profile } = useWorkspace()
@@ -13,56 +14,57 @@ export default function Dashboard(): JSX.Element {
     let passed = 0
     let warnings = 0
     let failed = 0
-    let readyToSubmit = 0
-    for (const p of projects) {
-      const r = runPackOSCheck(p.manifest)
-      if (r.counts.BLOCKER > 0 || r.counts.ERROR > 0) failed++
-      else if (r.counts.WARNING > 0) warnings++
+    let readyToRelease = 0
+    let enabledModules = 0
+    for (const project of projects) {
+      const report = runPackOSCheck(project.manifest)
+      const modulePlan = resolveProjectModulePlan(project.manifest)
+      enabledModules += modulePlan.enabled.length
+      if (report.counts.BLOCKER > 0 || report.counts.ERROR > 0) failed++
+      else if (report.counts.WARNING > 0) warnings++
       else passed++
-      if (r.publishingReady && p.publishStatus === 'draft') readyToSubmit++
+      if (report.publishingReady && project.publishStatus === 'draft') readyToRelease++
     }
-    return { passed, warnings, failed, readyToSubmit }
+    return { passed, warnings, failed, readyToRelease, enabledModules }
   }, [projects])
 
   return (
     <Page
-      title="Dashboard"
-      subtitle="Welcome to ECHO Addon Studio — build on top of ECHO, not ECHO itself."
+      title="Home"
+      subtitle="Mission control for ECHO experiences, modules, local tools, validation, and release readiness."
       actions={
         <>
           <button className="btn primary" onClick={() => nav('/create')}>
-            Create New Addon
+            Create Project
           </button>
-          <button className="btn" onClick={() => nav('/packos')}>
-            Run PackOS Check
+          <button className="btn" onClick={() => nav('/validation')}>
+            Run Validation
           </button>
         </>
       }
     >
       <div className="grid cols-4">
         <div className="card hover" onClick={() => nav('/addons')}>
-          <h3>My Addons</h3>
+          <h3>Projects</h3>
           <div className="metric">{projects.length}</div>
-          <div className="sub">active projects</div>
+          <div className="sub">active workspaces</div>
+        </div>
+        <div className="card hover" onClick={() => nav('/modules')}>
+          <h3>Modules</h3>
+          <div className="metric">{stats.enabledModules}</div>
+          <div className="sub">enabled across projects</div>
         </div>
         <div className="card">
           <h3>Validation</h3>
           <div className="metric">{stats.passed}</div>
           <div className="sub">
-            {stats.passed} passed · {stats.warnings} warning · {stats.failed} failed
+            {stats.passed} passed / {stats.warnings} warning / {stats.failed} failed
           </div>
         </div>
-        <div className="card hover" onClick={() => nav('/submit')}>
-          <h3>Publishing</h3>
-          <div className="metric">{stats.readyToSubmit}</div>
-          <div className="sub">ready to submit</div>
-        </div>
-        <div className="card">
-          <h3>SDK</h3>
-          <div className="metric" style={{ fontSize: 20 }}>
-            {SDK_VERSION}
-          </div>
-          <div className="sub">ECHO SDK installed</div>
+        <div className="card hover" onClick={() => nav('/release')}>
+          <h3>Release</h3>
+          <div className="metric">{stats.readyToRelease}</div>
+          <div className="sub">ready for local packaging</div>
         </div>
       </div>
 
@@ -91,33 +93,36 @@ export default function Dashboard(): JSX.Element {
               )}
             </div>
             <div>
-              Published Addons: <b>{projects.filter((p) => p.publishStatus === 'published').length}</b>
+              Published projects: <b>{projects.filter((project) => project.publishStatus === 'published').length}</b>
+            </div>
+            <div>
+              SDK: <b>{SDK_VERSION}</b>
             </div>
           </div>
           <div className="btn-row" style={{ marginTop: 12 }}>
-            <button className="btn" onClick={() => nav('/submit')}>
-              Apply for Verified Creator
+            <button className="btn" onClick={() => nav('/settings')}>
+              Edit Profile
             </button>
           </div>
         </div>
 
         <div className="card">
-          <h3>Quick Actions</h3>
+          <h3>Local Loop</h3>
+          <p className="dim" style={{ fontSize: 13 }}>
+            Choose modules, generate a dev workspace, run a preview, validate PackOS, then package local release assets before GitHub publishing.
+          </p>
           <div className="btn-row">
-            <button className="btn" onClick={() => nav('/create')}>
-              Create New Addon
+            <button className="btn" onClick={() => nav('/modules')}>
+              Modules
             </button>
-            <button className="btn" onClick={() => nav('/templates')}>
-              Browse Templates
+            <button className="btn" onClick={() => nav('/dev-workspace')}>
+              Dev Workspace
             </button>
-            <button className="btn" onClick={() => nav('/sandbox')}>
-              Open Test Sandbox
+            <button className="btn" onClick={() => nav('/preview')}>
+              Preview
             </button>
-            <button className="btn" onClick={() => nav('/docs')}>
-              Read SDK Docs
-            </button>
-            <button className="btn" onClick={() => nav('/ai')}>
-              Ask AI Assistant
+            <button className="btn" onClick={() => nav('/codex')}>
+              Codex Tasks
             </button>
           </div>
         </div>
@@ -126,33 +131,45 @@ export default function Dashboard(): JSX.Element {
       <div className="section-title">Recent Projects</div>
       {projects.length === 0 ? (
         <div className="empty">
-          No addons yet. <a onClick={() => nav('/create')}>Create your first addon →</a>
+          No projects yet. <a onClick={() => nav('/create')}>Create your first ECHO project</a>
         </div>
       ) : (
-        projects.slice(0, 5).map((p) => (
-          <div className="list-row" key={p.path}>
-            <div style={{ flex: 1 }}>
-              <div>
-                <b>{p.manifest.name}</b> <span className="mono dim">{p.manifest.id}</span>
+        projects.slice(0, 5).map((project) => {
+          const modulePlan = resolveProjectModulePlan(project.manifest)
+          return (
+            <div className="list-row" key={project.path}>
+              <div style={{ flex: 1 }}>
+                <div>
+                  <b>{project.manifest.name}</b> <span className="mono dim">{project.manifest.id}</span>
+                </div>
+                <div className="faint" style={{ fontSize: 12 }}>
+                  v{project.manifest.version} / {modulePlan.enabled.length} module(s) / edited {new Date(project.lastEdited).toLocaleString()}
+                </div>
               </div>
-              <div className="faint" style={{ fontSize: 12 }}>
-                v{p.manifest.version} · edited {new Date(p.lastEdited).toLocaleString()}
-              </div>
+              <span className={`badge ${project.publishStatus === 'published' ? 'ready' : 'local'}`}>
+                {project.publishStatus}
+              </span>
+              <button
+                className="btn"
+                onClick={() => {
+                  setActiveProject(project.path)
+                  nav('/experience')
+                }}
+              >
+                Open
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setActiveProject(project.path)
+                  nav('/dev-workspace')
+                }}
+              >
+                Dev
+              </button>
             </div>
-            <span className={`badge ${p.publishStatus === 'published' ? 'ready' : 'local'}`}>
-              {p.publishStatus}
-            </span>
-            <button
-              className="btn"
-              onClick={() => {
-                setActiveProject(p.path)
-                nav('/manifest')
-              }}
-            >
-              Open
-            </button>
-          </div>
-        ))
+          )
+        })
       )}
     </Page>
   )

@@ -9,79 +9,83 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-// Grouped sidebar navigation matching the ECHO Addon Studio spec.
 export const NAV: NavGroup[] = [
   {
-    title: 'Home',
+    title: 'Studio',
     items: [
-      { path: '/', label: 'Dashboard', icon: '◎' },
-      { path: '/addons', label: 'My Addons', icon: '▤' },
-      { path: '/create', label: 'Create Addon', icon: '＋' }
+      { path: '/', label: 'Home', icon: 'H' },
+      { path: '/create', label: 'Create', icon: '+' },
+      { path: '/experience', label: 'Experience', icon: 'E' }
     ]
   },
   {
     title: 'Build',
     items: [
-      { path: '/templates', label: 'Templates', icon: '▦' },
-      { path: '/manifest', label: 'Manifest Builder', icon: '⚙' },
-      { path: '/manifest-editor', label: 'Manifest Editor', icon: '✎' },
-      { path: '/content', label: 'Content Builder', icon: '◧' },
-      { path: '/graph', label: 'Content Graph', icon: '⋔' },
-      { path: '/missions', label: 'Missions', icon: '➤' },
-      { path: '/recipes', label: 'Recipes', icon: '⚗' },
-      { path: '/screens', label: 'Screens', icon: '▭' },
-      { path: '/holomap', label: 'HoloMap', icon: '◍' },
-      { path: '/index', label: 'Index', icon: '☰' },
-      { path: '/items', label: 'Items', icon: '◇' },
-      { path: '/loot', label: 'Loot', icon: '⚂' },
-      { path: '/dialogue', label: 'Dialogue', icon: '💬' },
-      { path: '/assets', label: 'Assets', icon: '◆' }
+      { path: '/modules', label: 'Modules', icon: 'M' },
+      { path: '/dev-workspace', label: 'Dev Workspace', icon: 'D' },
+      { path: '/assets', label: 'Assets', icon: 'A' },
+      { path: '/gameplay', label: 'Gameplay', icon: 'G' },
+      { path: '/missions', label: 'Missions', icon: 'Q' },
+      { path: '/interface', label: 'Interface', icon: 'U' }
     ]
   },
   {
-    title: 'Test',
+    title: 'Ship',
     items: [
-      { path: '/sandbox', label: 'Test Sandbox', icon: '▶' },
-      { path: '/packos', label: 'PackOS Check', icon: '✓' },
-      { path: '/compatibility', label: 'Compatibility', icon: '⇄' }
+      { path: '/preview', label: 'Preview', icon: 'P' },
+      { path: '/validation', label: 'Validation', icon: 'V' },
+      { path: '/release', label: 'Release', icon: 'R' }
     ]
   },
   {
-    title: 'Publish',
+    title: 'Assist',
     items: [
-      { path: '/submit', label: 'Submit Addon', icon: '⇪' },
-      { path: '/publish-assistant', label: 'Publish Assistant', icon: '➤' },
-      { path: '/releases', label: 'Releases', icon: '◷' },
-      { path: '/catalog', label: 'Community Catalog', icon: '★' }
-    ]
-  },
-  {
-    title: 'Ecosystem',
-    items: [
-      { path: '/ecosystem', label: 'Ecosystem Builder', icon: '⚯' }
-    ]
-  },
-  {
-    title: 'Learn',
-    items: [
-      { path: '/docs', label: 'Docs', icon: '❒' },
-      { path: '/examples', label: 'Examples', icon: '✦' },
-      { path: '/ai', label: 'AI Assistant', icon: '✶' }
+      { path: '/codex', label: 'Codex Tasks', icon: 'C' }
     ]
   },
   {
     title: 'System',
     items: [
-      { path: '/git', label: 'Version Control', icon: '⚭' },
-      { path: '/shortcuts', label: 'Shortcuts', icon: '⌨' },
-      { path: '/settings', label: 'Settings', icon: '⚙' }
+      { path: '/advanced', label: 'Advanced', icon: '>' },
+      { path: '/settings', label: 'Settings', icon: 'S' }
     ]
   }
 ]
 
+export const ROUTE_LABELS: Record<string, string> = {
+  '/addons': 'Project Library',
+  '/templates': 'Templates',
+  '/manifest': 'Experience',
+  '/manifest-editor': 'Raw Manifest',
+  '/content': 'Content Builder',
+  '/graph': 'Content Graph',
+  '/recipes': 'Recipes',
+  '/screens': 'Interface',
+  '/holomap': 'HoloMap',
+  '/index': 'Index',
+  '/items': 'Items',
+  '/loot': 'Loot',
+  '/dialogue': 'Dialogue',
+  '/sandbox': 'Preview',
+  '/packos': 'Validation',
+  '/compatibility': 'Compatibility',
+  '/submit': 'Submit',
+  '/publish-assistant': 'Release',
+  '/releases': 'Release History',
+  '/catalog': 'Catalog',
+  '/ecosystem': 'Ecosystem Builder',
+  '/docs': 'Docs',
+  '/examples': 'Examples',
+  '/ai': 'Legacy AI Chat',
+  '/git': 'Version Control',
+  '/shortcuts': 'Shortcuts'
+}
+
 export function findLabel(path: string): string {
-  for (const g of NAV) {
-    for (const i of g.items) if (i.path === path) return i.label
+  for (const group of NAV) {
+    for (const item of group.items) {
+      if (item.path === path) return item.label
+    }
   }
-  return ''
+  return ROUTE_LABELS[path] ?? ''
 }

@@ -14,7 +14,7 @@ import { templateById } from '../shared/templateLibrary'
 
 // Default workspace where projects live. Stored under userData so it is writable.
 export function defaultWorkspace(): string {
-  return join(app.getPath('documents'), 'ECHO Addon Studio', 'Workspace')
+  return join(app.getPath('documents'), 'ECHO Studio', 'Workspace')
 }
 
 async function ensureDir(dir: string): Promise<void> {

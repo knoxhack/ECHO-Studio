@@ -46,6 +46,8 @@ import { runSandbox } from './sandboxService'
 import type { SandboxOptions } from '../shared/sandbox'
 import { gitStatus, gitInit, gitCommit, gitLog, gitDiff, gitBranch, gitCheckout, gitPush, gitPull, gitRemote, gitAddRemote } from './gitService'
 import { join, basename } from 'path'
+import { inspectDevWorkspace, runDevTask, setupDevWorkspace } from './devWorkspaceService'
+import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
 
 // Wrap a handler so every channel returns a uniform IpcResult.
 function handle<TArgs extends unknown[], TResult>(
@@ -184,6 +186,14 @@ export function registerIpc(): void {
 
   handle('sandbox:run', (projectPath: string, workspaceDir: string, profile: string, options: SandboxOptions) =>
     runSandbox(projectPath, workspaceDir, profile, options)
+  )
+
+  handle('dev:inspect', (projectPath: string) => inspectDevWorkspace(projectPath))
+  handle('dev:setup', (projectPath: string, options: DevWorkspaceOptions) =>
+    setupDevWorkspace(projectPath, options)
+  )
+  handle('dev:runTask', (projectPath: string, taskId: DevTaskId) =>
+    runDevTask(projectPath, taskId)
   )
 
   handle('git:status', (projectPath: string) => gitStatus(projectPath))

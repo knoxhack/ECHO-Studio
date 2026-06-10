@@ -10,6 +10,9 @@ import CreateAddon from './pages/CreateAddon'
 import Templates from './pages/Templates'
 import ManifestBuilder from './pages/ManifestBuilder'
 import ManifestEditor from './pages/ManifestEditor'
+import Modules from './pages/Modules'
+import DevWorkspace from './pages/DevWorkspace'
+import Gameplay from './pages/Gameplay'
 import PublishAssistant from './pages/PublishAssistant'
 import ContentBuilder from './pages/ContentBuilder'
 import ContentGraph from './pages/ContentGraph'
@@ -32,6 +35,7 @@ import Ecosystem from './pages/Ecosystem'
 import Docs from './pages/Docs'
 import Examples from './pages/Examples'
 import AIAssistant from './pages/AIAssistant'
+import CodexTasks from './pages/CodexTasks'
 import Git from './pages/Git'
 import Shortcuts from './pages/Shortcuts'
 import Settings from './pages/Settings'
@@ -60,13 +64,18 @@ export default function App(): JSX.Element {
             <Route path="/addons" element={<MyAddons />} />
             <Route path="/create" element={<CreateAddon />} />
             <Route path="/templates" element={<Templates />} />
+            <Route path="/experience" element={<ManifestBuilder />} />
             <Route path="/manifest" element={<ManifestBuilder />} />
             <Route path="/manifest-editor" element={<ManifestEditor />} />
+            <Route path="/modules" element={<Modules />} />
+            <Route path="/dev-workspace" element={<DevWorkspace />} />
+            <Route path="/gameplay" element={<Gameplay />} />
             <Route path="/publish-assistant" element={<PublishAssistant />} />
             <Route path="/content" element={<ContentBuilder />} />
             <Route path="/graph" element={<ContentGraph />} />
             <Route path="/missions" element={<Missions />} />
             <Route path="/recipes" element={<Recipes />} />
+            <Route path="/interface" element={<Screens />} />
             <Route path="/screens" element={<Screens />} />
             <Route path="/holomap" element={<HoloMap />} />
             <Route path="/index" element={<IndexBuilder />} />
@@ -74,17 +83,22 @@ export default function App(): JSX.Element {
             <Route path="/loot" element={<Loot />} />
             <Route path="/dialogue" element={<DialogueBuilder />} />
             <Route path="/assets" element={<Assets />} />
+            <Route path="/preview" element={<TestSandbox />} />
             <Route path="/sandbox" element={<TestSandbox />} />
+            <Route path="/validation" element={<PackOSCheck />} />
             <Route path="/packos" element={<PackOSCheck />} />
             <Route path="/compatibility" element={<Compatibility />} />
             <Route path="/submit" element={<SubmitAddon />} />
+            <Route path="/release" element={<PublishAssistant />} />
             <Route path="/releases" element={<Releases />} />
             <Route path="/catalog" element={<CommunityCatalog />} />
             <Route path="/ecosystem" element={<Ecosystem />} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/examples" element={<Examples />} />
+            <Route path="/codex" element={<CodexTasks />} />
             <Route path="/ai" element={<AIAssistant />} />
             <Route path="/git" element={<Git />} />
+            <Route path="/advanced" element={<ContentBuilder />} />
             <Route path="/shortcuts" element={<Shortcuts />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>

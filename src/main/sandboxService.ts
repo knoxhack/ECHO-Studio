@@ -3,6 +3,7 @@ import { readManifest, listProjects } from './fsService'
 import { listContent } from './contentService'
 import type { AddonProject } from '../shared/types'
 import { computeSandboxScore, type SandboxResult, type SandboxOptions, type SandboxLog } from '../shared/sandbox'
+import { findEchoModule, normalizeModuleId } from '../shared/moduleCatalog'
 
 const PROFILES: Record<string, { runtime: string; experiences: string[]; permissions: string[] }> = {
   'Ashfall Sandbox': {
@@ -88,11 +89,14 @@ export async function runSandbox(
 
   // Dependency resolution
   const workspaceProjects = await listWorkspaceProjects(workspaceDir)
-  const workspaceIds = new Set(workspaceProjects.map((p) => p.manifest.id))
+  const workspaceIds = new Set(workspaceProjects.map((p) => normalizeModuleId(p.manifest.id)))
   const required = manifest.dependencies.required
   log('info', `Resolving dependencies: ${required.join(', ') || 'none'}`)
   for (const dep of required) {
-    if (workspaceIds.has(dep)) {
+    const module = findEchoModule(dep)
+    if (module) {
+      log('ok', `  Resolved ${dep} from ECHO Modules catalog (${module.name})`)
+    } else if (workspaceIds.has(normalizeModuleId(dep))) {
       log('ok', `  Resolved ${dep} from workspace`)
     } else {
       missingDependencies.push(dep)

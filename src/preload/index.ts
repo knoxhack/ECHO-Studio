@@ -25,6 +25,7 @@ import type { CreatorProfile } from '../shared/profile'
 import type { ExperienceResult, ServerPackResult } from '../shared/bundles'
 import type { SandboxResult, SandboxOptions } from '../shared/sandbox'
 import type { GitStatus, GitCommit, GitDiff, GitResult, GitBranch } from '../shared/git'
+import type { DevSetupResult, DevTaskId, DevTaskRun, DevWorkspaceOptions, DevWorkspaceState } from '../shared/devWorkspace'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -102,6 +103,13 @@ const api = {
 
   runSandbox: (projectPath: string, workspaceDir: string, profile: string, options: SandboxOptions) =>
     invoke<SandboxResult>('sandbox:run', projectPath, workspaceDir, profile, options),
+
+  inspectDevWorkspace: (projectPath: string) =>
+    invoke<DevWorkspaceState>('dev:inspect', projectPath),
+  setupDevWorkspace: (projectPath: string, options: DevWorkspaceOptions) =>
+    invoke<DevSetupResult>('dev:setup', projectPath, options),
+  runDevTask: (projectPath: string, taskId: DevTaskId) =>
+    invoke<DevTaskRun>('dev:runTask', projectPath, taskId),
 
   gitStatus: (projectPath: string) => invoke<GitStatus>('git:status', projectPath),
   gitInit: (projectPath: string) => invoke<GitResult>('git:init', projectPath),

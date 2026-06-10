@@ -6,9 +6,9 @@ import {
   ALLOWED_PERMISSIONS,
   BLOCKED_PERMISSIONS,
   RUNTIME_LABELS,
-  SDK_MODULES,
   TARGET_LABELS
 } from '@shared/constants'
+import { ECHO_MODULE_CATALOG, normalizeModuleId } from '@shared/moduleCatalog'
 import type { AddonManifest, Runtime, TargetExperience } from '@shared/types'
 
 export default function ManifestBuilder(): JSX.Element {
@@ -29,14 +29,14 @@ export default function ManifestBuilder(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="Manifest Builder" subtitle="Visually generate and edit echo.mod.json.">
+      <Page title="Experience" subtitle="Shape project identity, targets, runtimes, permissions, and module dependencies.">
         <NoProject />
       </Page>
     )
   if (!m)
     return (
-      <Page title="Manifest Builder">
-        <div className="empty">Loading manifest…</div>
+      <Page title="Experience">
+        <div className="empty">Loading project...</div>
       </Page>
     )
 
@@ -71,19 +71,19 @@ export default function ManifestBuilder(): JSX.Element {
 
   const toggleDep = (dep: string, kind: 'required' | 'optional'): void => {
     const list = m.dependencies[kind]
-    const has = list.includes(dep)
+    const has = list.some((item) => normalizeModuleId(item) === normalizeModuleId(dep))
     up({
       dependencies: {
         ...m.dependencies,
-        [kind]: has ? list.filter((d) => d !== dep) : [...list, dep]
+        [kind]: has ? list.filter((item) => normalizeModuleId(item) !== normalizeModuleId(dep)) : [...list, dep]
       }
     })
   }
 
   return (
     <Page
-      title="Manifest Builder"
-      subtitle="Visually generate and edit echo.mod.json — no hand-written JSON required."
+      title="Experience"
+      subtitle="Edit the project contract through guided fields. Raw manifest editing lives in Advanced."
       actions={
         <>
           <button
@@ -271,14 +271,14 @@ export default function ManifestBuilder(): JSX.Element {
                 <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
                   Required
                 </div>
-                {SDK_MODULES.map((d) => (
-                  <label className="checkbox" key={d}>
+                {ECHO_MODULE_CATALOG.map((module) => (
+                  <label className="checkbox" key={module.id}>
                     <input
                       type="checkbox"
-                      checked={m.dependencies.required.includes(d)}
-                      onChange={() => toggleDep(d, 'required')}
+                      checked={m.dependencies.required.some((dep) => normalizeModuleId(dep) === module.id)}
+                      onChange={() => toggleDep(module.id, 'required')}
                     />
-                    <span className="mono">{d}</span>
+                    <span className="mono">{module.name}</span>
                   </label>
                 ))}
               </div>
@@ -286,14 +286,14 @@ export default function ManifestBuilder(): JSX.Element {
                 <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
                   Optional
                 </div>
-                {SDK_MODULES.map((d) => (
-                  <label className="checkbox" key={d}>
+                {ECHO_MODULE_CATALOG.map((module) => (
+                  <label className="checkbox" key={module.id}>
                     <input
                       type="checkbox"
-                      checked={m.dependencies.optional.includes(d)}
-                      onChange={() => toggleDep(d, 'optional')}
+                      checked={m.dependencies.optional.some((dep) => normalizeModuleId(dep) === module.id)}
+                      onChange={() => toggleDep(module.id, 'optional')}
                     />
-                    <span className="mono">{d}</span>
+                    <span className="mono">{module.name}</span>
                   </label>
                 ))}
               </div>

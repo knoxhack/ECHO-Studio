@@ -61,13 +61,13 @@ export default function TestSandbox(): JSX.Element {
     if (!result || result.errors.length === 0) return
     const errorText = result.errors.join('\n')
     const prompt = `My addon failed sandbox testing with these errors:\n${errorText}\n\nCan you explain what went wrong and how to fix it?`
-    nav('/ai', { state: { prefilled: prompt } })
+    nav('/codex', { state: { prefilled: prompt } })
   }
 
   return (
     <Page
-      title="Test Sandbox"
-      subtitle="Safely test your addon in an isolated ECHO runtime profile."
+      title="Preview"
+      subtitle="Test runtime profiles, dependency loading, content registration, and log output before packaging."
       actions={
         <>
           <button className="btn" disabled={running || !activeProject} onClick={launch}>

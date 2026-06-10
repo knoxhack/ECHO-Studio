@@ -50,14 +50,14 @@ export default function MyAddons(): JSX.Element {
     const source = fileRes.ok ? fileRes.data : null
     if (source) {
       const res = await window.studio.importProject(workspaceDir, source)
-      if (res.ok) { toast('Imported addon'); refresh() }
+      if (res.ok) { toast('Imported project'); refresh() }
       else toast(res.error || 'Import failed')
     } else {
       const folderRes = await window.studio.chooseImportFolder()
       const folder = folderRes.ok ? folderRes.data : null
       if (folder) {
         const res = await window.studio.importProject(workspaceDir, folder)
-        if (res.ok) { toast('Imported addon'); refresh() }
+        if (res.ok) { toast('Imported project'); refresh() }
         else toast(res.error || 'Import failed')
       }
     }
@@ -66,18 +66,18 @@ export default function MyAddons(): JSX.Element {
 
   return (
     <Page
-      title="My Addons"
-      subtitle="Your project library. Open, validate, test, package, and submit your addons."
+      title="Project Library"
+      subtitle="Open, validate, preview, package, and release your ECHO projects."
       actions={
         <>
           <button className="btn" onClick={() => refresh()}>
             Refresh
           </button>
           <button className="btn" disabled={importing} onClick={importAddon}>
-            {importing ? 'Importing…' : 'Import Addon'}
+            {importing ? 'Importing...' : 'Import Project'}
           </button>
           <button className="btn primary" onClick={() => nav('/create')}>
-            + Create Addon
+            Create Project
           </button>
         </>
       }
@@ -142,17 +142,17 @@ export default function MyAddons(): JSX.Element {
                   </div>
                 </div>
                 <div className="btn-row" style={{ marginTop: 12 }}>
-                  <button className="btn" onClick={() => open(p, '/manifest')}>
+                  <button className="btn" onClick={() => open(p, '/experience')}>
                     Open
                   </button>
-                  <button className="btn" onClick={() => open(p, '/packos')}>
-                    Run Check
+                  <button className="btn" onClick={() => open(p, '/validation')}>
+                    Validate
                   </button>
-                  <button className="btn" onClick={() => open(p, '/sandbox')}>
-                    Test
+                  <button className="btn" onClick={() => open(p, '/preview')}>
+                    Preview
                   </button>
-                  <button className="btn" onClick={() => open(p, '/submit')}>
-                    Submit
+                  <button className="btn" onClick={() => open(p, '/release')}>
+                    Release
                   </button>
                   <button className="btn ghost" onClick={() => openInProject(p.path)}>
                     Open Folder

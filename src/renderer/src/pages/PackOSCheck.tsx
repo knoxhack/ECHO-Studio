@@ -27,14 +27,14 @@ export default function PackOSCheck(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="PackOS Check" subtitle="The core safety gate for community addons.">
+      <Page title="Validation" subtitle="PackOS, modules, content references, assets, runtime compatibility, and release readiness.">
         <NoProject />
       </Page>
     )
   if (!report)
     return (
-      <Page title="PackOS Check">
-        <div className="empty">{loading ? 'Running checks…' : 'Preparing…'}</div>
+      <Page title="Validation">
+        <div className="empty">{loading ? 'Running checks...' : 'Preparing...'}</div>
       </Page>
     )
 
@@ -54,8 +54,8 @@ export default function PackOSCheck(): JSX.Element {
   const hs = report.healthScore
   return (
     <Page
-      title="PackOS Check"
-      subtitle="Full project validation: manifest, content references, assets, runtime and publishing."
+      title="Validation"
+      subtitle="Full project validation: contracts, modules, content references, assets, runtime, local dev setup, and release readiness."
       actions={
         <>
           <button className="btn" disabled={loading} onClick={run}>

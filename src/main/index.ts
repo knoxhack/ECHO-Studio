@@ -83,7 +83,7 @@ async function resolveReleaseIndexProductFeed(): Promise<IndexedProductUpdate | 
 
 function assertUpdateFeedConfig(stream: 'public' | 'internal', feed: { owner: string; repo: string }): void {
   if (stream !== UPDATE_FEED_STREAM || feed.owner !== UPDATE_FEED_OWNER_PUBLIC || feed.repo !== UPDATE_FEED_REPO_PUBLIC) {
-    throw new Error(`Invalid ECHO Addon Studio updater feed: ${feed.owner}/${feed.repo}.`)
+    throw new Error(`Invalid ECHO Studio updater feed: ${feed.owner}/${feed.repo}.`)
   }
 }
 
@@ -126,7 +126,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0a0e14',
-    title: 'ECHO Addon Studio',
+    title: 'ECHO Studio',
     icon: join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

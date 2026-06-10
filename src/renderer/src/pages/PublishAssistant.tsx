@@ -72,7 +72,7 @@ export default function PublishAssistant(): JSX.Element {
 
   const createDraft = async () => {
     if (!pkg?.releaseDraftPath) {
-      setStatus('Prepare release assets before creating a GitHub draft.')
+      setStatus('Prepare local release assets before creating a GitHub draft.')
       return
     }
     setBusy(true)
@@ -91,13 +91,13 @@ export default function PublishAssistant(): JSX.Element {
 
   return (
     <div className="page">
-      <h1 className="page-title">Publish Assistant</h1>
+      <h1 className="page-title">Release Builder</h1>
       <p className="page-subtitle">
-        Prepare release assets, generate checksums, connect a GitHub repository, and create a draft release.
+        Build local release assets, generate checksums and echo-release.json, then optionally connect GitHub for a draft release.
       </p>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="card-title">Repository</h2>
+        <h2 className="card-title">Repository Publishing</h2>
         {authStatus && (
           <div className="flex gap-2" style={{ marginTop: 8, flexWrap: 'wrap' }}>
             <span className={`badge ${authStatus.ghCliAuthenticated ? 'ready' : 'local'}`}>
@@ -133,7 +133,7 @@ export default function PublishAssistant(): JSX.Element {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="card-title">Progress</h2>
+        <h2 className="card-title">Local Release Pipeline</h2>
         <div className="grid gap-2" style={{ marginTop: 8 }}>
           <div className="list-item">
             <span className={`badge ${pkg?.sdkValidation.ok ? 'ready' : 'local'}`}>1</span>
@@ -145,15 +145,15 @@ export default function PublishAssistant(): JSX.Element {
           </div>
           <div className="list-item">
             <span className={`badge ${pkg?.checksumsPath ? 'ready' : 'local'}`}>3</span>
-            Write artifacts, checksums, manifest, and GitHub release draft JSON.
+            Write artifacts, checksums, package manifest, release manifest, and draft JSON.
           </div>
           <div className="list-item">
             <span className={`badge ${authStatus?.activeProvider !== 'none' ? 'ready' : 'local'}`}>4</span>
-            Connect repository with GitHub CLI or a GitHub App broker session.
+            Optional: connect repository with GitHub CLI or a GitHub App broker session.
           </div>
           <div className="list-item">
             <span className={`badge ${releaseUrl ? 'ready' : 'local'}`}>5</span>
-            Create GitHub Release draft and upload prepared assets.
+            Optional: create GitHub Release draft and upload prepared assets.
           </div>
         </div>
         {status && (

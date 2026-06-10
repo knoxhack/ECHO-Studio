@@ -7,7 +7,7 @@ export interface ChatMessage {
   content: string
 }
 
-const SAFETY_SYSTEM = `You are the ECHO Addon Assistant inside ECHO Addon Studio.
+const SAFETY_SYSTEM = `You are the ECHO Studio assistant.
 You help creators build addons ON TOP of the ECHO Platform using ONLY the public ECHO SDK.
 
 Hard rules you must always follow:
@@ -90,7 +90,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
       usedModel: false,
       text: 'Drafted a README and a starter changelog.',
       files: [
-        { path: 'README.md', content: `# ${ns} addon\n\nBuilt with ECHO Addon Studio.\n` },
+        { path: 'README.md', content: `# ${ns} addon\n\nBuilt with ECHO Studio.\n` },
         { path: 'CHANGELOG.md', content: `# Changelog\n\n## 0.1.0\n- Initial release.\n` }
       ]
     }
@@ -103,7 +103,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
   }
   return {
     usedModel: false,
-    text: `I'm the ECHO Addon Assistant. I can generate missions, recipes, Index entries, HoloMap markers and manifests — all namespaced to "${ns}" and using only the public ECHO SDK. Add an API key in Settings for full model-powered generation.`
+    text: `I'm the ECHO Studio assistant. I can generate missions, recipes, Index entries, HoloMap markers, manifests, and local workspace repair plans, all namespaced to "${ns}" and using only the public ECHO SDK. Add an API key in Settings for full model-powered generation.`
   }
 }
 

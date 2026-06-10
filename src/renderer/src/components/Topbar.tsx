@@ -5,7 +5,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 export function Topbar(): JSX.Element {
   const loc = useLocation()
   const { workspaceDir, activeProject, chooseWorkspace } = useWorkspace()
-  const label = findLabel(loc.pathname) || 'ECHO Addon Studio'
+  const label = findLabel(loc.pathname) || 'ECHO Studio'
 
   return (
     <header className="topbar">
@@ -13,7 +13,7 @@ export function Topbar(): JSX.Element {
         <b>{label}</b>
         {activeProject && (
           <>
-            {'  ·  '}
+            {'  /  '}
             <span className="mono">{activeProject.manifest.id}</span>
           </>
         )}

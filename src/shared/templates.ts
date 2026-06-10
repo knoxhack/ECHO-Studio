@@ -63,7 +63,7 @@ export function buildManifest(opts: CreateAddonOptions): AddonManifest {
     id: `${opts.namespace}:${opts.addonId}`,
     name: opts.name,
     version: '0.1.0',
-    description: opts.description || `${opts.name} — a community addon for ECHO.`,
+    description: opts.description || `${opts.name} - a community addon for ECHO.`,
     developerType: 'addon_developer',
     publisher: {
       id: opts.namespace,
@@ -127,8 +127,8 @@ export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManif
     null,
     2
   )
-  files['README.md'] = `# ${opts.name}\n\n${manifest.description}\n\n- **ID:** \`${manifest.id}\`\n- **Target:** ${opts.target}\n- **Type:** ${opts.type}\n\nBuilt with ECHO Addon Studio.\n`
-  files['CHANGELOG.md'] = `# Changelog\n\n## 0.1.0\n- Initial project created with ECHO Addon Studio.\n`
+  files['README.md'] = `# ${opts.name}\n\n${manifest.description}\n\n- **ID:** \`${manifest.id}\`\n- **Target:** ${opts.target}\n- **Type:** ${opts.type}\n\nBuilt with ECHO Studio.\n`
+  files['CHANGELOG.md'] = `# Changelog\n\n## 0.1.0\n- Initial project created with ECHO Studio.\n`
   files['LICENSE'] = `MIT License\n\nCopyright (c) ${new Date().getFullYear()} ${opts.namespace}\n`
 
   // Keep folder structure with .gitkeep so empty dirs persist.

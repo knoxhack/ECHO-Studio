@@ -22,7 +22,7 @@ const CATEGORIES = [
 
 const SNIPPETS: Record<string, string> = {
   'Getting Started':
-    'ECHO Addon Studio lets you build on top of ECHO, not modify ECHO itself.\n\n1. Create an addon from a template.\n2. Edit the manifest and content.\n3. Run PackOS Check.\n4. Test in the sandbox.\n5. Submit to the community catalog.',
+    'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Validate with PackOS.\n5. Package local release assets before GitHub publishing.',
   'Addon SDK':
     'The ECHO Addon SDK provides public APIs for:\n- MissionCore (missions, objectives, rewards)\n- RecipeCore (crafting recipes, machine recipes)\n- ScreenCore (custom UI screens)\n- HoloMap (map layers and markers)\n- Index (lore entries)\n\nAll content must be namespaced to the creator.\nUse ONLY the permissions listed in the SDK documentation.',
   'Manifest Reference':
@@ -30,7 +30,7 @@ const SNIPPETS: Record<string, string> = {
   'Package Contract':
     '{\n  "schemaVersion": "echo.addon.package.v1",\n  "id": "orbital_colonies",\n  "version": "0.3.0",\n  "publisher": {\n    "githubOwner": "teamnova",\n    "githubRepo": "orbital-colonies-addon"\n  },\n  "targets": ["native", "neoforge", "standalone"],\n  "dependencies": [\n    { "id": "echo:core", "kind": "module", "version": "*" }\n  ],\n  "artifacts": {\n    "native": "orbital_colonies-0.3.0.echo-addon",\n    "neoforge": "orbital_colonies-0.3.0-neoforge.jar",\n    "standalone": "orbital_colonies-0.3.0-standalone.jar",\n    "sources": "orbital_colonies-0.3.0-sources.jar"\n  }\n}',
   'Content Types':
-    'ECHO Addon Studio supports these content types:\n\n- mission    : Quests with objectives and rewards\n- recipe     : Crafting and machine recipes\n- screen     : Custom UI screens (ScreenCore)\n- holomap    : Map layers and markers\n- index      : Lore and data entries\n- item       : Custom items and blocks\n\nEach type has its own folder and JSON schema. Use the Content Builder or specialized editors.',
+    'ECHO Studio supports these content types:\n\n- mission    : Quests with objectives and rewards\n- recipe     : Crafting and machine recipes\n- screen     : Custom UI screens (ScreenCore)\n- holomap    : Map layers and markers\n- index      : Lore and data entries\n- item       : Custom items and blocks\n\nEach type has its own folder and JSON schema. Use visual builders first, then Advanced for raw files.',
   'MissionCore':
     '{\n  "id": "teamnova:find_beacon",\n  "title": "Find Signal Beacon",\n  "description": "Locate the missing signal beacon in the ruins.",\n  "objective": {\n    "type": "visit_location",\n    "target": "teamnova:beacon"\n  },\n  "completion": "reach_target",\n  "rewards": [\n    { "item": "teamnova:relay_frame", "count": 1 }\n  ],\n  "unlockAfter": "",\n  "holomapMarker": "teamnova:beacon_marker",\n  "indexEntry": "teamnova:beacon_lore"\n}',
   'RecipeCore':
@@ -44,13 +44,13 @@ const SNIPPETS: Record<string, string> = {
   'Assets':
     'Assets are stored in the assets/ folder of your project.\n\nSupported formats:\n- PNG   : textures, icons, UI elements\n- JSON  : models, blockstates, language files\n- TTF   : custom fonts\n- OGG   : sound effects\n\nUse the Assets page to scan, import and export asset packs.\nAll assets are validated for correct format and size.',
   'PackOS Validation':
-    'PackOS is the core safety gate. It checks:\n\n1. Namespace safety — no reserved "echo:" namespace\n2. Permission safety — no blocked internal permissions\n3. Dependency completeness — required SDK modules present\n4. Version format — semantic versioning\n5. Content integrity — no broken references\n6. Publishing readiness — description, tags, support link\n\nRun PackOS Check before every submission. Use "Fix with AI" for automatic fixes.',
+    'PackOS is the core safety gate. It checks:\n\n1. Namespace safety - no reserved "echo:" namespace\n2. Permission safety - no blocked internal permissions\n3. Dependency completeness - required SDK modules present\n4. Version format - semantic versioning\n5. Content integrity - no broken references\n6. Publishing readiness - description, tags, support link\n\nRun Validation before every release. Use Codex Tasks for reviewable repair plans.',
   'Publishing':
     'To publish your addon:\n\n1. Run PackOS Check and resolve all BLOCKERs and ERRORs.\n2. Prepare release assets from the Publish Assistant.\n3. Review echo-addon-package.json, echo-release.json, and checksums.sha256.\n4. Connect the GitHub App or GitHub CLI provider.\n5. Create a GitHub Release draft and upload the prepared assets.\n6. Submit the release for Release Index ingestion.\n\nTrust levels:\n- Community            : Source-linked public release.\n- Provenance-attested  : GitHub artifact attestation verified.\n- Official             : ECHO-owned or explicitly approved publisher.\n- Blocked              : Prevented by Release Index policy.',
   'Verification Program':
     'The ECHO Verification Program reviews addons for:\n\n- Code quality and safety\n- Documentation completeness\n- User experience\n- Community feedback\n\nVerified addons receive:\n- A verified badge in the catalog\n- Priority in search results\n- Access to beta SDK features\n\nApply via the Submit Addon page.',
   'Best Practices':
-    'Best practices for ECHO addons:\n\n1. Always namespace content to your creator ID\n2. Use the public SDK — never touch ECHO internals\n3. Add meaningful descriptions and tags\n4. Include localization keys for all user-facing text\n5. Test in the sandbox before submitting\n6. Version your releases with semantic versioning\n7. Write a README and CHANGELOG\n8. Handle errors gracefully — never crash the runtime',
+    'Best practices for ECHO projects:\n\n1. Always namespace content to your creator ID\n2. Use the public SDK - never touch ECHO internals\n3. Add meaningful descriptions and tags\n4. Include localization keys for all user-facing text\n5. Test in Preview before packaging\n6. Version releases with semantic versioning\n7. Write a README and CHANGELOG\n8. Handle errors gracefully - never crash the runtime',
   'Examples':
     'See the Examples page for clonable starter projects:\n\n- Mission Pack Example\n- Recipe Pack Example\n- UI Addon Example\n- HoloMap Layer Example\n- Ashfall Expansion\n\nEach example generates a full project scaffold with working content, validation config and documentation.'
 }
