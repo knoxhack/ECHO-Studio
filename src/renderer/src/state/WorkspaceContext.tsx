@@ -5,6 +5,7 @@ import type { CreatorProfile } from '@shared/profile'
 import type { AppConfig } from '@shared/config'
 import { DEFAULT_PROFILE } from '@shared/profile'
 import { DEFAULT_CONFIG } from '@shared/config'
+import { ECHO_MODULE_CATALOG, type EchoModuleCatalogResult, type EchoModuleRecord } from '@shared/moduleCatalog'
 
 interface WorkspaceState {
   workspaceDir: string
@@ -20,6 +21,8 @@ interface WorkspaceState {
   toastMsg: string | null
   profile: CreatorProfile
   config: AppConfig
+  moduleCatalog: EchoModuleRecord[]
+  moduleCatalogResult: EchoModuleCatalogResult | null
   updateProfile: (patch: Partial<CreatorProfile>) => Promise<void>
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>
 }
@@ -39,6 +42,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): JSX.El
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE)
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
+  const [moduleCatalog, setModuleCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
+  const [moduleCatalogResult, setModuleCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg)
@@ -48,9 +53,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): JSX.El
   const refresh = useCallback(async () => {
     if (!workspaceDir) return
     setLoading(true)
-    const res = await window.studio.listProjects(workspaceDir)
+    const [res, modules] = await Promise.all([
+      window.studio.listProjects(workspaceDir),
+      window.studio.listEchoModules(workspaceDir)
+    ])
     setLoading(false)
     if (res.ok && res.data) setProjects(res.data)
+    if (modules.ok && modules.data) {
+      setModuleCatalog(modules.data.catalog)
+      setModuleCatalogResult(modules.data)
+    } else {
+      setModuleCatalog(ECHO_MODULE_CATALOG)
+      setModuleCatalogResult({
+        catalog: ECHO_MODULE_CATALOG,
+        source: 'builtin',
+        warnings: [modules.error || 'Could not load local module catalog. Using built-in starter catalog.']
+      })
+    }
   }, [workspaceDir])
 
   const setWorkspaceDir = useCallback((dir: string) => {
@@ -121,6 +140,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): JSX.El
     toastMsg,
     profile,
     config,
+    moduleCatalog,
+    moduleCatalogResult,
     updateProfile,
     updateConfig
   }

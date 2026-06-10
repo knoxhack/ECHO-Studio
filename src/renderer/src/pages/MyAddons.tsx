@@ -11,7 +11,7 @@ const FILTERS = ['All', 'Drafts', 'Ready', 'Submitted', 'Published', 'Needs Fixe
 type Filter = (typeof FILTERS)[number]
 
 export default function MyAddons(): JSX.Element {
-  const { projects, workspaceDir, setActiveProject, refresh, openInProject, toast } = useProjectLibraryHelpers()
+  const { projects, workspaceDir, setActiveProject, refresh, openInProject, toast, moduleCatalog, moduleCatalogResult } = useProjectLibraryHelpers()
   const nav = useNavigate()
   const [filter, setFilter] = useState<Filter>('All')
   const [importing, setImporting] = useState(false)
@@ -20,10 +20,10 @@ export default function MyAddons(): JSX.Element {
     () =>
       projects.map((p) => ({
         project: p,
-        report: runPackOSCheck(p.manifest),
-        modulePlan: resolveProjectModulePlan(p.manifest)
+        report: runPackOSCheck(p.manifest, moduleCatalog),
+        modulePlan: resolveProjectModulePlan(p.manifest, moduleCatalog)
       })),
-    [projects]
+    [moduleCatalog, projects]
   )
 
   const filtered = rows.filter(({ project, report, modulePlan }) => {
@@ -90,6 +90,9 @@ export default function MyAddons(): JSX.Element {
       }
     >
       <div className="btn-row" style={{ marginBottom: 18 }}>
+        <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+          {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in module catalog'}
+        </span>
         {FILTERS.map((f) => (
           <button
             key={f}

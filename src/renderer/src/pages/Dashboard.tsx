@@ -7,7 +7,7 @@ import { SDK_VERSION } from '@shared/constants'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 
 export default function Dashboard(): JSX.Element {
-  const { projects, setActiveProject, profile } = useWorkspace()
+  const { projects, setActiveProject, profile, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const nav = useNavigate()
 
   const stats = useMemo(() => {
@@ -17,8 +17,8 @@ export default function Dashboard(): JSX.Element {
     let readyToRelease = 0
     let enabledModules = 0
     for (const project of projects) {
-      const report = runPackOSCheck(project.manifest)
-      const modulePlan = resolveProjectModulePlan(project.manifest)
+      const report = runPackOSCheck(project.manifest, moduleCatalog)
+      const modulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
       enabledModules += modulePlan.enabled.length
       if (report.counts.BLOCKER > 0 || report.counts.ERROR > 0) failed++
       else if (report.counts.WARNING > 0) warnings++
@@ -26,7 +26,7 @@ export default function Dashboard(): JSX.Element {
       if (report.publishingReady && project.publishStatus === 'draft') readyToRelease++
     }
     return { passed, warnings, failed, readyToRelease, enabledModules }
-  }, [projects])
+  }, [moduleCatalog, projects])
 
   return (
     <Page
@@ -52,7 +52,9 @@ export default function Dashboard(): JSX.Element {
         <div className="card hover" onClick={() => nav('/modules')}>
           <h3>Modules</h3>
           <div className="metric">{stats.enabledModules}</div>
-          <div className="sub">enabled across projects</div>
+          <div className="sub">
+            {moduleCatalogResult?.source === 'local-index' ? 'from local ECHO-Modules' : 'from built-in catalog'}
+          </div>
         </div>
         <div className="card">
           <h3>Validation</h3>
@@ -135,7 +137,7 @@ export default function Dashboard(): JSX.Element {
         </div>
       ) : (
         projects.slice(0, 5).map((project) => {
-          const modulePlan = resolveProjectModulePlan(project.manifest)
+          const localModulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
           return (
             <div className="list-row" key={project.path}>
               <div style={{ flex: 1 }}>
@@ -143,7 +145,7 @@ export default function Dashboard(): JSX.Element {
                   <b>{project.manifest.name}</b> <span className="mono dim">{project.manifest.id}</span>
                 </div>
                 <div className="faint" style={{ fontSize: 12 }}>
-                  v{project.manifest.version} / {modulePlan.enabled.length} module(s) / edited {new Date(project.lastEdited).toLocaleString()}
+                  v{project.manifest.version} / {localModulePlan.enabled.length} module(s) / edited {new Date(project.lastEdited).toLocaleString()}
                 </div>
               </div>
               <span className={`badge ${project.publishStatus === 'published' ? 'ready' : 'local'}`}>
