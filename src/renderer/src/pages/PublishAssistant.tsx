@@ -213,8 +213,15 @@ export default function PublishAssistant(): JSX.Element {
   }
 
   const createDraft = async (): Promise<void> => {
-    if (!pkg?.releaseDraftPath) {
-      setStatus('Prepare local release assets before creating a GitHub draft.')
+    if (
+      !pkg?.releaseDraftPath ||
+      !pkg.checksumsPath ||
+      !pkg.packageManifestPath ||
+      !pkg.releaseManifestPath ||
+      !pkg.releaseIndexHandoffPath ||
+      !pkg.releaseIndexHandoff?.attestation.subjects.length
+    ) {
+      setStatus('Prepare local release assets with Release Index handoff and attestation metadata before creating a GitHub draft.')
       return
     }
     setBusy(true)
@@ -242,8 +249,20 @@ export default function PublishAssistant(): JSX.Element {
 
   const sdkReady = pkg?.sdkValidation.ok ?? false
   const packosReady = readinessReport?.publishingReady ?? false
-  const packageReady = Boolean(pkg?.checksumsPath && pkg.releaseManifestPath && pkg.releaseDraftPath)
-  const publishReady = Boolean(pkg?.releaseDraftPath && owner.trim() && repo.trim() && tag.trim())
+  const releaseSidecarsReady = Boolean(pkg?.checksumsPath && pkg.packageManifestPath && pkg.releaseManifestPath && pkg.releaseIndexHandoffPath && pkg.releaseDraftPath)
+  const handoffReady = Boolean(
+    pkg?.releaseIndexHandoff?.schemaVersion === 'echo.release.index.handoff.v1' &&
+    pkg.releaseIndexHandoff.targetRepository === 'knoxhack/ECHO-Release-Index' &&
+    pkg.releaseIndexHandoff.targetCollection === 'addons' &&
+    pkg.releaseIndexHandoff.entryFileName
+  )
+  const attestationSubjectCount = pkg?.releaseIndexHandoff?.attestation.subjects.length ?? 0
+  const attestationReady = Boolean(
+    pkg?.releaseIndexHandoff?.attestation.provider === 'github-artifact-attestations' &&
+    pkg.releaseIndexHandoff.attestation.requireDigestMatch &&
+    attestationSubjectCount > 0
+  )
+  const publishReady = Boolean(releaseSidecarsReady && handoffReady && attestationReady && owner.trim() && repo.trim() && tag.trim())
 
   return (
     <Page
@@ -422,7 +441,21 @@ export default function PublishAssistant(): JSX.Element {
           <h3>Local Release Pipeline</h3>
           <StepRow done={sdkReady} label="SDK package contract" detail={pkg ? (sdkReady ? 'Package manifest passes SDK validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
           <StepRow done={packosReady} label="PackOS project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
-          <StepRow done={packageReady} label="Release sidecars" detail="Write checksums.sha256, echo-release.json, github-release-draft.json, and release-index-handoff.json." />
+          <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, github-release-draft.json, and release-index-handoff.json." />
+          <StepRow
+            done={handoffReady}
+            label="Release Index handoff"
+            detail={
+              pkg?.releaseIndexHandoff
+                ? `${pkg.releaseIndexHandoff.targetRepository} / ${pkg.releaseIndexHandoff.targetCollection} / ${pkg.releaseIndexHandoff.entryFileName}`
+                : 'Generate handoff metadata for Release Index ingestion.'
+            }
+          />
+          <StepRow
+            done={attestationReady}
+            label="Artifact attestation plan"
+            detail={attestationSubjectCount ? `${attestationSubjectCount} artifact subject(s) require GitHub digest verification.` : 'Generate attestation subjects for each release artifact.'}
+          />
           <StepRow done={assetCount > 0} label="Release artifacts" detail={assetCount ? `${assetCount} generated artifact and sidecar file(s).` : 'Prepare assets to generate runtime packages and sidecars.'} />
           <StepRow done={Boolean(releaseUrl)} label="Optional GitHub draft" detail={releaseUrl || 'Upload prepared local assets after reviewing them.'} />
 
