@@ -3,25 +3,30 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { runPackOSCheck } from '@shared/validation'
+import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 import { ADDON_TYPE_LABELS, RUNTIME_LABELS, TARGET_LABELS } from '@shared/constants'
 import type { AddonProject } from '@shared/types'
 
-const FILTERS = ['All', 'Drafts', 'Ready', 'Submitted', 'Published', 'Needs Fixes'] as const
+const FILTERS = ['All', 'Drafts', 'Ready', 'Submitted', 'Published', 'Needs Fixes', 'Needs Modules'] as const
 type Filter = (typeof FILTERS)[number]
 
 export default function MyAddons(): JSX.Element {
-  const { projects, workspaceDir, setActiveProject, refresh, openInProject, toast } = useAddonsHelpers()
+  const { projects, workspaceDir, setActiveProject, refresh, openInProject, toast } = useProjectLibraryHelpers()
   const nav = useNavigate()
   const [filter, setFilter] = useState<Filter>('All')
   const [importing, setImporting] = useState(false)
 
   const rows = useMemo(
     () =>
-      projects.map((p) => ({ project: p, report: runPackOSCheck(p.manifest) })),
+      projects.map((p) => ({
+        project: p,
+        report: runPackOSCheck(p.manifest),
+        modulePlan: resolveProjectModulePlan(p.manifest)
+      })),
     [projects]
   )
 
-  const filtered = rows.filter(({ project, report }) => {
+  const filtered = rows.filter(({ project, report, modulePlan }) => {
     switch (filter) {
       case 'Drafts':
         return project.publishStatus === 'draft'
@@ -33,6 +38,8 @@ export default function MyAddons(): JSX.Element {
         return project.publishStatus === 'published'
       case 'Needs Fixes':
         return report.counts.BLOCKER > 0 || report.counts.ERROR > 0
+      case 'Needs Modules':
+        return modulePlan.missingRequired.length > 0 || modulePlan.unknown.length > 0 || modulePlan.closure.some((mod) => mod.blocked || mod.trustLevel === 'blocked')
       default:
         return true
     }
@@ -98,8 +105,19 @@ export default function MyAddons(): JSX.Element {
         <div className="empty">No projects match this filter.</div>
       ) : (
         <div className="grid cols-2">
-          {filtered.map(({ project: p, report }) => {
+          {filtered.map(({ project: p, report, modulePlan }) => {
             const m = p.manifest
+            const blockedModules = modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
+            const moduleIssueCount =
+              modulePlan.missingRequired.length +
+              modulePlan.unknown.length +
+              blockedModules.length
+            const moduleIssueText =
+              modulePlan.missingRequired.length > 0
+                ? `Missing closure: ${modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.`
+                : modulePlan.unknown.length > 0
+                  ? `Unknown dependencies: ${modulePlan.unknown.join(', ')}.`
+                  : `Blocked modules: ${blockedModules.map((mod) => mod.name).join(', ')}.`
             const status =
               report.counts.BLOCKER > 0 || report.counts.ERROR > 0
                 ? 'NEEDS FIXES'
@@ -128,6 +146,13 @@ export default function MyAddons(): JSX.Element {
                     Runtime: {m.runtime.supports.map((r) => RUNTIME_LABELS[r]).join(' + ')}
                   </div>
                   <div>
+                    Modules:{' '}
+                    <span style={{ color: moduleIssueCount > 0 ? 'var(--warn)' : 'var(--good)' }}>
+                      {modulePlan.enabled.length} selected / {modulePlan.closure.length} in closure
+                    </span>
+                    {moduleIssueCount > 0 && ` (${moduleIssueCount} issue${moduleIssueCount === 1 ? '' : 's'})`}
+                  </div>
+                  <div>
                     Validation:{' '}
                     <span
                       style={{
@@ -141,9 +166,22 @@ export default function MyAddons(): JSX.Element {
                     Publish: <span className="badge local">{p.publishStatus}</span>
                   </div>
                 </div>
+                {moduleIssueCount > 0 && (
+                  <div className="issue WARNING" style={{ marginTop: 10 }}>
+                    <span className="lvl">MODULES</span>
+                    {moduleIssueText}
+                    <div className="fix">Open Modules to sync dependency choices before setup, preview, or packaging.</div>
+                  </div>
+                )}
                 <div className="btn-row" style={{ marginTop: 12 }}>
                   <button className="btn" onClick={() => open(p, '/experience')}>
                     Open
+                  </button>
+                  <button className="btn" onClick={() => open(p, '/modules')}>
+                    Modules
+                  </button>
+                  <button className="btn" onClick={() => open(p, '/dev-workspace')}>
+                    Dev
                   </button>
                   <button className="btn" onClick={() => open(p, '/validation')}>
                     Validate
@@ -181,7 +219,7 @@ function guessType(projectClass: string, perms: string[]) {
   return 'gameplay_addon' as const
 }
 
-function useAddonsHelpers() {
+function useProjectLibraryHelpers() {
   const ws = useWorkspace()
   return {
     ...ws,
