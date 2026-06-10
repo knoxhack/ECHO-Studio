@@ -20,6 +20,7 @@ import { readAllContent, readLangKeys } from './contentService'
 import { inspectDevWorkspace, setupDevWorkspace } from './devWorkspaceService'
 import { packageAddon } from './packageService'
 import { listEchoModules } from './moduleCatalogService'
+import { getConfig } from './config'
 
 interface CodexTaskStore {
   rejected: Record<string, string>
@@ -761,10 +762,15 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
 
   if (taskId === 'dev:setup-workspace') {
     const currentWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
+    const config = await getConfig()
     const devSetup = await setupDevWorkspace(projectPath, {
       mode: currentWorkspace?.lastSetupAt ? currentWorkspace.mode : 'gradle',
       runtimes: currentWorkspace?.runtimeTargets.length ? currentWorkspace.runtimeTargets : defaultRuntimes(manifest),
-      force: false
+      force: false,
+      runtimeTools: {
+        echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
+        standaloneExecutable: config.runtimeTools.standaloneExecutable
+      }
     })
     await writeStore(projectPath, store)
     return {

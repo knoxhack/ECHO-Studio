@@ -67,6 +67,49 @@ async function withProject(run: (project: string) => Promise<void>): Promise<voi
 }
 
 describe('codex task service', () => {
+  it('uses configured runtime executables when applying dev workspace setup', async () => {
+    await withProject(async (project) => {
+      const configPath = path.join(os.tmpdir(), 'config.json')
+      const previousConfig = await fs.readFile(configPath, 'utf8').catch(() => undefined)
+      try {
+        const nextManifest = manifest()
+        nextManifest.runtime = {
+          supports: ['echo_native', 'standalone'],
+          nativeReadiness: 'partial',
+          minimumEchoSdk: '1.4.0'
+        }
+        await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
+
+        const { setConfig } = await import('../../main/config')
+        await setConfig({
+          runtimeTools: {
+            echoNativeExecutable: 'C:\\ECHO Runtime\\echo-native.exe',
+            standaloneExecutable: 'C:\\ECHO Runtime\\echo-standalone.exe'
+          }
+        })
+
+        const { applyCodexTask } = await import('../../main/codexTaskService')
+        const result = await applyCodexTask(project, 'dev:setup-workspace')
+        const gradleProperties = await fs.readFile(path.join(project, 'gradle.properties'), 'utf8')
+
+        expect(result.devSetup?.state.runtimeLaunchers).toMatchObject({
+          nativeExpected: true,
+          nativeConfigured: true,
+          nativeExecutable: 'C:/ECHO Runtime/echo-native.exe',
+          standaloneExpected: true,
+          standaloneConfigured: true,
+          standaloneExecutable: 'C:/ECHO Runtime/echo-standalone.exe',
+          ready: true
+        })
+        expect(gradleProperties).toContain('echo_native_executable=C:/ECHO Runtime/echo-native.exe')
+        expect(gradleProperties).toContain('echo_standalone_executable=C:/ECHO Runtime/echo-standalone.exe')
+      } finally {
+        if (previousConfig === undefined) await fs.rm(configPath, { force: true })
+        else await fs.writeFile(configPath, previousConfig, 'utf8')
+      }
+    })
+  })
+
   it('proposes and applies missing mission localization keys', async () => {
     await withProject(async (project) => {
       const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
