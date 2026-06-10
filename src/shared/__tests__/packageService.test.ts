@@ -250,10 +250,10 @@ describe('packageAddon', () => {
         ingestion: {
           status: 'pending-review',
           requireSchemaValidation: true,
-          requireValidationReady: true,
-          requirePackOSReady: true
+          requireValidationReady: true
         }
       })
+      expect(handoff.ingestion).not.toHaveProperty('requirePackOSReady')
       expect(handoff.assets.map((asset: { name: string }) => asset.name)).toEqual(expect.arrayContaining([
         'weather_pack-1.0.0.echo-addon',
         'checksums.sha256',

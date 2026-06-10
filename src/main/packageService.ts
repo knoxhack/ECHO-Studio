@@ -260,7 +260,6 @@ function buildReleaseIndexHandoff(
       status: 'pending-review',
       requireSchemaValidation: true,
       requireValidationReady: report.publishingReady,
-      requirePackOSReady: report.publishingReady,
       notes: [
         'Release Index ingestion must verify all SHA-256 digests before approval.',
         'Official or verified promotion requires GitHub artifact attestation verification for each artifact subject.',

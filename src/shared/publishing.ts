@@ -109,7 +109,7 @@ export interface ReleaseIndexHandoff {
     requireSchemaValidation: true
     requireValidationReady: boolean
     /** @deprecated Use requireValidationReady. Kept for older handoff validators. */
-    requirePackOSReady: boolean
+    requirePackOSReady?: boolean
     notes: string[]
   }
 }

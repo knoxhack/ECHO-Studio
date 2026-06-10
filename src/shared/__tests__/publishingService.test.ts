@@ -133,7 +133,7 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
       status: 'pending-review',
       requireSchemaValidation: true,
       requireValidationReady: options.requireValidationReady ?? true,
-      requirePackOSReady: options.requirePackOSReady ?? true,
+      ...(options.requirePackOSReady !== undefined ? { requirePackOSReady: options.requirePackOSReady } : {}),
       notes: []
     }
   }
