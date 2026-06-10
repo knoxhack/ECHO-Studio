@@ -34,18 +34,25 @@ type DraftFixtureOptions = {
   handoffAttestation?: unknown
   attestationSubjectName?: string
   attestationSubjectSha256?: string
+  checksumsContent?: string
 }
 
 async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}): Promise<string> {
   const artifactName = 'myaddon-0.1.0.echo-addon'
   const artifactContent = 'artifact-bytes'
   const artifactSha256 = options.artifactSha256 ?? sha256(artifactContent)
-  const checksumsContent = `${artifactSha256}  ${artifactName}\n`
+  const packageContent = JSON.stringify({ schemaVersion: 'echo.addon.package.v1' })
+  const releaseContent = JSON.stringify({ schemaVersion: 'echo.release.index.entry.v1' })
+  const checksumsContent = options.checksumsContent ?? [
+    `${artifactSha256}  ${artifactName}`,
+    `${sha256(packageContent)}  echo-addon-package.json`,
+    `${sha256(releaseContent)}  echo-release.json`
+  ].join('\n') + '\n'
   const fileContents = new Map<string, string>([
     [artifactName, artifactContent],
     ['checksums.sha256', checksumsContent],
-    ['echo-addon-package.json', JSON.stringify({ schemaVersion: 'echo.addon.package.v1' })],
-    ['echo-release.json', JSON.stringify({ schemaVersion: 'echo.release.index.entry.v1' })],
+    ['echo-addon-package.json', packageContent],
+    ['echo-release.json', releaseContent],
     ['release-index-submission.md', '# Release Index Submission\n']
   ])
   const omitAssetNames = new Set(options.omitAssetNames ?? [])
@@ -407,6 +414,36 @@ describe('GitHub App broker publishing', () => {
       })
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/does not match/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose checksums sidecar does not cover handoff assets', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, {
+        checksumsContent: `${sha256('artifact-bytes')}  myaddon-0.1.0.echo-addon\n`
+      })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/checksums\.sha256 is missing a row for echo-addon-package\.json/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose checksums sidecar disagrees with draft metadata', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, {
+        checksumsContent: [
+          `${sha256('artifact-bytes')}  myaddon-0.1.0.echo-addon`,
+          `${'a'.repeat(64)}  echo-addon-package.json`,
+          `${sha256(JSON.stringify({ schemaVersion: 'echo.release.index.entry.v1' }))}  echo-release.json`
+        ].join('\n') + '\n'
+      })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/checksums\.sha256 row for echo-addon-package\.json/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

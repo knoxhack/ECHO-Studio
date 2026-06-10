@@ -245,6 +245,20 @@ function sha256Buffer(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
+function parseChecksumRows(text: string): Map<string, string> {
+  const rows = new Map<string, string>()
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const match = line.match(/^([a-f0-9]{64})\s+(.+)$/i)
+    if (!match) throw new Error(`checksums.sha256 contains an invalid row: ${line}`)
+    const name = match[2].trim()
+    if (rows.has(name)) throw new Error(`checksums.sha256 contains a duplicate row for ${name}.`)
+    rows.set(name, match[1].toLowerCase())
+  }
+  return rows
+}
+
 async function readVerifiedDraftAsset(asset: DraftAsset): Promise<Buffer> {
   const buffer = await fs.readFile(asset.path)
   const actual = sha256Buffer(buffer)
@@ -266,6 +280,26 @@ async function verifyReleaseIndexHandoffSidecar(handoff: ReleaseIndexHandoff, as
   }
   if (stableJson(parsed) !== stableJson(handoff)) {
     throw new Error('release-index-handoff.json does not match the releaseIndexHandoff metadata embedded in github-release-draft.json.')
+  }
+}
+
+async function verifyChecksumsSidecar(handoff: ReleaseIndexHandoff, assets: DraftAsset[]): Promise<void> {
+  const checksumsAsset = assets.find((asset) => assetName(asset) === handoff.checksums.file)
+  if (!checksumsAsset) throw new Error(`Release draft is missing required sidecar asset ${handoff.checksums.file}.`)
+  const rows = parseChecksumRows((await readVerifiedDraftAsset(checksumsAsset)).toString('utf-8'))
+  const assetsByName = new Map(assets.map((asset) => [assetName(asset), asset]))
+  for (const handoffAsset of handoff.assets) {
+    if (handoffAsset.name === handoff.checksums.file) continue
+    const rowSha256 = rows.get(handoffAsset.name)
+    if (!rowSha256) throw new Error(`checksums.sha256 is missing a row for ${handoffAsset.name}.`)
+    const draftAsset = assetsByName.get(handoffAsset.name)
+    if (!draftAsset) throw new Error(`Release draft is missing asset ${handoffAsset.name}.`)
+    if (rowSha256 !== draftAsset.sha256?.toLowerCase()) {
+      throw new Error(`checksums.sha256 row for ${handoffAsset.name} does not match release draft assets.`)
+    }
+    if (rowSha256 !== handoffAsset.sha256.toLowerCase()) {
+      throw new Error(`checksums.sha256 row for ${handoffAsset.name} does not match Release Index handoff metadata.`)
+    }
   }
 }
 
@@ -469,6 +503,7 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
     await readVerifiedDraftAsset(asset)
   }
   await verifyReleaseIndexHandoffSidecar(metadata.releaseIndexHandoff, assets)
+  await verifyChecksumsSidecar(metadata.releaseIndexHandoff, assets)
 
   const status = await getGitHubPublishingStatus()
   if (status.githubAppSessionReady) {
