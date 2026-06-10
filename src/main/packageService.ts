@@ -59,7 +59,6 @@ function addCommonMetadata(zip: AdmZip, manifest: unknown, packageManifest: unkn
   zip.addFile('META-INF/echo.mod.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'))
   zip.addFile('echo-addon-package.json', Buffer.from(JSON.stringify(packageManifest, null, 2), 'utf-8'))
   zip.addFile('validation.report.json', Buffer.from(JSON.stringify(report, null, 2), 'utf-8'))
-  zip.addFile('packos.report.json', Buffer.from(JSON.stringify(report, null, 2), 'utf-8'))
 }
 
 function addChecksums(zip: AdmZip): void {
@@ -182,11 +181,6 @@ function buildReleaseManifest(
       targets: packageManifest.targets
     },
     validationReport: {
-      publishingReady: report.publishingReady,
-      issueCount: report.issues.length,
-      compatibilityScore: report.compatibilityScore
-    },
-    packos: {
       publishingReady: report.publishingReady,
       issueCount: report.issues.length,
       compatibilityScore: report.compatibilityScore
