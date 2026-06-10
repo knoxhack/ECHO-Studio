@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { autoFixManifest } from '../shared/validation'
 import {
   buildUnifiedTextDiff,
@@ -13,6 +13,7 @@ import { resolveProjectModulePlan, type EchoModuleRecord } from '../shared/modul
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
+import type { ContentRecord, ContentType, Mission } from '../shared/content/schemas'
 import { listAssetFiles, readManifest, writeManifest } from './fsService'
 import { readAllContent, readLangKeys } from './contentService'
 import { inspectDevWorkspace, setupDevWorkspace } from './devWorkspaceService'
@@ -28,6 +29,9 @@ interface ProjectContext {
   manifest: AddonManifest
   moduleCatalog: EchoModuleRecord[]
   report: PackOSReport
+  content: Record<ContentType, ContentRecord[]>
+  langKeys: string[]
+  assetFiles: string[]
   devWorkspace?: DevWorkspaceState
   workspaceInitialized: boolean
   devReady: boolean
@@ -81,22 +85,25 @@ async function writeStore(projectPath: string, store: CodexTaskStore): Promise<v
   await fs.writeFile(join(projectPath, STORE_PATH), JSON.stringify(store, null, 2), 'utf8')
 }
 
-async function projectReport(projectPath: string, manifest: AddonManifest, moduleCatalog: EchoModuleRecord[]): Promise<PackOSReport> {
-  const all = await readAllContent(projectPath)
+function reportFromContext(context: {
+  manifest: AddonManifest
+  content: Record<ContentType, ContentRecord[]>
+  langKeys: string[]
+  assetFiles: string[]
+  moduleCatalog: EchoModuleRecord[]
+  devWorkspace?: DevWorkspaceState
+}, overrides?: { manifest?: AddonManifest; langKeys?: string[] }): PackOSReport {
   const content: Record<string, { id: string; data: unknown }[]> = {}
-  for (const [type, records] of Object.entries(all)) {
+  for (const [type, records] of Object.entries(context.content)) {
     content[type] = records.map((record) => ({ id: record.id, data: record.data }))
   }
-  const langKeys = await readLangKeys(projectPath)
-  const assetFiles = await listAssetFiles(projectPath)
-  const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
   return runProjectCheck({
-    manifest,
+    manifest: overrides?.manifest ?? context.manifest,
     content: content as never,
-    langKeys,
-    assetFiles,
-    moduleCatalog,
-    devWorkspace
+    langKeys: overrides?.langKeys ?? context.langKeys,
+    assetFiles: context.assetFiles,
+    moduleCatalog: context.moduleCatalog,
+    devWorkspace: context.devWorkspace
   })
 }
 
@@ -104,12 +111,25 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
   const moduleCatalog = await listEchoModules(projectPath)
-  const report = await projectReport(projectPath, manifest, moduleCatalog.catalog)
+  const content = await readAllContent(projectPath)
+  const langKeys = await readLangKeys(projectPath)
+  const assetFiles = await listAssetFiles(projectPath)
   const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
+  const report = reportFromContext({
+    manifest,
+    content,
+    langKeys,
+    assetFiles,
+    moduleCatalog: moduleCatalog.catalog,
+    devWorkspace
+  })
   return {
     manifest,
     moduleCatalog: moduleCatalog.catalog,
     report,
+    content,
+    langKeys,
+    assetFiles,
     devWorkspace,
     workspaceInitialized: Boolean(devWorkspace?.lastSetupAt),
     devReady: Boolean(devWorkspace?.ready),
@@ -122,7 +142,6 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
 }
 
 async function manifestTask(
-  projectPath: string,
   store: CodexTaskStore,
   context: ProjectContext,
   id: string,
@@ -134,7 +153,7 @@ async function manifestTask(
   const before = jsonDocument(context.manifest)
   const after = jsonDocument(proposed)
   if (before === after) return null
-  const afterReport = await projectReport(projectPath, proposed, context.moduleCatalog)
+  const afterReport = reportFromContext(context, { manifest: proposed })
   return {
     id,
     title,
@@ -158,7 +177,7 @@ async function manifestTask(
   }
 }
 
-async function moduleClosureTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+async function moduleClosureTask(store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
   const plan = resolveProjectModulePlan(context.manifest, context.moduleCatalog)
   if (plan.missingRequired.length === 0) return null
   const proposed = cloneManifest(context.manifest)
@@ -167,7 +186,6 @@ async function moduleClosureTask(projectPath: string, store: CodexTaskStore, con
   proposed.target.modules = closureAliases.reduce(appendUnique, [...proposed.target.modules])
   proposed.dependencies.required = missingAliases.reduce(appendUnique, [...proposed.dependencies.required])
   return manifestTask(
-    projectPath,
     store,
     context,
     'manifest:module-closure',
@@ -178,10 +196,9 @@ async function moduleClosureTask(projectPath: string, store: CodexTaskStore, con
   )
 }
 
-async function packosFixTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+async function packosFixTask(store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
   if (context.report.counts.BLOCKER === 0 && context.report.counts.ERROR === 0) return null
   return manifestTask(
-    projectPath,
     store,
     context,
     'manifest:packos-autofix',
@@ -260,12 +277,79 @@ function manualValidationTask(store: CodexTaskStore, context: ProjectContext): C
   }
 }
 
+function flatId(id: string): string {
+  return id.replace(':', '.')
+}
+
+function localId(id: string): string {
+  return id.includes(':') ? id.split(':')[1] : id
+}
+
+async function readLangDocument(projectPath: string): Promise<{ path: string; before: string; entries: Record<string, string> }> {
+  const path = join(projectPath, 'lang', 'en_us.json')
+  try {
+    const before = await fs.readFile(path, 'utf8')
+    const parsed = JSON.parse(before) as Record<string, unknown>
+    const entries = Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
+    return { path, before, entries }
+  } catch {
+    return { path, before: '', entries: {} }
+  }
+}
+
+async function missionLocalizationTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+  const missions = context.content.mission.map((record) => record.data as Mission)
+  if (missions.length === 0) return null
+
+  const currentKeys = new Set(context.langKeys)
+  const missing = missions
+    .map((mission) => ({
+      key: `mission.${flatId(mission.id)}`,
+      value: mission.title?.trim() || localId(mission.id).replace(/[_-]+/g, ' ')
+    }))
+    .filter((entry) => !currentKeys.has(entry.key))
+  if (missing.length === 0) return null
+
+  const lang = await readLangDocument(projectPath)
+  const nextEntries = { ...lang.entries }
+  for (const entry of missing) nextEntries[entry.key] = entry.value
+  const before = lang.before || '{}\n'
+  const after = jsonDocument(Object.fromEntries(Object.entries(nextEntries).sort(([a], [b]) => a.localeCompare(b))))
+  const afterReport = reportFromContext(context, {
+    langKeys: [...context.langKeys, ...missing.map((entry) => entry.key)]
+  })
+  return {
+    id: 'content:mission-localization',
+    title: 'Generate missing mission localization',
+    kind: 'localization_fix',
+    lane: taskLane('content:mission-localization', 'waiting_review', store),
+    summary: 'Adds missing mission localization keys to lang/en_us.json using each mission title as the default value.',
+    reason: `${missing.length} mission localization key(s) are missing: ${missing.map((entry) => entry.key).join(', ')}.`,
+    route: '/missions',
+    affectedFiles: ['lang/en_us.json'],
+    fileChanges: [{
+      path: 'lang/en_us.json',
+      before,
+      after,
+      diff: buildUnifiedTextDiff('lang/en_us.json', before, after)
+    }],
+    canApply: true,
+    applyLabel: 'Write localization keys',
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report),
+    validationAfter: validationSnapshot(afterReport)
+  }
+}
+
 export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> {
   const store = await readStore(projectPath)
   const context = await loadContext(projectPath)
   const tasks = await Promise.all([
-    moduleClosureTask(projectPath, store, context),
-    packosFixTask(projectPath, store, context),
+    moduleClosureTask(store, context),
+    packosFixTask(store, context),
+    missionLocalizationTask(projectPath, store, context),
     Promise.resolve(devWorkspaceTask(store, context)),
     Promise.resolve(manualValidationTask(store, context)),
     Promise.resolve(releasePackageTask(store, context))
@@ -294,8 +378,29 @@ async function applyManifestProposal(projectPath: string, taskId: string): Promi
   }
 }
 
+async function applyFileProposal(projectPath: string, taskId: string): Promise<CodexTaskActionResult> {
+  const tasks = await listCodexTasks(projectPath)
+  const task = tasks.find((item) => item.id === taskId)
+  const change = task?.fileChanges[0]
+  if (!change?.after) throw new Error(`No file proposal is available for ${taskId}.`)
+  if (change.path !== 'lang/en_us.json') throw new Error(`Task ${taskId} cannot write ${change.path}.`)
+  const target = join(projectPath, change.path)
+  await fs.mkdir(dirname(target), { recursive: true })
+  await fs.writeFile(target, change.after, 'utf8')
+  const store = await readStore(projectPath)
+  delete store.rejected[taskId]
+  store.applied[taskId] = new Date().toISOString()
+  await writeStore(projectPath, store)
+  return {
+    taskId,
+    message: `${task?.title ?? taskId} applied.`,
+    filesChanged: [change.path]
+  }
+}
+
 export async function applyCodexTask(projectPath: string, taskId: string): Promise<CodexTaskActionResult> {
   if (taskId.startsWith('manifest:')) return applyManifestProposal(projectPath, taskId)
+  if (taskId === 'content:mission-localization') return applyFileProposal(projectPath, taskId)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')

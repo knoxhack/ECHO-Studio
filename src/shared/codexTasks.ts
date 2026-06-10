@@ -6,6 +6,7 @@ export type CodexTaskLane = 'suggested' | 'waiting_review' | 'ready' | 'rejected
 export type CodexTaskKind =
   | 'manifest_fix'
   | 'module_closure'
+  | 'localization_fix'
   | 'dev_workspace_setup'
   | 'release_package'
   | 'navigation'
