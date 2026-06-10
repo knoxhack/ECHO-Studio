@@ -27,6 +27,8 @@ type DraftFixtureOptions = {
   artifactSha256?: string
   omitAssetNames?: string[]
   releaseIndexHandoff?: unknown
+  releaseEntry?: unknown
+  requirePackOSReady?: boolean
   attestation?: unknown
   handoffAttestation?: unknown
   attestationSubjectName?: string
@@ -66,7 +68,7 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
     targetRepository: 'knoxhack/ECHO-Release-Index',
     targetCollection: 'addons',
     entryFileName: 'myaddon.json',
-    entry: { id: 'myaddon', kind: 'addon' },
+    entry: 'releaseEntry' in options ? options.releaseEntry : { id: 'myaddon', kind: 'addon', validation: 'warning' },
     sourceRepo: 'knoxhack/my-addon',
     releaseTag: 'v0.1.0',
     assets: [
@@ -121,7 +123,7 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
     ingestion: {
       status: 'pending-review',
       requireSchemaValidation: true,
-      requirePackOSReady: true,
+      requirePackOSReady: options.requirePackOSReady ?? true,
       notes: []
     }
   }
@@ -317,6 +319,30 @@ describe('GitHub App broker publishing', () => {
       const draftPath = await writeDraftFixture(root, { releaseIndexHandoff: null })
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/releaseIndexHandoff metadata/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts with rejected Release Index handoff entries', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, {
+        releaseEntry: { id: 'myaddon', kind: 'addon', validation: 'rejected' }
+      })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/handoff is rejected/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose handoff does not require PackOS-ready assets', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { requirePackOSReady: false })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/PackOS-ready/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

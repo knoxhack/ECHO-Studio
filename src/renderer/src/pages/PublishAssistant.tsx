@@ -270,7 +270,17 @@ export default function PublishAssistant(): JSX.Element {
     pkg.releaseIndexHandoff.attestation.requireDigestMatch &&
     attestationSubjectCount > 0
   )
-  const publishReady = Boolean(releaseSidecarsReady && handoffReady && attestationReady && owner.trim() && repo.trim() && tag.trim())
+  const publishReady = Boolean(
+    sdkReady &&
+    packosReady &&
+    moduleReady &&
+    releaseSidecarsReady &&
+    handoffReady &&
+    attestationReady &&
+    owner.trim() &&
+    repo.trim() &&
+    tag.trim()
+  )
 
   return (
     <Page
