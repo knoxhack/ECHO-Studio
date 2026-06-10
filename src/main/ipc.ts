@@ -49,6 +49,7 @@ import { join, basename } from 'path'
 import { inspectDevWorkspace, runDevTask, setupDevWorkspace } from './devWorkspaceService'
 import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
 import { listEchoModules } from './moduleCatalogService'
+import { applyCodexTask, listCodexTasks, setCodexTaskRejected } from './codexTaskService'
 
 // Wrap a handler so every channel returns a uniform IpcResult.
 function handle<TArgs extends unknown[], TResult>(
@@ -206,6 +207,14 @@ export function registerIpc(): void {
   )
   handle('dev:runTask', (projectPath: string, taskId: DevTaskId) =>
     runDevTask(projectPath, taskId)
+  )
+
+  handle('codex:listTasks', (projectPath: string) => listCodexTasks(projectPath))
+  handle('codex:applyTask', (projectPath: string, taskId: string) =>
+    applyCodexTask(projectPath, taskId)
+  )
+  handle('codex:rejectTask', (projectPath: string, taskId: string, rejected: boolean) =>
+    setCodexTaskRejected(projectPath, taskId, rejected)
   )
 
   handle('git:status', (projectPath: string) => gitStatus(projectPath))

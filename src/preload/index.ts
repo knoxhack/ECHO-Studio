@@ -27,6 +27,7 @@ import type { SandboxResult, SandboxOptions } from '../shared/sandbox'
 import type { GitStatus, GitCommit, GitDiff, GitResult, GitBranch } from '../shared/git'
 import type { DevSetupResult, DevTaskId, DevTaskRun, DevWorkspaceOptions, DevWorkspaceState } from '../shared/devWorkspace'
 import type { EchoModuleCatalogResult } from '../shared/moduleCatalog'
+import type { CodexTask, CodexTaskActionResult } from '../shared/codexTasks'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -114,6 +115,13 @@ const api = {
     invoke<DevSetupResult>('dev:setup', projectPath, options),
   runDevTask: (projectPath: string, taskId: DevTaskId) =>
     invoke<DevTaskRun>('dev:runTask', projectPath, taskId),
+
+  listCodexTasks: (projectPath: string) =>
+    invoke<CodexTask[]>('codex:listTasks', projectPath),
+  applyCodexTask: (projectPath: string, taskId: string) =>
+    invoke<CodexTaskActionResult>('codex:applyTask', projectPath, taskId),
+  rejectCodexTask: (projectPath: string, taskId: string, rejected: boolean) =>
+    invoke<CodexTask[]>('codex:rejectTask', projectPath, taskId, rejected),
 
   gitStatus: (projectPath: string) => invoke<GitStatus>('git:status', projectPath),
   gitInit: (projectPath: string) => invoke<GitResult>('git:init', projectPath),
