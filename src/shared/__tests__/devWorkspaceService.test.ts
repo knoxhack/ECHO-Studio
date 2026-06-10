@@ -239,6 +239,7 @@ describe('setupDevWorkspace', () => {
         process.env.ECHO_MODULES_DIR = modulesRoot
         const descriptorPath = path.join(modulesRoot, 'addons', 'echocore', 'src', 'main', 'resources', 'META-INF', 'echo.mod.json')
         await fs.mkdir(path.dirname(descriptorPath), { recursive: true })
+        await fs.writeFile(path.join(modulesRoot, 'addons', 'echocore', 'build.gradle'), 'plugins { id "java-library" }\n', 'utf8')
         await fs.mkdir(path.join(modulesRoot, 'metadata', 'modules'), { recursive: true })
         await fs.writeFile(descriptorPath, JSON.stringify({ id: 'echocore', version: '1.0.0' }, null, 2), 'utf8')
         await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
@@ -270,6 +271,7 @@ describe('setupDevWorkspace', () => {
           force: false
         })
         const moduleWorkspace = JSON.parse(await fs.readFile(path.join(project, '.echo-studio', 'module-workspace.json'), 'utf8'))
+        const settingsGradle = await fs.readFile(path.join(project, 'settings.gradle'), 'utf8')
 
         expect(result.state.moduleCatalog.localAvailable).toBe(true)
         expect(result.state.moduleWorkspace).toMatchObject({
@@ -285,6 +287,9 @@ describe('setupDevWorkspace', () => {
           moduleDir: path.join(modulesRoot, 'addons', 'echocore'),
           descriptorPath
         })
+        expect(settingsGradle).toContain('includeBuild(moduleRoot)')
+        expect(settingsGradle).toContain('echo-module-')
+        expect(settingsGradle).toContain('.echo-studio/module-workspace.json')
       } finally {
         if (previous === undefined) delete process.env.ECHO_MODULES_DIR
         else process.env.ECHO_MODULES_DIR = previous

@@ -632,6 +632,8 @@ echo_standalone_executable=${gradlePropertyValue(options?.runtimeTools?.standalo
 
 function settingsGradle(manifest: AddonManifest): string {
   return `// ${STUDIO_MARKER}
+import groovy.json.JsonSlurper
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -649,6 +651,29 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "${localId(manifest)}"
+
+def echoModuleWorkspaceFile = file(".echo-studio/module-workspace.json")
+if (echoModuleWorkspaceFile.exists()) {
+    def echoModuleWorkspace = new JsonSlurper().parse(echoModuleWorkspaceFile)
+    def includedEchoModuleBuilds = [] as Set
+    (echoModuleWorkspace.modules ?: []).each { module ->
+        if (module.localSource && module.moduleDir) {
+            def moduleRoot = file(module.moduleDir)
+            def hasGradleBuild = new File(moduleRoot, "settings.gradle").exists() ||
+                new File(moduleRoot, "settings.gradle.kts").exists() ||
+                new File(moduleRoot, "build.gradle").exists() ||
+                new File(moduleRoot, "build.gradle.kts").exists()
+            if (moduleRoot.exists() && hasGradleBuild) {
+                def moduleKey = moduleRoot.canonicalPath
+                if (includedEchoModuleBuilds.add(moduleKey)) {
+                    includeBuild(moduleRoot) {
+                        name = "echo-module-" + String.valueOf(module.id).replaceAll("[^A-Za-z0-9_.-]", "-")
+                    }
+                }
+            }
+        }
+    }
+}
 `
 }
 
