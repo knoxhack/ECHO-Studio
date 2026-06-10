@@ -134,6 +134,8 @@ const api = {
     invoke<CodexTaskActionResult>('codex:applyTask', projectPath, taskId),
   rejectCodexTask: (projectPath: string, taskId: string, rejected: boolean) =>
     invoke<CodexTask[]>('codex:rejectTask', projectPath, taskId, rejected),
+  approveCodexTask: (projectPath: string, taskId: string, approved: boolean) =>
+    invoke<CodexTask[]>('codex:approveTask', projectPath, taskId, approved),
 
   gitStatus: (projectPath: string) => invoke<GitStatus>('git:status', projectPath),
   gitInit: (projectPath: string) => invoke<GitResult>('git:init', projectPath),

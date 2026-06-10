@@ -94,6 +94,20 @@ export default function CodexTasks(): JSX.Element {
     }
   }
 
+  const approveTask = async (task: CodexTask, approved: boolean): Promise<void> => {
+    setBusy(true)
+    const result = await window.studio.approveCodexTask(activeProject.path, task.id, approved)
+    setBusy(false)
+    if (result.ok && result.data) {
+      setLastAction(null)
+      setTasks(result.data)
+      setSelectedId(task.id)
+      setStatus(approved ? `${task.title} approved for apply.` : `${task.title} returned to review.`)
+    } else {
+      setStatus(result.error || 'Could not update task approval.')
+    }
+  }
+
   return (
     <Page
       title="Codex"
@@ -144,7 +158,7 @@ export default function CodexTasks(): JSX.Element {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <h4 style={{ flex: 1 }}>{task.title}</h4>
                     <span className={`badge ${task.canApply ? 'ready' : 'local'}`}>
-                      {task.canApply ? 'action' : 'review'}
+                      {task.lane === 'waiting_review' ? 'review' : task.canApply ? 'action' : 'review'}
                     </span>
                   </div>
                   <p>{task.reason}</p>
@@ -208,10 +222,18 @@ export default function CodexTasks(): JSX.Element {
 
               <div className="btn-row" style={{ marginTop: 14 }}>
                 <button className="btn" onClick={() => nav(selected.route)}>Open {selectedRouteLabel}</button>
-                {selected.canApply && selected.lane !== 'rejected' && (
+                {selected.lane === 'waiting_review' && selected.canApply && (
+                  <button className="btn primary" disabled={busy} onClick={() => approveTask(selected, true)}>
+                    Approve
+                  </button>
+                )}
+                {selected.canApply && selected.lane !== 'waiting_review' && selected.lane !== 'rejected' && (
                   <button className="btn primary" disabled={busy} onClick={() => applyTask(selected)}>
                     {selected.applyLabel ?? 'Apply'}
                   </button>
+                )}
+                {selected.lane === 'ready' && selected.fileChanges.length > 0 && (
+                  <button className="btn ghost" disabled={busy} onClick={() => approveTask(selected, false)}>Return to Review</button>
                 )}
                 {selected.lane === 'rejected' ? (
                   <button className="btn" disabled={busy} onClick={() => rejectTask(selected, false)}>Restore</button>

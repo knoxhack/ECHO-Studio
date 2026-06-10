@@ -24,6 +24,7 @@ import { getConfig } from './config'
 
 interface CodexTaskStore {
   rejected: Record<string, string>
+  approved: Record<string, string>
   applied: Record<string, string>
 }
 
@@ -62,15 +63,20 @@ function taskAliases(id: string): string[] {
 
 function deleteTaskState(store: CodexTaskStore, id: string): void {
   delete store.rejected[id]
+  delete store.approved[id]
   delete store.applied[id]
   for (const alias of taskAliases(id)) {
     delete store.rejected[alias]
+    delete store.approved[alias]
     delete store.applied[alias]
   }
 }
 
 function taskLane(id: string, preferred: CodexTaskLane, store: CodexTaskStore): CodexTaskLane {
-  return [id, ...taskAliases(id)].some((taskId) => store.rejected[taskId]) ? 'rejected' : preferred
+  const ids = [id, ...taskAliases(id)]
+  if (ids.some((taskId) => store.rejected[taskId])) return 'rejected'
+  if (preferred === 'waiting_review' && ids.some((taskId) => store.approved[taskId])) return 'ready'
+  return preferred
 }
 
 async function ensureStudioDir(projectPath: string): Promise<string> {
@@ -84,10 +90,11 @@ async function readStore(projectPath: string): Promise<CodexTaskStore> {
     const parsed = JSON.parse(await fs.readFile(join(projectPath, STORE_PATH), 'utf8')) as Partial<CodexTaskStore>
     return {
       rejected: parsed.rejected ?? {},
+      approved: parsed.approved ?? {},
       applied: parsed.applied ?? {}
     }
   } catch {
-    return { rejected: {}, applied: {} }
+    return { rejected: {}, approved: {}, applied: {} }
   }
 }
 
@@ -760,6 +767,7 @@ async function applyManifestProposal(projectPath: string, taskId: string): Promi
   const tasks = await listCodexTasks(projectPath)
   const task = tasks.find((item) => item.id === normalizedTaskId)
   if (!task?.fileChanges[0]?.after) throw new Error(`No manifest proposal is available for ${taskId}.`)
+  if (task.lane === 'waiting_review') throw new Error(`Approve ${task.title} before applying it.`)
   const next = JSON.parse(task.fileChanges[0].after) as AddonManifest
   await writeManifest(projectPath, next)
   const store = await readStore(projectPath)
@@ -793,7 +801,9 @@ async function applyFileProposal(projectPath: string, taskId: string): Promise<C
   const tasks = await listCodexTasks(projectPath)
   const task = tasks.find((item) => item.id === taskId)
   const changes = task?.fileChanges ?? []
+  if (!task) throw new Error(`No file proposal is available for ${taskId}.`)
   if (!changes.length || changes.some((change) => !change.after)) throw new Error(`No file proposal is available for ${taskId}.`)
+  if (task.lane === 'waiting_review') throw new Error(`Approve ${task.title} before applying it.`)
   const written: string[] = []
   for (const change of changes) {
     const target = assertAllowedFileChange(projectPath, taskId, change.path)
@@ -863,8 +873,24 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
 export async function setCodexTaskRejected(projectPath: string, taskId: string, rejected: boolean): Promise<CodexTask[]> {
   const store = await readStore(projectPath)
   const normalizedTaskId = canonicalTaskId(taskId)
-  if (rejected) store.rejected[normalizedTaskId] = new Date().toISOString()
+  if (rejected) {
+    store.rejected[normalizedTaskId] = new Date().toISOString()
+    for (const id of [normalizedTaskId, ...taskAliases(normalizedTaskId)]) delete store.approved[id]
+  }
   else deleteTaskState(store, normalizedTaskId)
+  await writeStore(projectPath, store)
+  return listCodexTasks(projectPath)
+}
+
+export async function setCodexTaskApproved(projectPath: string, taskId: string, approved: boolean): Promise<CodexTask[]> {
+  const store = await readStore(projectPath)
+  const normalizedTaskId = canonicalTaskId(taskId)
+  if (approved) {
+    store.approved[normalizedTaskId] = new Date().toISOString()
+    for (const id of [normalizedTaskId, ...taskAliases(normalizedTaskId)]) delete store.rejected[id]
+  } else {
+    for (const id of [normalizedTaskId, ...taskAliases(normalizedTaskId)]) delete store.approved[id]
+  }
   await writeStore(projectPath, store)
   return listCodexTasks(projectPath)
 }

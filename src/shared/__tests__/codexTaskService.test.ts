@@ -142,7 +142,7 @@ describe('codex task service', () => {
       nextManifest.target.modules = []
       await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
 
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'manifest:validation-autofix')
       const proposed = JSON.parse(task?.fileChanges[0].after ?? '{}') as AddonManifest
@@ -152,6 +152,9 @@ describe('codex task service', () => {
       expect(proposed.dependencies.required).toContain('echo:weather_core')
       expect(proposed.target.modules).toContain('echo:weather_core')
 
+      await expect(applyCodexTask(project, 'manifest:validation-autofix')).rejects.toThrow(/Approve/)
+      const approved = await setCodexTaskApproved(project, 'manifest:validation-autofix', true)
+      expect(approved.find((item) => item.id === 'manifest:validation-autofix')?.lane).toBe('ready')
       await applyCodexTask(project, 'manifest:validation-autofix')
       const applied = JSON.parse(await fs.readFile(path.join(project, 'echo.mod.json'), 'utf8')) as AddonManifest
 
@@ -181,7 +184,7 @@ describe('codex task service', () => {
       nextManifest.id = 'echo:weather_pack'
       await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
 
-      const { applyCodexTask, listCodexTasks, setCodexTaskRejected } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved, setCodexTaskRejected } = await import('../../main/codexTaskService')
       const before = await listCodexTasks(project)
       const task = before.find((item) => item.id === 'manifest:validation-autofix')
 
@@ -193,6 +196,8 @@ describe('codex task service', () => {
       const restored = await setCodexTaskRejected(project, 'manifest:validation-autofix', false)
       expect(restored.find((item) => item.id === 'manifest:validation-autofix')?.lane).toBe('waiting_review')
 
+      const approved = await setCodexTaskApproved(project, 'manifest:packos-autofix', true)
+      expect(approved.find((item) => item.id === 'manifest:validation-autofix')?.lane).toBe('ready')
       const result = await applyCodexTask(project, 'manifest:packos-autofix')
       const applied = JSON.parse(await fs.readFile(path.join(project, 'echo.mod.json'), 'utf8')) as AddonManifest
 
@@ -279,7 +284,7 @@ describe('codex task service', () => {
 
   it('proposes and applies missing mission localization keys', async () => {
     await withProject(async (project) => {
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
 
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'content:mission-localization')
@@ -291,6 +296,7 @@ describe('codex task service', () => {
       expect(task?.fileChanges[0].diff).toContain('+  "mission.teamnova.first_contact": "First Contact"')
       expect(task?.validationAfter?.suggestions).toBeLessThan(task?.validationBefore?.suggestions ?? 999)
 
+      await setCodexTaskApproved(project, 'content:mission-localization', true)
       const result = await applyCodexTask(project, 'content:mission-localization')
       const lang = JSON.parse(await fs.readFile(path.join(project, 'lang', 'en_us.json'), 'utf8'))
       const afterTasks = await listCodexTasks(project)
@@ -303,7 +309,7 @@ describe('codex task service', () => {
 
   it('proposes and applies starter mission rewards', async () => {
     await withProject(async (project) => {
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
 
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'content:mission-rewards')
@@ -316,6 +322,7 @@ describe('codex task service', () => {
       expect(task?.fileChanges[0].diff).toContain('+      "item": "teamnova:reward",')
       expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
 
+      await setCodexTaskApproved(project, 'content:mission-rewards', true)
       const result = await applyCodexTask(project, 'content:mission-rewards')
       const mission = JSON.parse(await fs.readFile(path.join(project, 'missions', 'first_contact.json'), 'utf8'))
       const afterTasks = await listCodexTasks(project)
@@ -343,7 +350,7 @@ describe('codex task service', () => {
         indexEntry: 'teamnova:weather_core_entry'
       }, null, 2), 'utf8')
 
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
 
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'content:index-entries')
@@ -359,6 +366,7 @@ describe('codex task service', () => {
       expect(task?.fileChanges[1].diff).toContain('+  "relatedRecipes": [')
       expect(task?.validationAfter?.suggestions).toBeLessThan(task?.validationBefore?.suggestions ?? 999)
 
+      await setCodexTaskApproved(project, 'content:index-entries', true)
       const result = await applyCodexTask(project, 'content:index-entries')
       const missionEntry = JSON.parse(await fs.readFile(path.join(project, 'index', 'first_contact_entry.json'), 'utf8'))
       const recipeEntry = JSON.parse(await fs.readFile(path.join(project, 'index', 'weather_core_entry.json'), 'utf8'))
@@ -394,7 +402,7 @@ describe('codex task service', () => {
         output: { item: 'teamnova:weather_core', count: 1 }
       }, null, 2), 'utf8')
 
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
 
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'content:index-entries')
@@ -419,6 +427,7 @@ describe('codex task service', () => {
       })
       expect(task?.validationAfter?.suggestions).toBeLessThan(task?.validationBefore?.suggestions ?? 999)
 
+      await setCodexTaskApproved(project, 'content:index-entries', true)
       const result = await applyCodexTask(project, 'content:index-entries')
       const recipe = JSON.parse(await fs.readFile(path.join(project, 'recipes', 'weather_core.json'), 'utf8'))
       const entry = JSON.parse(await fs.readFile(path.join(project, 'index', 'weather_core_entry.json'), 'utf8'))
@@ -443,7 +452,7 @@ describe('codex task service', () => {
       mission.indexEntry = 'teamnova:first_contact_entry'
       await fs.writeFile(missionPath, JSON.stringify(mission, null, 2), 'utf8')
 
-      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')
 
       const tasks = await listCodexTasks(project)
       const task = tasks.find((item) => item.id === 'content:holomap-markers')
@@ -456,6 +465,7 @@ describe('codex task service', () => {
       expect(task?.fileChanges[0].diff).toContain('+      "linkedMission": "teamnova:first_contact",')
       expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
 
+      await setCodexTaskApproved(project, 'content:holomap-markers', true)
       const result = await applyCodexTask(project, 'content:holomap-markers')
       const layer = JSON.parse(await fs.readFile(path.join(project, 'holomap', 'mission_markers.json'), 'utf8'))
       const afterTasks = await listCodexTasks(project)
