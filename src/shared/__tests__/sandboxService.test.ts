@@ -17,7 +17,7 @@ function manifest(overrides?: Partial<AddonManifest>): AddonManifest {
     id: 'teamnova:weather_pack',
     name: 'Weather Pack',
     version: '1.0.0',
-    description: 'A test addon package for sandbox testing.',
+    description: 'A test addon package for preview compatibility testing.',
     developerType: 'addon_developer',
     publisher: { id: 'teamnova', name: 'Team Nova', type: 'team' },
     projectClass: 'gameplay_addon',
@@ -41,7 +41,7 @@ async function writeProject(root: string, folder: string, addonManifest: AddonMa
 }
 
 async function withWorkspace(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-sandbox-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-preview-'))
   try {
     await run(root)
   } finally {
@@ -83,12 +83,12 @@ describe('computeSandboxScore', () => {
 })
 
 describe('runSandbox', () => {
-  it('warns when a standalone sandbox is launched for a project without standalone support', async () => {
+  it('warns when a standalone compatibility profile is launched for a project without standalone support', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
       const { runSandbox } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Generic ECHO Runtime Sandbox', DEFAULT_OPTIONS)
+      const result = await runSandbox(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
 
       expect(result.warnings).toContain('Addon does not declare support for runtime "standalone".')
       expect(result.logs.some((log) => log.message.includes('Runtime mismatch'))).toBe(true)
@@ -107,8 +107,8 @@ describe('runSandbox', () => {
       }))
       const { runSandbox } = await import('../../main/sandboxService')
 
-      const workspaceResult = await runSandbox(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
-      const selectedOnlyResult = await runSandbox(project, root, 'Ashfall Sandbox', {
+      const workspaceResult = await runSandbox(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
+      const selectedOnlyResult = await runSandbox(project, root, 'Ashfall Compatibility', {
         ...DEFAULT_OPTIONS,
         loadOnlySelected: true
       })
@@ -119,12 +119,12 @@ describe('runSandbox', () => {
     })
   })
 
-  it('reports enabled preview options in sandbox logs', async () => {
+  it('reports enabled preview options in compatibility scan logs', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
       const { runSandbox } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Ashfall Sandbox', {
+      const result = await runSandbox(project, root, 'Ashfall Compatibility', {
         loadOnlySelected: false,
         debugOverlay: true,
         fakePlayer: true,
@@ -139,6 +139,18 @@ describe('runSandbox', () => {
     })
   })
 
+  it('accepts legacy sandbox profile names as compatibility aliases', async () => {
+    await withWorkspace(async (root) => {
+      const project = await writeProject(root, 'weather', manifest())
+      const { runSandbox } = await import('../../main/sandboxService')
+
+      const result = await runSandbox(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.logs.some((log) => log.message.includes('Runtime compatible: neoforge'))).toBe(true)
+    })
+  })
+
   it('accepts current public UI and index permissions in runtime profiles', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest({
@@ -147,7 +159,7 @@ describe('runSandbox', () => {
       }))
       const { runSandbox } = await import('../../main/sandboxService')
 
-      const result = await runSandbox(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
+      const result = await runSandbox(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
 
       expect(result.warnings.some((warning) => warning.includes('Unknown permissions'))).toBe(false)
       expect(result.logs.some((log) => log.message.includes('Unknown permissions'))).toBe(false)

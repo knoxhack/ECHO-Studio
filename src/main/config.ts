@@ -4,23 +4,45 @@ import { join } from 'path'
 import { DEFAULT_CONFIG } from '../shared/config'
 import type { AppConfig } from '../shared/config'
 
+type LegacyAppConfig = Partial<AppConfig> & {
+  sandbox?: {
+    defaultProfile?: string
+  }
+}
+
 function configPath(): string {
   return join(app.getPath('userData'), 'config.json')
 }
 
+function normalizePreviewProfile(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  return value
+    .replace('Ashfall Sandbox', 'Ashfall Compatibility')
+    .replace('ECHO Prime Sandbox', 'ECHO Prime Compatibility')
+    .replace('Arcana Sandbox', 'Arcana Compatibility')
+    .replace('Generic ECHO Runtime Sandbox', 'Generic Runtime Compatibility')
+    .replace('Server Sandbox', 'Server Compatibility')
+}
+
+function normalizeConfig(raw: LegacyAppConfig): AppConfig {
+  const previewDefault =
+    normalizePreviewProfile(raw.preview?.defaultProfile) ??
+    normalizePreviewProfile(raw.sandbox?.defaultProfile) ??
+    DEFAULT_CONFIG.preview.defaultProfile
+  return {
+    ...DEFAULT_CONFIG,
+    ai: { ...DEFAULT_CONFIG.ai, ...raw.ai },
+    sdk: { ...DEFAULT_CONFIG.sdk, ...raw.sdk },
+    preview: { ...DEFAULT_CONFIG.preview, ...raw.preview, defaultProfile: previewDefault },
+    runtimeTools: { ...DEFAULT_CONFIG.runtimeTools, ...raw.runtimeTools },
+    git: { ...DEFAULT_CONFIG.git, ...raw.git },
+    theme: typeof raw.theme === 'string' ? raw.theme : DEFAULT_CONFIG.theme
+  }
+}
+
 export async function getConfig(): Promise<AppConfig> {
   try {
-    const raw = JSON.parse(await fs.readFile(configPath(), 'utf-8'))
-    // Merge with defaults so new fields appear for old configs.
-    return {
-      ...DEFAULT_CONFIG,
-      ...raw,
-      ai: { ...DEFAULT_CONFIG.ai, ...raw.ai },
-      sdk: { ...DEFAULT_CONFIG.sdk, ...raw.sdk },
-      sandbox: { ...DEFAULT_CONFIG.sandbox, ...raw.sandbox },
-      runtimeTools: { ...DEFAULT_CONFIG.runtimeTools, ...raw.runtimeTools },
-      git: { ...DEFAULT_CONFIG.git, ...raw.git }
-    }
+    return normalizeConfig(JSON.parse(await fs.readFile(configPath(), 'utf-8')) as LegacyAppConfig)
   } catch {
     return DEFAULT_CONFIG
   }
@@ -33,7 +55,7 @@ export async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
     ...patch,
     ai: { ...current.ai, ...patch.ai },
     sdk: { ...current.sdk, ...patch.sdk },
-    sandbox: { ...current.sandbox, ...patch.sandbox },
+    preview: { ...current.preview, ...patch.preview },
     runtimeTools: { ...current.runtimeTools, ...patch.runtimeTools },
     git: { ...current.git, ...patch.git }
   }

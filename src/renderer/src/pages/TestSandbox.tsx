@@ -7,20 +7,12 @@ import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } fr
 import type { SandboxResult, SandboxOptions } from '@shared/sandbox'
 
 const PROFILES = [
-  'Ashfall Sandbox',
-  'ECHO Prime Sandbox',
-  'Arcana Sandbox',
-  'Generic ECHO Runtime Sandbox',
-  'Server Sandbox'
+  'Ashfall Compatibility',
+  'ECHO Prime Compatibility',
+  'Arcana Compatibility',
+  'Generic Runtime Compatibility',
+  'Server Compatibility'
 ]
-
-const PROFILE_LABELS: Record<string, string> = {
-  'Ashfall Sandbox': 'Ashfall Compatibility',
-  'ECHO Prime Sandbox': 'ECHO Prime Compatibility',
-  'Arcana Sandbox': 'Arcana Compatibility',
-  'Generic ECHO Runtime Sandbox': 'Generic Runtime Compatibility',
-  'Server Sandbox': 'Server Compatibility'
-}
 
 const RUNTIME_TASKS: DevTaskId[] = [
   'gradle:runClient',
@@ -32,7 +24,7 @@ const RUNTIME_TASKS: DevTaskId[] = [
 export default function TestSandbox(): JSX.Element {
   const { activeProject, workspaceDir, config, toast } = useWorkspace()
   const nav = useNavigate()
-  const [profile, setProfile] = useState(config.sandbox?.defaultProfile || PROFILES[0])
+  const [profile, setProfile] = useState(config.preview.defaultProfile || PROFILES[0])
   const [running, setRunning] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [runtimeStopping, setRuntimeStopping] = useState(false)
@@ -299,7 +291,7 @@ export default function TestSandbox(): JSX.Element {
             <span>Target profile</span>
             <select value={profile} onChange={(event) => setProfile(event.target.value)}>
               {PROFILES.map((item) => (
-                <option key={item} value={item}>{PROFILE_LABELS[item] ?? item}</option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </label>

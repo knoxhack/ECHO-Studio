@@ -187,12 +187,12 @@ export default function Settings(): JSX.Element {
           </label>
           <label className="field" style={{ marginTop: 8 }}>
             <span>Default compatibility scan profile</span>
-            <select value={config.sandbox.defaultProfile} onChange={(event) => updateConfig({ sandbox: { ...config.sandbox, defaultProfile: event.target.value } })}>
-              <option value="Ashfall Sandbox">Ashfall Compatibility</option>
-              <option value="ECHO Prime Sandbox">ECHO Prime Compatibility</option>
-              <option value="Arcana Sandbox">Arcana Compatibility</option>
-              <option value="Generic ECHO Runtime Sandbox">Generic Runtime Compatibility</option>
-              <option value="Server Sandbox">Server Compatibility</option>
+            <select value={config.preview.defaultProfile} onChange={(event) => updateConfig({ preview: { ...config.preview, defaultProfile: event.target.value } })}>
+              <option value="Ashfall Compatibility">Ashfall Compatibility</option>
+              <option value="ECHO Prime Compatibility">ECHO Prime Compatibility</option>
+              <option value="Arcana Compatibility">Arcana Compatibility</option>
+              <option value="Generic Runtime Compatibility">Generic Runtime Compatibility</option>
+              <option value="Server Compatibility">Server Compatibility</option>
             </select>
           </label>
           <label className="field" style={{ marginTop: 8 }}>

@@ -7,31 +7,43 @@ import { findEchoModule, normalizeModuleId } from '../shared/moduleCatalog'
 import { listEchoModules } from './moduleCatalogService'
 
 const PROFILES: Record<string, { runtime: Runtime; experiences: string[]; permissions: string[] }> = {
-  'Ashfall Sandbox': {
+  'Ashfall Compatibility': {
     runtime: 'neoforge',
     experiences: ['ashfall'],
     permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom_ui', 'index.entries']
   },
-  'ECHO Prime Sandbox': {
+  'ECHO Prime Compatibility': {
     runtime: 'echo_native',
     experiences: ['echo_prime'],
     permissions: ['mission.register', 'recipe.register', 'screen.custom_ui', 'index.entries']
   },
-  'Arcana Sandbox': {
+  'Arcana Compatibility': {
     runtime: 'neoforge',
     experiences: ['arcana_division'],
     permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom_ui', 'index.entries']
   },
-  'Generic ECHO Runtime Sandbox': {
+  'Generic Runtime Compatibility': {
     runtime: 'standalone',
     experiences: ['generic', 'custom'],
     permissions: ['mission.register', 'recipe.register', 'screen.custom_ui', 'index.entries']
   },
-  'Server Sandbox': {
+  'Server Compatibility': {
     runtime: 'neoforge',
     experiences: ['generic'],
     permissions: ['mission.register', 'recipe.register', 'index.entries']
   }
+}
+
+const LEGACY_PROFILE_NAMES: Record<string, string> = {
+  'Ashfall Sandbox': 'Ashfall Compatibility',
+  'ECHO Prime Sandbox': 'ECHO Prime Compatibility',
+  'Arcana Sandbox': 'Arcana Compatibility',
+  'Generic ECHO Runtime Sandbox': 'Generic Runtime Compatibility',
+  'Server Sandbox': 'Server Compatibility'
+}
+
+function normalizeProfile(profile: string): string {
+  return LEGACY_PROFILE_NAMES[profile] ?? profile
 }
 
 async function listWorkspaceProjects(workspaceDir: string): Promise<AddonProject[]> {
@@ -77,7 +89,8 @@ export async function runSandbox(
 
   log('ok', `Loading addon: ${manifest.id} v${manifest.version}`)
 
-  const profileDef = PROFILES[profile] || PROFILES['Generic ECHO Runtime Sandbox']
+  const normalizedProfile = normalizeProfile(profile)
+  const profileDef = PROFILES[normalizedProfile] || PROFILES['Generic Runtime Compatibility']
 
   // Runtime check
   if (!manifest.runtime.supports.includes(profileDef.runtime)) {

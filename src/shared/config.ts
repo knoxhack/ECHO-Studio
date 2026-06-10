@@ -10,7 +10,7 @@ export interface AppConfig {
     autoUpdate: boolean
     targetVersion: string
   }
-  sandbox: {
+  preview: {
     defaultProfile: string
   }
   runtimeTools: {
@@ -31,7 +31,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     model: 'gpt-4o-mini'
   },
   sdk: { autoUpdate: true, targetVersion: '1.4.x' },
-  sandbox: { defaultProfile: 'Ashfall Sandbox' },
+  preview: { defaultProfile: 'Ashfall Compatibility' },
   runtimeTools: { echoNativeExecutable: '', standaloneExecutable: '' },
   git: { enabled: false },
   theme: 'dark'
