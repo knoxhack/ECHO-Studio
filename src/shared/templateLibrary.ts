@@ -1,4 +1,4 @@
-import type { AddonType, Runtime, TargetExperience } from './types'
+import type { AddonType, CreateAddonScaffoldOptions, Runtime, TargetExperience } from './types'
 
 export type TemplateCategory =
   | 'Starter'
@@ -22,14 +22,7 @@ export interface TemplateDef {
   type: AddonType
   target: TargetExperience
   runtimes: Runtime[]
-  options: {
-    includeExample: boolean
-    includeHoloMap: boolean
-    includeIndex: boolean
-    includeRewards: boolean
-    includeLocalization: boolean
-    includeSandbox: boolean
-  }
+  options: CreateAddonScaffoldOptions
   // Extra files (relative path -> content), layered on top of the base scaffold.
   extraFiles?: (ctx: TemplateContext) => Record<string, string>
 }
@@ -40,7 +33,7 @@ const ALL_OPTS = {
   includeIndex: true,
   includeRewards: true,
   includeLocalization: true,
-  includeSandbox: true
+  includePreviewProfile: true
 }
 const MIN_OPTS = {
   includeExample: false,
@@ -48,7 +41,7 @@ const MIN_OPTS = {
   includeIndex: false,
   includeRewards: false,
   includeLocalization: false,
-  includeSandbox: true
+  includePreviewProfile: true
 }
 
 function json(obj: unknown): string {

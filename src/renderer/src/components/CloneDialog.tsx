@@ -51,26 +51,26 @@ export function CloneDialog({
       }}
       onClick={onClose}
     >
-      <div className="card" style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Create from “{template.name}”</h3>
+      <div className="card" style={{ width: 460 }} onClick={(event) => event.stopPropagation()}>
+        <h3>Create from &quot;{template.name}&quot;</h3>
         <p className="dim" style={{ fontSize: 12 }}>{template.description}</p>
         <label className="field">
           <span>Creator namespace</span>
-          <input value={namespace} onChange={(e) => setNamespace(e.target.value)} />
+          <input value={namespace} onChange={(event) => setNamespace(event.target.value)} />
         </label>
         <label className="field">
           <span>Addon ID</span>
-          <input value={addonId} onChange={(e) => setAddonId(e.target.value)} />
+          <input value={addonId} onChange={(event) => setAddonId(event.target.value)} />
         </label>
         <label className="field">
           <span>Display name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <div className="mono dim">Full ID: {namespace}:{addonId}</div>
         {blocked && (
           <div className="issue BLOCKER" style={{ marginTop: 10 }}>
             <span className="lvl">BLOCKER</span>
-            The “{RESERVED_NAMESPACE}” namespace is reserved.
+            The &quot;{RESERVED_NAMESPACE}&quot; namespace is reserved.
           </div>
         )}
         {error && (

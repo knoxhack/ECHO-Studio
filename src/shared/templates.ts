@@ -114,6 +114,11 @@ export function buildAddonPackageManifest(manifest: AddonManifest): AddonPackage
   }
 }
 
+function shouldIncludePreviewProfile(options: CreateAddonOptions['options']): boolean {
+  const current = options.includePreviewProfile as boolean | undefined
+  return current ?? options.includeSandbox === true
+}
+
 // Returns a map of relative file path -> string content for a new project.
 export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManifest): Record<string, string> {
   const files: Record<string, string> = {}
@@ -219,7 +224,7 @@ export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManif
     )
   }
 
-  if (opts.options.includeSandbox) {
+  if (shouldIncludePreviewProfile(opts.options)) {
     files['preview/compatibility-profile.json'] = JSON.stringify(
       {
         profile: `${opts.target}_compatibility`,

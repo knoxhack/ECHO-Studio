@@ -51,9 +51,33 @@ describe('TEMPLATES', () => {
         includeIndex: false,
         includeRewards: false,
         includeLocalization: false,
-        includeSandbox: true
+        includePreviewProfile: true
       }
     }
+    const files = buildProjectFiles(opts, buildManifest(opts))
+    expect(files['preview/compatibility-profile.json']).toContain('ashfall_compatibility')
+    expect(files['sandbox/test_profile.json']).toBeUndefined()
+  })
+
+  it('keeps legacy includeSandbox callers mapped to preview profiles', () => {
+    const opts = {
+      workspaceDir: '',
+      type: 'gameplay_addon',
+      target: 'ashfall',
+      namespace: 'teamnova',
+      addonId: 'weather_pack',
+      name: 'Weather Pack',
+      description: 'A test project.',
+      runtimes: ['neoforge'],
+      options: {
+        includeExample: false,
+        includeHoloMap: false,
+        includeIndex: false,
+        includeRewards: false,
+        includeLocalization: false,
+        includeSandbox: true
+      }
+    } as unknown as CreateAddonOptions
     const files = buildProjectFiles(opts, buildManifest(opts))
     expect(files['preview/compatibility-profile.json']).toContain('ashfall_compatibility')
     expect(files['sandbox/test_profile.json']).toBeUndefined()

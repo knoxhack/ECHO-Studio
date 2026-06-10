@@ -127,14 +127,18 @@ export interface CreateAddonOptions {
   name: string
   description: string
   runtimes: Runtime[]
-  options: {
-    includeExample: boolean
-    includeHoloMap: boolean
-    includeIndex: boolean
-    includeRewards: boolean
-    includeLocalization: boolean
-    includeSandbox: boolean
-  }
+  options: CreateAddonScaffoldOptions
+}
+
+export interface CreateAddonScaffoldOptions {
+  includeExample: boolean
+  includeHoloMap: boolean
+  includeIndex: boolean
+  includeRewards: boolean
+  includeLocalization: boolean
+  includePreviewProfile: boolean
+  /** @deprecated use includePreviewProfile. */
+  includeSandbox?: boolean
 }
 
 export interface FileNode {

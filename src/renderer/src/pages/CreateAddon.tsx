@@ -32,7 +32,7 @@ export default function CreateAddon(): JSX.Element {
     includeIndex: true,
     includeRewards: true,
     includeLocalization: true,
-    includeSandbox: true
+    includePreviewProfile: true
   })
 
   const nsBlocked = namespace.trim().toLowerCase() === RESERVED_NAMESPACE
@@ -192,7 +192,7 @@ export default function CreateAddon(): JSX.Element {
               ['includeIndex', 'Include Index entries'],
               ['includeRewards', 'Include rewards'],
               ['includeLocalization', 'Include localization (en_us)'],
-              ['includeSandbox', 'Include compatibility scan profile']
+              ['includePreviewProfile', 'Include compatibility scan profile']
             ] as const
           ).map(([key, label]) => (
             <label className="checkbox" key={key}>
