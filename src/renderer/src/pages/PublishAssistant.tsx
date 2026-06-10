@@ -4,7 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import type { GitHubPublishingStatus, PackageResult, ReleaseIndexHandoffAsset } from '@shared/publishing'
-import type { DevWorkspaceState } from '@shared/devWorkspace'
+import type { DevTaskRun, DevWorkspaceState } from '@shared/devWorkspace'
 import type { EchoModuleRecord } from '@shared/moduleCatalog'
 import type { PackOSReport } from '@shared/types'
 
@@ -41,6 +41,10 @@ function moduleBadgeClass(mod: EchoModuleRecord): string {
   if (mod.trustLevel === 'official' || mod.trustLevel === 'trusted') return 'ready'
   if (mod.trustLevel === 'sandboxed' || mod.status === 'internal' || mod.status === 'deprecated') return 'local'
   return 'badge'
+}
+
+function firstLine(value: string): string {
+  return value.split(/\r?\n/).find((line) => line.trim()) ?? ''
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
@@ -90,6 +94,7 @@ export default function PublishAssistant(): JSX.Element {
   const [authStatus, setAuthStatus] = useState<GitHubPublishingStatus | null>(null)
   const [workspace, setWorkspace] = useState<DevWorkspaceState | null>(null)
   const [preflight, setPreflight] = useState<PackOSReport | null>(null)
+  const [releaseGateRun, setReleaseGateRun] = useState<DevTaskRun | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
 
   const refreshAuth = useCallback(async () => {
@@ -128,6 +133,7 @@ export default function PublishAssistant(): JSX.Element {
       setReleaseUrl('')
       setWorkspace(null)
       setPreflight(null)
+      setReleaseGateRun(null)
       return
     }
     const manifest = activeProject.manifest
@@ -177,6 +183,27 @@ export default function PublishAssistant(): JSX.Element {
       toast('Release assets prepared')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Package build failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runReleaseGate = async (): Promise<void> => {
+    if (!activeProject) {
+      setStatus('Select a project first.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.studio.runDevTask(activeProject.path, 'studio:releaseGate')
+      if (!result.ok || !result.data) throw new Error(result.error ?? 'Local release gate failed.')
+      const run = result.data
+      setReleaseGateRun(run)
+      setStatus(firstLine(run.stdout) || `Local release gate ${run.status}.`)
+      await refreshReadiness()
+      toast(run.status === 'completed' ? 'Local release gate passed' : 'Local release gate needs fixes')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Local release gate failed.')
     } finally {
       setBusy(false)
     }
@@ -299,6 +326,10 @@ export default function PublishAssistant(): JSX.Element {
     pkg.releaseIndexHandoff.releaseTag === tag.trim()
   )
   const authReady = Boolean(authStatus?.githubAppSessionReady || authStatus?.ghCliAuthenticated)
+  const releaseGateReady = releaseGateRun?.status === 'completed'
+  const releaseGateDetail = releaseGateRun
+    ? firstLine(releaseGateRun.stdout) || firstLine(releaseGateRun.stderr) || `Local release gate ${releaseGateRun.status}.`
+    : 'Run Local Gate to check validation, module locks, source maps, and release readiness before packaging.'
   const publishRequirements = [
     {
       key: 'sdk',
@@ -401,6 +432,9 @@ export default function PublishAssistant(): JSX.Element {
         <>
           <button className="btn" disabled={busy} onClick={refreshAuth}>
             Refresh Auth
+          </button>
+          <button className="btn" disabled={busy} onClick={runReleaseGate}>
+            Run Local Gate
           </button>
           <button className="btn primary" disabled={busy} onClick={packageProject}>
             {busy ? 'Working...' : 'Prepare Assets'}
@@ -589,6 +623,7 @@ export default function PublishAssistant(): JSX.Element {
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Local Release Pipeline</h3>
+          <StepRow done={releaseGateReady} label="Local release gate" detail={releaseGateDetail} />
           <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
           <StepRow done={packosReady} label="Project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
           <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md (review notes), and github-release-draft.json." />
@@ -617,6 +652,9 @@ export default function PublishAssistant(): JSX.Element {
           )}
 
           <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={runReleaseGate} disabled={busy}>
+              Run Local Gate
+            </button>
             <button className="btn primary" onClick={packageProject} disabled={busy}>
               Prepare Assets
             </button>
