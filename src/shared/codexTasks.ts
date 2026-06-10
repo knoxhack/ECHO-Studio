@@ -7,6 +7,7 @@ export type CodexTaskKind =
   | 'manifest_fix'
   | 'module_closure'
   | 'localization_fix'
+  | 'mission_reward_fix'
   | 'dev_workspace_setup'
   | 'release_package'
   | 'navigation'

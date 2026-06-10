@@ -90,4 +90,29 @@ describe('codex task service', () => {
       expect(afterTasks.some((item) => item.id === 'content:mission-localization')).toBe(false)
     })
   })
+
+  it('proposes and applies starter mission rewards', async () => {
+    await withProject(async (project) => {
+      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'content:mission-rewards')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('mission_reward_fix')
+      expect(task?.lane).toBe('waiting_review')
+      expect(task?.fileChanges[0].path).toBe('missions/first_contact.json')
+      expect(task?.fileChanges[0].diff).toContain('+    {')
+      expect(task?.fileChanges[0].diff).toContain('+      "item": "teamnova:reward",')
+      expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
+
+      const result = await applyCodexTask(project, 'content:mission-rewards')
+      const mission = JSON.parse(await fs.readFile(path.join(project, 'missions', 'first_contact.json'), 'utf8'))
+      const afterTasks = await listCodexTasks(project)
+
+      expect(result.filesChanged).toEqual(['missions/first_contact.json'])
+      expect(mission.rewards).toEqual([{ item: 'teamnova:reward', count: 1 }])
+      expect(afterTasks.some((item) => item.id === 'content:mission-rewards')).toBe(false)
+    })
+  })
 })

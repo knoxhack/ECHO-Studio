@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { dirname, join } from 'path'
+import { dirname, join, relative, resolve } from 'path'
 import { autoFixManifest } from '../shared/validation'
 import {
   buildUnifiedTextDiff,
@@ -86,9 +86,9 @@ function reportFromContext(context: {
   assetFiles: string[]
   moduleCatalog: EchoModuleRecord[]
   devWorkspace?: DevWorkspaceState
-}, overrides?: { manifest?: AddonManifest; langKeys?: string[] }): PackOSReport {
+}, overrides?: { manifest?: AddonManifest; langKeys?: string[]; content?: Record<ContentType, ContentRecord[]> }): PackOSReport {
   const content: Record<string, { id: string; data: unknown }[]> = {}
-  for (const [type, records] of Object.entries(context.content)) {
+  for (const [type, records] of Object.entries(overrides?.content ?? context.content)) {
     content[type] = records.map((record) => ({ id: record.id, data: record.data }))
   }
   return runProjectCheck({
@@ -279,6 +279,14 @@ function localId(id: string): string {
   return id.includes(':') ? id.split(':')[1] : id
 }
 
+function relativeProjectPath(projectPath: string, filePath: string): string {
+  return relative(projectPath, filePath).replace(/\\/g, '/')
+}
+
+function defaultRewardItem(manifest: AddonManifest): string {
+  return `${manifest.namespace || localId(manifest.id)}:reward`
+}
+
 async function readLangDocument(projectPath: string): Promise<{ path: string; before: string; entries: Record<string, string> }> {
   const path = join(projectPath, 'lang', 'en_us.json')
   try {
@@ -337,6 +345,62 @@ async function missionLocalizationTask(projectPath: string, store: CodexTaskStor
   }
 }
 
+async function missionRewardsTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+  const missingRewardRecords = context.content.mission.filter((record) => {
+    const mission = record.data as Mission
+    return !mission.rewards?.length
+  })
+  if (missingRewardRecords.length === 0) return null
+
+  const rewardItem = defaultRewardItem(context.manifest)
+  const fileChanges = await Promise.all(missingRewardRecords.map(async (record) => {
+    const mission = record.data as Mission
+    const before = await fs.readFile(record.path, 'utf8').catch(() => jsonDocument(mission))
+    const after = jsonDocument({
+      ...mission,
+      rewards: [{ item: rewardItem, count: 1 }]
+    })
+    return {
+      path: relativeProjectPath(projectPath, record.path),
+      before,
+      after,
+      diff: buildUnifiedTextDiff(relativeProjectPath(projectPath, record.path), before, after)
+    }
+  }))
+
+  const nextContent = {
+    ...context.content,
+    mission: context.content.mission.map((record) => (
+      missingRewardRecords.some((missing) => missing.path === record.path)
+        ? {
+            ...record,
+            data: {
+              ...(record.data as Mission),
+              rewards: [{ item: rewardItem, count: 1 }]
+            }
+          }
+        : record
+    ))
+  }
+  const afterReport = reportFromContext(context, { content: nextContent })
+  return {
+    id: 'content:mission-rewards',
+    title: 'Add starter mission rewards',
+    kind: 'mission_reward_fix',
+    lane: taskLane('content:mission-rewards', 'waiting_review', store),
+    summary: 'Adds a one-item starter reward to missions that currently complete without rewards.',
+    reason: `${missingRewardRecords.length} mission(s) have no reward: ${missingRewardRecords.map((record) => record.id).join(', ')}.`,
+    route: '/missions',
+    affectedFiles: fileChanges.map((change) => change.path),
+    fileChanges,
+    canApply: true,
+    applyLabel: missingRewardRecords.length === 1 ? 'Write mission reward' : 'Write mission rewards',
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report),
+    validationAfter: validationSnapshot(afterReport)
+  }
+}
+
 export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> {
   const store = await readStore(projectPath)
   const context = await loadContext(projectPath)
@@ -344,6 +408,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
     moduleClosureTask(store, context),
     packosFixTask(store, context),
     missionLocalizationTask(projectPath, store, context),
+    missionRewardsTask(projectPath, store, context),
     Promise.resolve(devWorkspaceTask(store, context)),
     Promise.resolve(manualValidationTask(store, context)),
     Promise.resolve(releasePackageTask(store, context))
@@ -372,15 +437,32 @@ async function applyManifestProposal(projectPath: string, taskId: string): Promi
   }
 }
 
+function assertAllowedFileChange(projectPath: string, taskId: string, changePath: string): string {
+  const normalized = changePath.replace(/\\/g, '/')
+  const allowed =
+    (taskId === 'content:mission-localization' && normalized === 'lang/en_us.json') ||
+    (taskId === 'content:mission-rewards' && /^missions\/[A-Za-z0-9._-]+\.json$/.test(normalized))
+  if (!allowed) throw new Error(`Task ${taskId} cannot write ${changePath}.`)
+  const target = resolve(projectPath, normalized)
+  const root = resolve(projectPath)
+  if (target !== root && !target.startsWith(`${root}\\`) && !target.startsWith(`${root}/`)) {
+    throw new Error(`Task ${taskId} cannot write outside the project.`)
+  }
+  return target
+}
+
 async function applyFileProposal(projectPath: string, taskId: string): Promise<CodexTaskActionResult> {
   const tasks = await listCodexTasks(projectPath)
   const task = tasks.find((item) => item.id === taskId)
-  const change = task?.fileChanges[0]
-  if (!change?.after) throw new Error(`No file proposal is available for ${taskId}.`)
-  if (change.path !== 'lang/en_us.json') throw new Error(`Task ${taskId} cannot write ${change.path}.`)
-  const target = join(projectPath, change.path)
-  await fs.mkdir(dirname(target), { recursive: true })
-  await fs.writeFile(target, change.after, 'utf8')
+  const changes = task?.fileChanges ?? []
+  if (!changes.length || changes.some((change) => !change.after)) throw new Error(`No file proposal is available for ${taskId}.`)
+  const written: string[] = []
+  for (const change of changes) {
+    const target = assertAllowedFileChange(projectPath, taskId, change.path)
+    await fs.mkdir(dirname(target), { recursive: true })
+    await fs.writeFile(target, change.after!, 'utf8')
+    written.push(change.path)
+  }
   const store = await readStore(projectPath)
   delete store.rejected[taskId]
   store.applied[taskId] = new Date().toISOString()
@@ -388,13 +470,14 @@ async function applyFileProposal(projectPath: string, taskId: string): Promise<C
   return {
     taskId,
     message: `${task?.title ?? taskId} applied.`,
-    filesChanged: [change.path]
+    filesChanged: written
   }
 }
 
 export async function applyCodexTask(projectPath: string, taskId: string): Promise<CodexTaskActionResult> {
   if (taskId.startsWith('manifest:')) return applyManifestProposal(projectPath, taskId)
   if (taskId === 'content:mission-localization') return applyFileProposal(projectPath, taskId)
+  if (taskId === 'content:mission-rewards') return applyFileProposal(projectPath, taskId)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
