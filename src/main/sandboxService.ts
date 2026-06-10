@@ -1,12 +1,12 @@
 import { promises as fs } from 'fs'
 import { readManifest, listProjects } from './fsService'
 import { listContent } from './contentService'
-import type { AddonProject } from '../shared/types'
+import type { AddonProject, Runtime } from '../shared/types'
 import { computeSandboxScore, type SandboxResult, type SandboxOptions, type SandboxLog } from '../shared/sandbox'
 import { findEchoModule, normalizeModuleId } from '../shared/moduleCatalog'
 import { listEchoModules } from './moduleCatalogService'
 
-const PROFILES: Record<string, { runtime: string; experiences: string[]; permissions: string[] }> = {
+const PROFILES: Record<string, { runtime: Runtime; experiences: string[]; permissions: string[] }> = {
   'Ashfall Sandbox': {
     runtime: 'neoforge',
     experiences: ['ashfall'],
@@ -42,11 +42,18 @@ async function listWorkspaceProjects(workspaceDir: string): Promise<AddonProject
   }
 }
 
+function logOptions(options: SandboxOptions, log: (level: SandboxLog['level'], message: string) => void): void {
+  if (options.debugOverlay) log('info', 'Debug overlay enabled.')
+  if (options.fakePlayer) log('ok', 'Fake player profile enabled.')
+  if (options.testInventory) log('ok', 'Test inventory enabled.')
+  if (options.loadOnlySelected) log('info', 'Loading only the selected project; workspace dependency scan is disabled.')
+}
+
 export async function runSandbox(
   projectPath: string,
   workspaceDir: string,
   profile: string,
-  _options: SandboxOptions
+  options: SandboxOptions
 ): Promise<SandboxResult> {
   const logs: SandboxLog[] = []
   const warnings: string[] = []
@@ -58,7 +65,8 @@ export async function runSandbox(
   const now = () => new Date().toISOString().split('T')[1].slice(0, 8)
   const log = (level: SandboxLog['level'], message: string) => logs.push({ time: now(), level, message })
 
-  log('info', `Initialising sandbox runtime… (${profile})`)
+  log('info', `Initializing sandbox runtime... (${profile})`)
+  logOptions(options, log)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) {
@@ -67,12 +75,12 @@ export async function runSandbox(
     return { profile, logs, compatibilityScore: 0, missingDependencies, warnings, errors, contentLoaded, contentFailed }
   }
 
-  log('ok', `Loading addon: ${manifest.namespace}:${manifest.id} v${manifest.version}`)
+  log('ok', `Loading addon: ${manifest.id} v${manifest.version}`)
 
   const profileDef = PROFILES[profile] || PROFILES['Generic ECHO Runtime Sandbox']
 
   // Runtime check
-  if (!manifest.runtime.supports.includes(profileDef.runtime as any) && profileDef.runtime !== 'standalone') {
+  if (!manifest.runtime.supports.includes(profileDef.runtime)) {
     warnings.push(`Addon does not declare support for runtime "${profileDef.runtime}".`)
     log('warn', `Runtime mismatch: profile wants ${profileDef.runtime}, addon supports ${manifest.runtime.supports.join(', ')}`)
   } else {
@@ -89,11 +97,14 @@ export async function runSandbox(
   }
 
   // Dependency resolution
-  const workspaceProjects = await listWorkspaceProjects(workspaceDir)
+  const workspaceProjects = options.loadOnlySelected ? [] : await listWorkspaceProjects(workspaceDir)
   const moduleCatalog = await listEchoModules(projectPath)
   const workspaceIds = new Set(workspaceProjects.map((p) => normalizeModuleId(p.manifest.id, moduleCatalog.catalog)))
   const required = manifest.dependencies.required
   log('info', `Resolving dependencies: ${required.join(', ') || 'none'}`)
+  if (!options.loadOnlySelected && workspaceProjects.length > 0) {
+    log('info', `Workspace dependency candidates: ${workspaceProjects.length}`)
+  }
   for (const dep of required) {
     const module = findEchoModule(dep, moduleCatalog.catalog)
     if (module) {
@@ -121,7 +132,7 @@ export async function runSandbox(
       for (const item of items) {
         try {
           const raw = await fs.readFile(item.path, 'utf-8')
-          JSON.parse(raw) // validate JSON
+          JSON.parse(raw)
           contentLoaded++
         } catch {
           contentFailed++
@@ -130,7 +141,7 @@ export async function runSandbox(
       }
       if (items.length > 0) log('ok', `${type} registered ${items.length} items`)
     } catch {
-      // content type folder may not exist
+      // Content type folder may not exist.
     }
   }
 
@@ -138,7 +149,6 @@ export async function runSandbox(
     log('error', `${contentFailed} content file(s) failed to load.`)
   }
 
-  // Score calculation
   const score = computeSandboxScore(missingDependencies.length, warnings.length, errors.length, contentFailed)
 
   log('ok', `Sandbox ready. Compatibility score: ${score}%`)

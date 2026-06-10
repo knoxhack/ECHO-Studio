@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
-import { ActiveBar } from '../components/ProjectPicker'
+import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
-import { DEV_TASKS, type DevTaskId, type DevTaskRun } from '@shared/devWorkspace'
+import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
 import type { SandboxResult, SandboxOptions } from '@shared/sandbox'
 
 const PROFILES = [
@@ -28,6 +28,7 @@ export default function TestSandbox(): JSX.Element {
   const [running, setRunning] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [result, setResult] = useState<SandboxResult | null>(null)
+  const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [runtimeRun, setRuntimeRun] = useState<DevTaskRun | null>(null)
   const [runtimeLog, setRuntimeLog] = useState('')
   const [error, setError] = useState('')
@@ -37,6 +38,19 @@ export default function TestSandbox(): JSX.Element {
     fakePlayer: false,
     testInventory: false
   })
+
+  const inspectDevWorkspace = useCallback(async () => {
+    if (!activeProject) {
+      setDevWorkspace(null)
+      return
+    }
+    const res = await window.studio.inspectDevWorkspace(activeProject.path)
+    if (res.ok && res.data) setDevWorkspace(res.data)
+  }, [activeProject])
+
+  useEffect(() => {
+    void inspectDevWorkspace()
+  }, [inspectDevWorkspace])
 
   useEffect(() => {
     if (!activeProject || !runtimeRun?.logPath) {
@@ -76,6 +90,11 @@ export default function TestSandbox(): JSX.Element {
 
   const launchRuntime = async (taskId: DevTaskId): Promise<void> => {
     if (!activeProject) return
+    const disabledReason = runtimeDisabledReason(taskId)
+    if (disabledReason) {
+      setError(disabledReason)
+      return
+    }
     setRuntimeBusy(true)
     setRuntimeRun(null)
     setRuntimeLog('')
@@ -85,9 +104,21 @@ export default function TestSandbox(): JSX.Element {
     if (res.ok && res.data) {
       setRuntimeRun(res.data)
       toast(`${taskId} ${res.data.status}`)
+      void inspectDevWorkspace()
     } else {
       setError(res.error || `${taskId} failed.`)
     }
+  }
+
+  const runtimeDisabledReason = (taskId: DevTaskId): string | null => {
+    if (!activeProject) return 'Select a project first.'
+    if (!devWorkspace) return 'Inspecting workspace.'
+    if (!devWorkspace.gradleReady) return 'Set up a Gradle workspace first.'
+    if (taskId === 'gradle:runClient' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
+    if (taskId === 'gradle:runServer' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
+    if (taskId === 'preview:native' && !devWorkspace.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
+    if (taskId === 'preview:standalone' && !devWorkspace.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
+    return null
   }
 
   const scoreColor = (score: number): string => {
@@ -109,6 +140,14 @@ export default function TestSandbox(): JSX.Element {
     nav('/codex', { state: { prefilled: prompt } })
   }
 
+  if (!activeProject) {
+    return (
+      <Page title="Preview" subtitle="Test runtime profiles, dependency loading, content registration, runtime launches, and log output before packaging.">
+        <NoProject />
+      </Page>
+    )
+  }
+
   return (
     <Page
       title="Preview"
@@ -125,6 +164,13 @@ export default function TestSandbox(): JSX.Element {
       }
     >
       <ActiveBar />
+      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <Metric label="Workspace" value={devWorkspace?.ready ? 'Ready' : 'Needs Setup'} tone={devWorkspace?.ready ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Gradle" value={devWorkspace?.gradleReady ? 'Ready' : 'Missing'} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Runtime Targets" value={devWorkspace?.runtimeTargets.length ? String(devWorkspace.runtimeTargets.length) : '0'} tone={devWorkspace?.runtimeTargets.length ? 'var(--accent)' : 'var(--warn)'} />
+        <Metric label="Artifacts" value={String(devWorkspace?.artifacts.length ?? 0)} />
+      </div>
+
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Sandbox Profile</h3>
@@ -190,17 +236,20 @@ export default function TestSandbox(): JSX.Element {
             {RUNTIME_TASKS.map((taskId) => {
               const task = DEV_TASKS.find((item) => item.id === taskId)
               if (!task) return null
+              const disabledReason = runtimeDisabledReason(task.id)
               return (
                 <button
                   key={task.id}
                   className="tile"
                   style={{ textAlign: 'left', padding: 12 }}
-                  disabled={runtimeBusy || !activeProject}
+                  disabled={runtimeBusy || Boolean(disabledReason)}
                   onClick={() => launchRuntime(task.id)}
                 >
                   <h4>{task.label}</h4>
-                  <p>{task.description}</p>
-                  <span className="badge">{task.command}</span>
+                  <p>{disabledReason ?? task.description}</p>
+                  <span className={`badge ${disabledReason ? 'local' : 'ready'}`}>
+                    {disabledReason ? 'Unavailable' : task.command}
+                  </span>
                 </button>
               )
             })}
@@ -271,5 +320,16 @@ export default function TestSandbox(): JSX.Element {
         </div>
       )}
     </Page>
+  )
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
+  return (
+    <div className="card">
+      <h3>{label}</h3>
+      <div className="metric" style={{ fontSize: 20, color: tone ?? 'var(--accent)' }}>
+        {value}
+      </div>
+    </div>
   )
 }
