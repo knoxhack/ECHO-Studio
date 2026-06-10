@@ -8,6 +8,14 @@ export const PREVIEW_RUNTIME_TASKS: DevTaskId[] = [
   'preview:standalone'
 ]
 
+export const MODULE_READY_TASKS: DevTaskId[] = [
+  'gradle:build',
+  'gradle:test',
+  'gradle:runData',
+  'modules:releaseSelected',
+  'package:local'
+]
+
 function moduleNames(modules: EchoModuleRecord[]): string {
   return modules.map((mod) => mod.name).join(', ')
 }

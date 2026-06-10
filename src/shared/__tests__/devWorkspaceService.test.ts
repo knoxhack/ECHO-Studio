@@ -213,6 +213,24 @@ describe('setupDevWorkspace', () => {
     })
   })
 
+  it('blocks package tasks when generated module locks are stale', async () => {
+    await withProject(async (project) => {
+      const { runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
+
+      const next = manifest()
+      next.target.modules = ['echo:mission_core']
+      next.dependencies.required = ['echo:core', 'echo:mission_core']
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(next, null, 2), 'utf8')
+
+      await expect(runDevTask(project, 'package:local')).rejects.toThrow('Refresh Dev Workspace so generated module locks match the current manifest.')
+    })
+  })
+
   it('writes local ECHO module source links into the dev-only workspace map', async () => {
     const previous = process.env.ECHO_MODULES_DIR
     await withProject(async (project) => {
@@ -416,7 +434,12 @@ describe('setupDevWorkspace', () => {
           'utf8'
         )
 
-        const { runDevTask } = await import('../../main/devWorkspaceService')
+        const { runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+        await setupDevWorkspace(project, {
+          mode: 'gradle',
+          runtimes: ['neoforge'],
+          force: false
+        })
         const result = await runDevTask(project, 'modules:releaseSelected')
 
         expect(result.status).toBe('completed')
@@ -464,7 +487,12 @@ describe('setupDevWorkspace', () => {
       )
       if (process.platform !== 'win32') await fs.chmod(shLauncher, 0o755)
 
-      const { listRunningDevTasks, readDevTaskLog, runDevTask, stopDevTask } = await import('../../main/devWorkspaceService')
+      const { listRunningDevTasks, readDevTaskLog, runDevTask, setupDevWorkspace, stopDevTask } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
       const started = await runDevTask(project, 'gradle:runClient')
 
       expect(started.status).toBe('started')

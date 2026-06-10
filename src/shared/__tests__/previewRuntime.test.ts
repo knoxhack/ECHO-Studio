@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DevWorkspaceState } from '../devWorkspace'
-import { PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '../previewRuntime'
+import { MODULE_READY_TASKS, PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '../previewRuntime'
 
 function workspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState {
   return {
@@ -98,6 +98,16 @@ describe('previewRuntimeDisabledReason', () => {
       'gradle:runServer',
       'preview:native',
       'preview:standalone'
+    ])
+  })
+
+  it('defines project tasks that require current module locks and closure', () => {
+    expect(MODULE_READY_TASKS).toEqual([
+      'gradle:build',
+      'gradle:test',
+      'gradle:runData',
+      'modules:releaseSelected',
+      'package:local'
     ])
   })
 
