@@ -1,4 +1,4 @@
-import { existsSync, promises as fs } from 'fs'
+import { existsSync, readFileSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn, type ChildProcess } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
@@ -258,6 +258,26 @@ function gradlePropertyValue(value: string | undefined): string {
   return (value ?? '').replace(/\\/g, '/').replace(/\r?\n/g, ' ').trim()
 }
 
+function safeGradleProjectName(value: string): string {
+  return value.replace(/[^A-Za-z0-9_.-]/g, '-')
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b))
+}
+
+function readModuleGradleProjectDependencies(gradleBuildPath: string | undefined): string[] {
+  if (!gradleBuildPath) return []
+  try {
+    const text = readFileSync(gradleBuildPath, 'utf8')
+    const dependencies = [...text.matchAll(/\b(?:api|implementation|compileOnly|runtimeOnly|localRuntime|testImplementation|testRuntimeOnly)\s+project\(['"](:[A-Za-z0-9_.-]+)['"]\)/g)]
+      .map((match) => match[1])
+    return uniqueSorted(dependencies)
+  } catch {
+    return []
+  }
+}
+
 function lockModule(mod: EchoModuleRecord): DevModuleLock['modules'][number] {
   return {
     id: mod.id,
@@ -323,9 +343,21 @@ function moduleCatalogStatus(catalogResult: EchoModuleCatalogResult): DevModuleC
 
 function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModuleCatalogResult): DevModuleWorkspaceMap {
   const plan = resolveProjectModulePlan(manifest, catalogResult.catalog)
+  const gradleBuildPathsById = new Map<string, string | undefined>(
+    plan.closure.map((mod) => [mod.id, findModuleGradleBuildPath(mod.moduleDir)])
+  )
+  const gradleProjectPaths = new Set(
+    plan.closure
+      .filter((mod) => gradleBuildPathsById.get(mod.id))
+      .map((mod) => `:${safeGradleProjectName(mod.id)}`)
+  )
   const modules = plan.closure.map((mod) => {
     const localSource = Boolean(mod.moduleDir || mod.descriptorPath)
-    const gradleBuildPath = findModuleGradleBuildPath(mod.moduleDir)
+    const gradleBuildPath = gradleBuildPathsById.get(mod.id)
+    const gradleProjectPath = gradleBuildPath ? `:${safeGradleProjectName(mod.id)}` : undefined
+    const gradleProjectDependencies = readModuleGradleProjectDependencies(gradleBuildPath)
+    const missingGradleProjectDependencies = gradleProjectDependencies.filter((dependency) => !gradleProjectPaths.has(dependency))
+    const gradleDependencyReady = Boolean(gradleProjectPath) && missingGradleProjectDependencies.length === 0
     return {
       id: mod.id,
       name: mod.name,
@@ -340,6 +372,11 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
       localSource,
       gradleBuild: Boolean(gradleBuildPath),
       ...(gradleBuildPath ? { gradleBuildPath } : {}),
+      ...(gradleProjectPath ? { gradleProjectPath } : {}),
+      gradleProjectDependencies,
+      missingGradleProjectDependencies,
+      gradleDependencyReady,
+      ...(gradleDependencyReady && gradleProjectPath ? { dependencyNotation: `project("${gradleProjectPath}")` } : {}),
       ...(mod.version ? { version: mod.version } : {}),
       ...(mod.source ? { source: mod.source } : {}),
       ...(mod.moduleDir ? { moduleDir: mod.moduleDir } : {}),
@@ -361,6 +398,7 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
     moduleCount: modules.length,
     localModuleCount: modules.filter((mod) => mod.localSource).length,
     gradleBuildCount: modules.filter((mod) => mod.gradleBuild).length,
+    gradleDependencyReadyCount: modules.filter((mod) => mod.gradleDependencyReady).length,
     modules,
     missingRequired: plan.missingRequired.map((mod) => mod.id),
     unknown: plan.unknown
@@ -464,6 +502,7 @@ async function moduleWorkspaceStatus(
     moduleCount: workspace?.moduleCount ?? 0,
     localModuleCount: workspace?.localModuleCount ?? 0,
     gradleBuildCount: workspace?.gradleBuildCount ?? workspace?.modules.filter((mod) => mod.gradleBuild).length ?? 0,
+    gradleDependencyReadyCount: workspace?.gradleDependencyReadyCount ?? workspace?.modules.filter((mod) => mod.gradleDependencyReady).length ?? 0,
     expectedModuleIds,
     mappedModuleIds,
     missingFromMap: diff.missing,
@@ -668,18 +707,18 @@ if (echoModuleWorkspaceFile.exists()) {
     def echoModuleWorkspace = new JsonSlurper().parse(echoModuleWorkspaceFile)
     def includedEchoModuleBuilds = [] as Set
     (echoModuleWorkspace.modules ?: []).each { module ->
-        if (module.localSource && module.moduleDir) {
+        if (module.localSource && module.moduleDir && module.gradleDependencyReady && module.gradleProjectPath) {
             def moduleRoot = file(module.moduleDir)
             def hasGradleBuild = new File(moduleRoot, "settings.gradle").exists() ||
                 new File(moduleRoot, "settings.gradle.kts").exists() ||
                 new File(moduleRoot, "build.gradle").exists() ||
                 new File(moduleRoot, "build.gradle.kts").exists()
-            if (moduleRoot.exists() && hasGradleBuild) {
-                def moduleKey = moduleRoot.canonicalPath
+            def projectPath = String.valueOf(module.gradleProjectPath)
+            if (moduleRoot.exists() && hasGradleBuild && projectPath ==~ /^:[A-Za-z0-9_.-]+$/) {
+                def moduleKey = projectPath + "|" + moduleRoot.canonicalPath
                 if (includedEchoModuleBuilds.add(moduleKey)) {
-                    includeBuild(moduleRoot) {
-                        name = "echo-module-" + String.valueOf(module.id).replaceAll("[^A-Za-z0-9_.-]", "-")
-                    }
+                    include(projectPath)
+                    project(projectPath).projectDir = moduleRoot
                 }
             }
         }
@@ -703,12 +742,32 @@ def enableStandalone = providers.gradleProperty("enable_standalone").orElse("fal
 def echoNativeExecutable = providers.gradleProperty("echo_native_executable").orElse("")
 def echoStandaloneExecutable = providers.gradleProperty("echo_standalone_executable").orElse("")
 def echoModuleWorkspaceFile = file(".echo-studio/module-workspace.json")
+def echoModuleWorkspace = echoModuleWorkspaceFile.exists()
+    ? new groovy.json.JsonSlurper().parse(echoModuleWorkspaceFile)
+    : [modules: [], moduleCount: 0, localModuleCount: 0, gradleBuildCount: 0, gradleDependencyReadyCount: 0]
+def echoGradleModuleProjects = (echoModuleWorkspace.modules ?: []).findAll { module ->
+    module.gradleDependencyReady && module.gradleProjectPath
+}
 
 version = providers.gradleProperty("mod_version").get()
 group = providers.gradleProperty("mod_group_id").get()
 
 base {
     archivesName = providers.gradleProperty("mod_id").get()
+}
+
+gradle.beforeProject { project ->
+    if (project == rootProject) return
+    def modulePropertiesFile = new File(project.projectDir, "gradle.properties")
+    if (!modulePropertiesFile.exists()) return
+    def moduleProperties = new Properties()
+    modulePropertiesFile.withInputStream { moduleProperties.load(it) }
+    moduleProperties.each { key, value ->
+        def propertyName = String.valueOf(key)
+        if (!propertyName.startsWith("org.gradle.")) {
+            project.extensions.extraProperties.set(propertyName, String.valueOf(value))
+        }
+    }
 }
 
 java {
@@ -725,6 +784,9 @@ repositories {
 dependencies {
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"
+    echoGradleModuleProjects.each { module ->
+        implementation project(String.valueOf(module.gradleProjectPath))
+    }
 }
 
 sourceSets.main.resources {
@@ -738,11 +800,13 @@ tasks.register("echoModuleWorkspace") {
         if (!echoModuleWorkspaceFile.exists()) {
             throw new GradleException("ECHO module workspace map is missing. Run Set Up Workspace in ECHO Studio.")
         }
-        def map = new groovy.json.JsonSlurper().parse(echoModuleWorkspaceFile)
-        println "ECHO module workspace: \${map.moduleCount ?: 0} module(s), \${map.localModuleCount ?: 0} local source link(s)."
+        def map = echoModuleWorkspace
+        println "ECHO module workspace: \${map.moduleCount ?: 0} module(s), \${map.localModuleCount ?: 0} local source link(s), \${map.gradleBuildCount ?: 0} Gradle build(s), \${map.gradleDependencyReadyCount ?: 0} dependency-ready."
         (map.modules ?: []).each { module ->
             def source = module.localSource ? (module.moduleDir ?: module.descriptorPath ?: "local source") : "catalog metadata"
-            println " - \${module.id} (\${module.publicApi ?: 'api unknown'}) -> \${source}"
+            def dependency = module.dependencyNotation ? " as " + module.dependencyNotation : ""
+            def missing = module.missingGradleProjectDependencies ? " missing " + module.missingGradleProjectDependencies.join(", ") : ""
+            println " - \${module.id} (\${module.publicApi ?: 'api unknown'}) -> \${source}\${dependency}\${missing}"
         }
     }
 }

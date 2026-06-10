@@ -250,6 +250,9 @@ export default function Modules(): JSX.Element {
             <span className={`badge ${(devWorkspace.moduleWorkspace.gradleBuildCount ?? 0) > 0 ? 'ready' : 'local'}`}>
               {devWorkspace.moduleWorkspace.gradleBuildCount ?? 0} Gradle builds
             </span>
+            <span className={`badge ${(devWorkspace.moduleWorkspace.gradleDependencyReadyCount ?? 0) > 0 ? 'ready' : 'local'}`}>
+              {devWorkspace.moduleWorkspace.gradleDependencyReadyCount ?? 0} compile deps
+            </span>
             <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Open Dev Workspace</button>
             <button className="btn" disabled={workspaceBusy} onClick={refreshDevWorkspace}>
               {workspaceBusy ? 'Working...' : devWorkspace.lastSetupAt ? 'Refresh Locks & Map' : 'Set Up Gradle Workspace'}

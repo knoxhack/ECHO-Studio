@@ -272,6 +272,7 @@ describe('setupDevWorkspace', () => {
         })
         const moduleWorkspace = JSON.parse(await fs.readFile(path.join(project, '.echo-studio', 'module-workspace.json'), 'utf8'))
         const settingsGradle = await fs.readFile(path.join(project, 'settings.gradle'), 'utf8')
+        const buildGradle = await fs.readFile(path.join(project, 'build.gradle'), 'utf8')
 
         expect(result.state.moduleCatalog.localAvailable).toBe(true)
         expect(result.state.moduleWorkspace).toMatchObject({
@@ -279,21 +280,98 @@ describe('setupDevWorkspace', () => {
           upToDate: true,
           moduleCount: 1,
           localModuleCount: 1,
-          gradleBuildCount: 1
+          gradleBuildCount: 1,
+          gradleDependencyReadyCount: 1
         })
         expect(moduleWorkspace.localModuleCount).toBe(1)
         expect(moduleWorkspace.gradleBuildCount).toBe(1)
+        expect(moduleWorkspace.gradleDependencyReadyCount).toBe(1)
         expect(moduleWorkspace.modules[0]).toMatchObject({
           id: 'echocore',
           localSource: true,
           gradleBuild: true,
           gradleBuildPath: path.join(modulesRoot, 'addons', 'echocore', 'build.gradle'),
+          gradleProjectPath: ':echocore',
+          gradleProjectDependencies: [],
+          missingGradleProjectDependencies: [],
+          gradleDependencyReady: true,
+          dependencyNotation: 'project(":echocore")',
           moduleDir: path.join(modulesRoot, 'addons', 'echocore'),
           descriptorPath
         })
-        expect(settingsGradle).toContain('includeBuild(moduleRoot)')
-        expect(settingsGradle).toContain('echo-module-')
+        expect(settingsGradle).toContain('include(projectPath)')
+        expect(settingsGradle).toContain('project(projectPath).projectDir = moduleRoot')
         expect(settingsGradle).toContain('.echo-studio/module-workspace.json')
+        expect(settingsGradle).toContain('module.gradleDependencyReady')
+        expect(buildGradle).toContain('implementation project(String.valueOf(module.gradleProjectPath))')
+        expect(buildGradle).toContain('gradle.beforeProject')
+        expect(buildGradle).toContain('dependencyNotation')
+      } finally {
+        if (previous === undefined) delete process.env.ECHO_MODULES_DIR
+        else process.env.ECHO_MODULES_DIR = previous
+        await fs.rm(modulesRoot, { recursive: true, force: true })
+      }
+    })
+  })
+
+  it('records unresolved local module Gradle project dependencies without wiring them', async () => {
+    const previous = process.env.ECHO_MODULES_DIR
+    await withProject(async (project) => {
+      const modulesRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-modules-root-'))
+      try {
+        process.env.ECHO_MODULES_DIR = modulesRoot
+        const descriptorPath = path.join(modulesRoot, 'addons', 'echocore', 'src', 'main', 'resources', 'META-INF', 'echo.mod.json')
+        await fs.mkdir(path.dirname(descriptorPath), { recursive: true })
+        await fs.writeFile(
+          path.join(modulesRoot, 'addons', 'echocore', 'build.gradle'),
+          "plugins { id 'java-library' }\ndependencies { implementation project(':echo-native-contracts') }\n",
+          'utf8'
+        )
+        await fs.mkdir(path.join(modulesRoot, 'metadata', 'modules'), { recursive: true })
+        await fs.writeFile(descriptorPath, JSON.stringify({ id: 'echocore', version: '1.0.0' }, null, 2), 'utf8')
+        await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: '2026-06-09T00:00:00.000Z',
+          modules: [
+            {
+              id: 'echocore',
+              name: 'ECHO: Core',
+              version: '1.0.0',
+              kind: 'library',
+              role: 'foundation',
+              channel: 'stable',
+              standalone: true,
+              descriptorPath: 'addons/echocore/src/main/resources/META-INF/echo.mod.json',
+              moduleDir: 'addons/echocore',
+              requires: [],
+              optional: [],
+              provides: ['core.services'],
+              apiStability: 'stable'
+            }
+          ]
+        }, null, 2), 'utf8')
+
+        const { setupDevWorkspace } = await import('../../main/devWorkspaceService')
+        const result = await setupDevWorkspace(project, {
+          mode: 'gradle',
+          runtimes: ['neoforge'],
+          force: false
+        })
+        const moduleWorkspace = JSON.parse(await fs.readFile(path.join(project, '.echo-studio', 'module-workspace.json'), 'utf8'))
+
+        expect(result.state.moduleWorkspace).toMatchObject({
+          gradleBuildCount: 1,
+          gradleDependencyReadyCount: 0
+        })
+        expect(moduleWorkspace.modules[0]).toMatchObject({
+          id: 'echocore',
+          gradleBuild: true,
+          gradleProjectPath: ':echocore',
+          gradleProjectDependencies: [':echo-native-contracts'],
+          missingGradleProjectDependencies: [':echo-native-contracts'],
+          gradleDependencyReady: false
+        })
+        expect(moduleWorkspace.modules[0].dependencyNotation).toBeUndefined()
       } finally {
         if (previous === undefined) delete process.env.ECHO_MODULES_DIR
         else process.env.ECHO_MODULES_DIR = previous

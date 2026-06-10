@@ -442,7 +442,7 @@ export default function PublishAssistant(): JSX.Element {
             detail={
               workspace
                 ? workspace.moduleWorkspace.upToDate
-                  ? `${workspace.moduleWorkspace.localModuleCount}/${workspace.moduleWorkspace.moduleCount} module(s) linked to local ECHO-Modules source; ${workspace.moduleWorkspace.gradleBuildCount ?? 0} Gradle build(s) available.`
+                  ? `${workspace.moduleWorkspace.localModuleCount}/${workspace.moduleWorkspace.moduleCount} module(s) linked to local ECHO-Modules source; ${workspace.moduleWorkspace.gradleDependencyReadyCount ?? 0} compile dependency link(s) ready.`
                   : diffDetail(
                       workspace.moduleWorkspace.missingFromMap,
                       workspace.moduleWorkspace.extraInMap,
@@ -504,6 +504,11 @@ export default function PublishAssistant(): JSX.Element {
             {workspace?.moduleWorkspace.gradleBuildCount !== undefined && (
               <span className={`badge ${workspace.moduleWorkspace.gradleBuildCount > 0 ? 'ready' : 'local'}`}>
                 {workspace.moduleWorkspace.gradleBuildCount} Gradle build(s)
+              </span>
+            )}
+            {workspace?.moduleWorkspace.gradleDependencyReadyCount !== undefined && (
+              <span className={`badge ${workspace.moduleWorkspace.gradleDependencyReadyCount > 0 ? 'ready' : 'local'}`}>
+                {workspace.moduleWorkspace.gradleDependencyReadyCount} compile dep(s)
               </span>
             )}
           </div>
