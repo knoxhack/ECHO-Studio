@@ -13,6 +13,7 @@ export interface DevWorkspaceFileStatus {
   path: string
   exists: boolean
   generatedByStudio: boolean
+  expected: boolean
 }
 
 export interface DevArtifact {

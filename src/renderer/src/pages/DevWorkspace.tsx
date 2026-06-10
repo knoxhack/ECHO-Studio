@@ -26,13 +26,14 @@ export default function DevWorkspace(): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [lastRun, setLastRun] = useState<DevTaskRun | null>(null)
   const [liveLog, setLiveLog] = useState('')
+  const [setupSummary, setSetupSummary] = useState<{ written: string[]; skipped: string[] } | null>(null)
 
   const inspect = useCallback(async () => {
     if (!activeProject) return
     const result = await window.studio.inspectDevWorkspace(activeProject.path)
     if (result.ok && result.data) {
       setState(result.data)
-      setMode(result.data.mode === 'visual' ? 'gradle' : result.data.mode)
+      setMode(result.data.lastSetupAt ? result.data.mode : 'gradle')
       if (result.data.runtimeTargets.length > 0) setRuntimes(result.data.runtimeTargets)
     }
   }, [activeProject])
@@ -81,6 +82,7 @@ export default function DevWorkspace(): JSX.Element {
     setBusy(false)
     if (result.ok && result.data) {
       setState(result.data.state)
+      setSetupSummary({ written: result.data.written, skipped: result.data.skipped })
       toast(`Dev workspace ready: ${result.data.written.length} file(s) written`)
     } else {
       toast(result.error || 'Dev workspace setup failed')
@@ -104,6 +106,19 @@ export default function DevWorkspace(): JSX.Element {
   }
 
   const readyTone = state?.ready ? 'var(--good)' : 'var(--warn)'
+  const expectedFiles = state?.files.filter((file) => file.expected) ?? []
+  const optionalFiles = state?.files.filter((file) => !file.expected) ?? []
+
+  const taskDisabledReason = (taskId: DevTaskId): string | null => {
+    if (!state) return 'Inspecting workspace.'
+    if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
+    if (taskId === 'gradle:runClient' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
+    if (taskId === 'gradle:runServer' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
+    if (taskId === 'gradle:runData' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
+    if (taskId === 'preview:native' && !state.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
+    if (taskId === 'preview:standalone' && !state.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
+    return null
+  }
 
   return (
     <Page
@@ -124,7 +139,7 @@ export default function DevWorkspace(): JSX.Element {
         <Metric label="Workspace" value={state?.ready ? 'Ready' : 'Needs Setup'} tone={readyTone} />
         <Metric label="Gradle" value={state?.gradleReady ? 'Ready' : 'Missing'} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Source" value={state?.sourceReady ? 'Ready' : 'Missing'} tone={state?.sourceReady ? 'var(--good)' : 'var(--warn)'} />
-        <Metric label="Artifacts" value={String(state?.artifacts.length ?? 0)} />
+        <Metric label="Expected Files" value={state ? `${expectedFiles.filter((file) => file.exists).length}/${expectedFiles.length}` : '...'} tone={state?.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
@@ -161,6 +176,19 @@ export default function DevWorkspace(): JSX.Element {
             <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} />
             Overwrite Studio-generated files
           </label>
+          {setupSummary && (
+            <div className="issue INFO" style={{ marginTop: 12 }}>
+              <span className="lvl">INFO</span>
+              Wrote {setupSummary.written.length} file(s)
+              {setupSummary.skipped.length > 0 ? ` and skipped ${setupSummary.skipped.length} existing file(s).` : '.'}
+              {setupSummary.skipped.length > 0 && (
+                <div className="fix">
+                  Enable overwrite to replace Studio-generated files: {setupSummary.skipped.slice(0, 4).join(', ')}
+                  {setupSummary.skipped.length > 4 ? '...' : ''}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="card">
@@ -195,31 +223,48 @@ export default function DevWorkspace(): JSX.Element {
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Generated Files</h3>
-          {state?.files.map((file) => (
+          {expectedFiles.map((file) => (
             <div className="list-row" key={file.path} style={{ padding: '7px 10px' }}>
               <span style={{ color: file.exists ? 'var(--good)' : 'var(--warn)' }}>{file.exists ? 'OK' : 'Missing'}</span>
               <span className="mono" style={{ flex: 1 }}>{file.path}</span>
               {file.generatedByStudio && <span className="badge ready">Studio</span>}
+              <span className="badge">Expected</span>
             </div>
           ))}
+          {optionalFiles.some((file) => file.exists) && (
+            <>
+              <div className="section-title">Optional Existing Files</div>
+              {optionalFiles.filter((file) => file.exists).map((file) => (
+                <div className="list-row" key={file.path} style={{ padding: '7px 10px' }}>
+                  <span style={{ color: 'var(--good)' }}>OK</span>
+                  <span className="mono" style={{ flex: 1 }}>{file.path}</span>
+                  {file.generatedByStudio && <span className="badge ready">Studio</span>}
+                  <span className="badge local">Optional</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         <div className="card">
           <h3>Local Tasks</h3>
           <div className="grid cols-2" style={{ gap: 8 }}>
-            {DEV_TASKS.map((task) => (
-              <button
-                key={task.id}
-                className="tile"
-                style={{ textAlign: 'left', padding: 12 }}
-                disabled={busy}
-                onClick={() => runTask(task.id)}
-              >
-                <h4>{task.label}</h4>
-                <p>{task.description}</p>
-                <span className="badge">{task.kind}</span>
-              </button>
-            ))}
+            {DEV_TASKS.map((task) => {
+              const reason = taskDisabledReason(task.id)
+              return (
+                <button
+                  key={task.id}
+                  className="tile"
+                  style={{ textAlign: 'left', padding: 12 }}
+                  disabled={busy || Boolean(reason)}
+                  onClick={() => runTask(task.id)}
+                >
+                  <h4>{task.label}</h4>
+                  <p>{reason ?? task.description}</p>
+                  <span className={`badge ${reason ? 'local' : 'ready'}`}>{reason ? 'Unavailable' : task.kind}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>

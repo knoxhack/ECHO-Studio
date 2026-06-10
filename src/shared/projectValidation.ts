@@ -121,7 +121,8 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
 
   // --- Local developer workspace -------------------------------------------
   if (input.devWorkspace) {
-    if (!input.devWorkspace.gradleReady) {
+    const expectsCodeWorkspace = input.devWorkspace.mode !== 'visual'
+    if (expectsCodeWorkspace && !input.devWorkspace.gradleReady) {
       extra.push({
         level: 'WARNING',
         category: 'Dev Workspace',
@@ -130,7 +131,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
-    if (!input.devWorkspace.sourceReady) {
+    if (expectsCodeWorkspace && !input.devWorkspace.sourceReady) {
       extra.push({
         level: 'SUGGESTION',
         category: 'Dev Workspace',

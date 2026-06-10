@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { DEV_TASKS, type DevArtifact, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan } from '../shared/moduleCatalog'
 import type { AddonManifest, Runtime } from '../shared/types'
 import { packageAddon } from './packageService'
@@ -368,13 +368,57 @@ ${command}
 `
 }
 
-async function fileStatus(projectPath: string, rel: string): Promise<{ path: string; exists: boolean; generatedByStudio: boolean }> {
+function releaseChecklist(manifest: AddonManifest): string {
+  return `# ${STUDIO_MARKER}
+# Local Release Checklist
+
+Project: ${manifest.name}
+ID: ${manifest.id}
+Version: ${manifest.version}
+
+1. Run Gradle tests from ECHO Studio.
+2. Run Package Local Release from ECHO Studio.
+3. Review release/echo-release.json and release/checksums.sha256.
+4. Create the GitHub draft from Publish Assistant when the local package is ready.
+5. Submit release-index-handoff.json for Release Index ingestion review.
+`
+}
+
+function expectedModes(rel: string): DevWorkspaceMode[] {
+  if (rel === 'echo.mod.json' || rel === '.echo-studio/dev-workspace.json') return ['visual', 'gradle', 'full']
+  if (
+    [
+      'settings.gradle',
+      'build.gradle',
+      'gradle.properties',
+      'gradlew.bat',
+      'gradlew',
+      'src/main/resources/META-INF/echo.mod.json'
+    ].includes(rel) ||
+    rel.startsWith('src/main/java/') ||
+    rel.startsWith('src/test/java/') ||
+    rel.startsWith('scripts/')
+  ) {
+    return ['gradle', 'full']
+  }
+  if (rel === 'META-INF/echo-addon-package.json' || rel === 'release' || rel === '.echo-studio/release-checklist.md') {
+    return ['full']
+  }
+  return []
+}
+
+function isExpectedForMode(rel: string, mode: DevWorkspaceMode): boolean {
+  return expectedModes(rel).includes(mode)
+}
+
+async function fileStatus(projectPath: string, rel: string, mode: DevWorkspaceMode): Promise<DevWorkspaceFileStatus> {
   const path = join(projectPath, rel)
   const isThere = await exists(path)
   return {
     path: rel,
     exists: isThere,
-    generatedByStudio: isThere ? (await readText(path)).includes(STUDIO_MARKER) : false
+    generatedByStudio: isThere ? (await readText(path)).includes(STUDIO_MARKER) : false,
+    expected: isExpectedForMode(rel, mode)
   }
 }
 
@@ -385,25 +429,33 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const studioStatePath = join(projectPath, '.echo-studio', 'dev-workspace.json')
   const saved = await readText(studioStatePath)
   const parsed = saved ? JSON.parse(saved) as Partial<DevWorkspaceState> : {}
+  const mode = parsed.mode ?? 'visual'
+  const javaPath = `src/main/java/${packagePath(manifest)}/${className(manifest)}.java`
+  const testPath = `src/test/java/${packagePath(manifest)}/${className(manifest)}Test.java`
   const files = await Promise.all([
-    fileStatus(projectPath, 'echo.mod.json'),
-    fileStatus(projectPath, 'META-INF/echo-addon-package.json'),
-    fileStatus(projectPath, 'settings.gradle'),
-    fileStatus(projectPath, 'build.gradle'),
-    fileStatus(projectPath, 'gradle.properties'),
-    fileStatus(projectPath, 'gradlew.bat'),
-    fileStatus(projectPath, 'gradlew'),
-    fileStatus(projectPath, 'src/main/resources/META-INF/echo.mod.json'),
-    fileStatus(projectPath, `src/main/java/${packagePath(manifest)}/${className(manifest)}.java`),
-    fileStatus(projectPath, `src/test/java/${packagePath(manifest)}/${className(manifest)}Test.java`),
-    fileStatus(projectPath, 'release')
+    fileStatus(projectPath, 'echo.mod.json', mode),
+    fileStatus(projectPath, '.echo-studio/dev-workspace.json', mode),
+    fileStatus(projectPath, 'META-INF/echo-addon-package.json', mode),
+    fileStatus(projectPath, 'settings.gradle', mode),
+    fileStatus(projectPath, 'build.gradle', mode),
+    fileStatus(projectPath, 'gradle.properties', mode),
+    fileStatus(projectPath, 'gradlew.bat', mode),
+    fileStatus(projectPath, 'gradlew', mode),
+    fileStatus(projectPath, 'src/main/resources/META-INF/echo.mod.json', mode),
+    fileStatus(projectPath, javaPath, mode),
+    fileStatus(projectPath, testPath, mode),
+    fileStatus(projectPath, 'scripts/run-dev-client.ps1', mode),
+    fileStatus(projectPath, 'scripts/build-local.ps1', mode),
+    fileStatus(projectPath, '.echo-studio/release-checklist.md', mode),
+    fileStatus(projectPath, 'release', mode)
   ])
   const hasGradleWrapper = files.some((file) => ['gradlew.bat', 'gradlew'].includes(file.path) && file.exists)
   const gradleReady = files.some((file) => file.path === 'build.gradle' && file.exists) && files.some((file) => file.path === 'settings.gradle' && file.exists)
   const sourceReady = files.some((file) => file.path.startsWith('src/main/java') && file.exists)
+  const expectedReady = files.filter((file) => file.expected).every((file) => file.exists)
   return {
-    ready: gradleReady && sourceReady,
-    mode: parsed.mode ?? 'visual',
+    ready: Boolean(parsed.lastSetupAt) && expectedReady,
+    mode,
     projectPath,
     gradleReady,
     hasGradleWrapper,
@@ -424,24 +476,38 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
   const skipped: string[] = []
   const force = Boolean(options.force)
 
-  await writeIfAllowed(join(projectPath, 'settings.gradle'), settingsGradle(manifest), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'gradle.properties'), gradleProperties(manifest, runtimes), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'build.gradle'), buildGradle(manifest), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'gradlew.bat'), gradlewBat(), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'gradlew'), gradlewSh(), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'META-INF', 'echo-addon-package.json'), JSON.stringify(buildAddonPackageManifest(manifest), null, 2), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'src', 'main', 'resources', 'META-INF', 'echo.mod.json'), JSON.stringify(manifest, null, 2), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'src', 'main', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}.java`), javaSource(manifest), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'src', 'test', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}Test.java`), testSource(manifest), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'scripts', 'run-dev-client.ps1'), runScript('run-dev-client', manifest), force, written, skipped)
-  await writeIfAllowed(join(projectPath, 'scripts', 'build-local.ps1'), runScript('build-local', manifest), force, written, skipped)
-  await fs.mkdir(join(projectPath, 'release'), { recursive: true })
   await fs.mkdir(join(projectPath, '.echo-studio'), { recursive: true })
-  await fs.writeFile(join(projectPath, '.echo-studio', 'dev-workspace.json'), JSON.stringify({
+
+  if (options.mode === 'gradle' || options.mode === 'full') {
+    await writeIfAllowed(join(projectPath, 'settings.gradle'), settingsGradle(manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'gradle.properties'), gradleProperties(manifest, runtimes), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'build.gradle'), buildGradle(manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'gradlew.bat'), gradlewBat(), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'gradlew'), gradlewSh(), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'src', 'main', 'resources', 'META-INF', 'echo.mod.json'), JSON.stringify(manifest, null, 2), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'src', 'main', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}.java`), javaSource(manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'src', 'test', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}Test.java`), testSource(manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'scripts', 'run-dev-client.ps1'), runScript('run-dev-client', manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'scripts', 'build-local.ps1'), runScript('build-local', manifest), force, written, skipped)
+  }
+
+  if (options.mode === 'full') {
+    await writeIfAllowed(join(projectPath, 'META-INF', 'echo-addon-package.json'), JSON.stringify(buildAddonPackageManifest(manifest), null, 2), force, written, skipped)
+    const releaseDir = join(projectPath, 'release')
+    const releaseExists = await exists(releaseDir)
+    await fs.mkdir(releaseDir, { recursive: true })
+    if (releaseExists && !force) skipped.push(releaseDir)
+    else written.push(releaseDir)
+    await writeIfAllowed(join(projectPath, '.echo-studio', 'release-checklist.md'), releaseChecklist(manifest), force, written, skipped)
+  }
+
+  const statePath = join(projectPath, '.echo-studio', 'dev-workspace.json')
+  await fs.writeFile(statePath, JSON.stringify({
     mode: options.mode,
     runtimeTargets: runtimes,
     lastSetupAt: new Date().toISOString()
   }, null, 2), 'utf8')
+  written.push(statePath)
 
   return {
     state: await inspectDevWorkspace(projectPath),
