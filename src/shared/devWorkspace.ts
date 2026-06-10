@@ -67,6 +67,28 @@ export interface DevModuleLock {
   unknown: string[]
 }
 
+export interface DevModuleLockStatus {
+  schemaVersion: 'echo.studio.modules.lock.status.v1'
+  studioLockPath: string
+  runtimeLockPath: string
+  studioExists: boolean
+  runtimeExists: boolean
+  runtimeExpected: boolean
+  upToDate: boolean
+  runtimeUpToDate: boolean
+  projectMatches: boolean
+  expectedModuleIds: string[]
+  lockedModuleIds: string[]
+  runtimeModuleIds: string[]
+  missingFromLock: string[]
+  extraInLock: string[]
+  missingFromRuntimeLock: string[]
+  extraInRuntimeLock: string[]
+  lockedProjectId?: string
+  lockedProjectVersion?: string
+  generatedAt?: string
+}
+
 export interface DevWorkspaceState {
   ready: boolean
   mode: DevWorkspaceMode
@@ -77,6 +99,7 @@ export interface DevWorkspaceState {
   runtimeTargets: Runtime[]
   files: DevWorkspaceFileStatus[]
   modulePlan: ProjectModulePlan
+  moduleLock: DevModuleLockStatus
   artifacts: DevArtifact[]
   lastSetupAt?: string
 }

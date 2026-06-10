@@ -88,6 +88,18 @@ describe('setupDevWorkspace', () => {
       expect(moduleLock.declared).toContain('echo:core')
       expect(moduleLock.modules.some((mod: { id: string }) => mod.id === 'echocore')).toBe(true)
       expect(runtimeModuleLock.modules.map((mod: { id: string }) => mod.id)).toEqual(moduleLock.modules.map((mod: { id: string }) => mod.id))
+      expect(result.state.moduleLock).toMatchObject({
+        schemaVersion: 'echo.studio.modules.lock.status.v1',
+        studioExists: true,
+        runtimeExists: true,
+        runtimeExpected: true,
+        upToDate: true,
+        runtimeUpToDate: true,
+        projectMatches: true,
+        expectedModuleIds: ['echocore'],
+        lockedModuleIds: ['echocore'],
+        runtimeModuleIds: ['echocore']
+      })
 
       const gradleProperties = await fs.readFile(path.join(project, 'gradle.properties'), 'utf8')
       const gradlewBat = await fs.readFile(path.join(project, 'gradlew.bat'), 'utf8')
@@ -99,6 +111,30 @@ describe('setupDevWorkspace', () => {
       expect(gradlewSh).toContain('https://services.gradle.org/distributions/gradle-9.1.0-bin.zip')
       expect(gradlewSh).toContain('.gradle/studio')
       expect(gradlewSh).not.toContain('command -v gradle')
+    })
+  })
+
+  it('marks the module lock stale when manifest dependencies change after setup', async () => {
+    await withProject(async (project) => {
+      const { inspectDevWorkspace, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
+
+      const next = manifest()
+      next.target.modules = ['echo:mission_core']
+      next.dependencies.required = ['echo:core', 'echo:mission_core']
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(next, null, 2), 'utf8')
+
+      const state = await inspectDevWorkspace(project)
+
+      expect(state.ready).toBe(false)
+      expect(state.moduleLock.upToDate).toBe(false)
+      expect(state.moduleLock.missingFromLock).toEqual(expect.arrayContaining(['echomissioncore']))
+      expect(state.moduleLock.runtimeUpToDate).toBe(false)
+      expect(state.modulePlan.closure.map((mod) => mod.id)).toEqual(expect.arrayContaining(['echomissioncore']))
     })
   })
 

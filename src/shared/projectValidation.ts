@@ -140,6 +140,29 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
+    if (!input.devWorkspace.moduleLock.studioExists) {
+      extra.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: 'ECHO module lock has not been generated.',
+        fix: 'Open Dev Workspace and run Set Up Workspace to lock the current module closure.',
+        aiFixable: false
+      })
+    } else if (!input.devWorkspace.moduleLock.upToDate) {
+      const missing = input.devWorkspace.moduleLock.missingFromLock
+      const extraIds = input.devWorkspace.moduleLock.extraInLock
+      extra.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: 'ECHO module lock is stale or incomplete.',
+        fix: [
+          'Open Dev Workspace and run Set Up Workspace to refresh generated module locks.',
+          missing.length ? `Missing from lock: ${missing.join(', ')}.` : '',
+          extraIds.length ? `No longer declared: ${extraIds.join(', ')}.` : ''
+        ].filter(Boolean).join(' '),
+        aiFixable: false
+      })
+    }
     if (input.devWorkspace.artifacts.length === 0) {
       extra.push({
         level: 'SUGGESTION',

@@ -200,6 +200,16 @@ export default function DevWorkspace(): JSX.Element {
           <h3>Module Closure</h3>
           {state ? (
             <>
+              <div className="btn-row" style={{ marginBottom: 10 }}>
+                <span className={`badge ${state.moduleLock.upToDate ? 'ready' : 'fixes'}`}>
+                  {state.moduleLock.upToDate ? 'Lock Current' : 'Lock Stale'}
+                </span>
+                {state.moduleLock.generatedAt && (
+                  <span className="dim" style={{ fontSize: 11 }}>
+                    generated {new Date(state.moduleLock.generatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {state.modulePlan.closure.map((mod) => (
                   <span key={mod.id} className="badge">{mod.name}</span>
@@ -216,6 +226,18 @@ export default function DevWorkspace(): JSX.Element {
                 <div className="issue WARNING" style={{ marginTop: 12 }}>
                   <span className="lvl">WARNING</span>
                   Unknown dependencies: {state.modulePlan.unknown.join(', ')}.
+                </div>
+              )}
+              {!state.moduleLock.upToDate && (
+                <div className="issue WARNING" style={{ marginTop: 12 }}>
+                  <span className="lvl">WARNING</span>
+                  Module lock does not match the current manifest.
+                  <div className="fix">
+                    Run Set Up Workspace to refresh .echo-studio/modules.lock.json
+                    {state.moduleLock.runtimeExpected ? ' and src/generated/resources/META-INF/echo.modules.lock.json.' : '.'}
+                    {state.moduleLock.missingFromLock.length > 0 ? ` Missing: ${state.moduleLock.missingFromLock.join(', ')}.` : ''}
+                    {state.moduleLock.extraInLock.length > 0 ? ` Extra: ${state.moduleLock.extraInLock.join(', ')}.` : ''}
+                  </div>
                 </div>
               )}
             </>

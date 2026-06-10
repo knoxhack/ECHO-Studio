@@ -44,6 +44,27 @@ function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspa
       optionalAvailable: [],
       closure: []
     },
+    moduleLock: {
+      schemaVersion: 'echo.studio.modules.lock.status.v1',
+      studioLockPath: '.echo-studio/modules.lock.json',
+      runtimeLockPath: 'src/generated/resources/META-INF/echo.modules.lock.json',
+      studioExists: true,
+      runtimeExists: true,
+      runtimeExpected: true,
+      upToDate: true,
+      runtimeUpToDate: true,
+      projectMatches: true,
+      expectedModuleIds: ['echocore'],
+      lockedModuleIds: ['echocore'],
+      runtimeModuleIds: ['echocore'],
+      missingFromLock: [],
+      extraInLock: [],
+      missingFromRuntimeLock: [],
+      extraInRuntimeLock: [],
+      lockedProjectId: 'teamnova:test_addon',
+      lockedProjectVersion: '0.1.0',
+      generatedAt: '2026-06-09T00:00:00.000Z'
+    },
     artifacts,
     lastSetupAt: '2026-06-09T00:00:00.000Z'
   }
@@ -152,5 +173,26 @@ describe('runProjectCheck', () => {
 
     expect(report.issues.some((i) => i.message === 'No local artifacts have been built yet.')).toBe(false)
     expect(report.issues.some((i) => i.message === 'Built artifacts are missing echo-release.json or checksums.sha256.')).toBe(false)
+  })
+
+  it('warns when the ECHO module lock is stale', () => {
+    const workspace = makeDevWorkspace([])
+    workspace.moduleLock = {
+      ...workspace.moduleLock,
+      upToDate: false,
+      runtimeUpToDate: false,
+      missingFromLock: ['echomissioncore'],
+      missingFromRuntimeLock: ['echomissioncore']
+    }
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: workspace
+    })
+
+    expect(report.issues.some((i) => i.message === 'ECHO module lock is stale or incomplete.')).toBe(true)
+    expect(report.issues.find((i) => i.message === 'ECHO module lock is stale or incomplete.')?.fix).toContain('echomissioncore')
   })
 })

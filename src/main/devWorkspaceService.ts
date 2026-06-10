@@ -2,8 +2,8 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
-import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord } from '../shared/moduleCatalog'
+import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevModuleLockStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
 import type { AddonManifest, Runtime } from '../shared/types'
 import { packageAddon } from './packageService'
 import { readManifest } from './fsService'
@@ -27,6 +27,15 @@ async function readText(path: string): Promise<string> {
     return await fs.readFile(path, 'utf8')
   } catch {
     return ''
+  }
+}
+
+async function readModuleLock(path: string): Promise<DevModuleLock | null> {
+  try {
+    const parsed = JSON.parse(await fs.readFile(path, 'utf8')) as Partial<DevModuleLock>
+    return parsed.schemaVersion === 'echo.studio.modules.lock.v1' ? parsed as DevModuleLock : null
+  } catch {
+    return null
   }
 }
 
@@ -175,6 +184,72 @@ function buildModuleLock(manifest: AddonManifest, catalogResult: EchoModuleCatal
     modules: plan.closure.map(lockModule),
     missingRequired: plan.missingRequired.map((mod) => mod.id),
     unknown: plan.unknown
+  }
+}
+
+function sortedUnique(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b))
+}
+
+function diffIds(expected: string[], actual: string[]): { missing: string[]; extra: string[] } {
+  const expectedSet = new Set(expected)
+  const actualSet = new Set(actual)
+  return {
+    missing: expected.filter((id) => !actualSet.has(id)),
+    extra: actual.filter((id) => !expectedSet.has(id))
+  }
+}
+
+async function moduleLockStatus(
+  projectPath: string,
+  manifest: AddonManifest,
+  plan: ProjectModulePlan,
+  mode: DevWorkspaceMode
+): Promise<DevModuleLockStatus> {
+  const studioLockPath = join(projectPath, '.echo-studio', 'modules.lock.json')
+  const runtimeLockPath = join(projectPath, 'src', 'generated', 'resources', 'META-INF', 'echo.modules.lock.json')
+  const [studioLock, runtimeLock] = await Promise.all([
+    readModuleLock(studioLockPath),
+    readModuleLock(runtimeLockPath)
+  ])
+  const runtimeExpected = mode !== 'visual'
+  const expectedModuleIds = sortedUnique(plan.closure.map((mod) => mod.id))
+  const lockedModuleIds = sortedUnique(studioLock?.modules.map((mod) => mod.id) ?? [])
+  const runtimeModuleIds = sortedUnique(runtimeLock?.modules.map((mod) => mod.id) ?? [])
+  const studioDiff = diffIds(expectedModuleIds, lockedModuleIds)
+  const runtimeDiff = diffIds(expectedModuleIds, runtimeModuleIds)
+  const projectMatches = Boolean(
+    studioLock &&
+    studioLock.project.id === manifest.id &&
+    studioLock.project.version === manifest.version
+  )
+  const runtimeProjectMatches = !runtimeExpected || Boolean(
+    runtimeLock &&
+    runtimeLock.project.id === manifest.id &&
+    runtimeLock.project.version === manifest.version
+  )
+  const studioUpToDate = Boolean(studioLock) && projectMatches && studioDiff.missing.length === 0 && studioDiff.extra.length === 0
+  const runtimeUpToDate = !runtimeExpected || Boolean(runtimeLock) && runtimeProjectMatches && runtimeDiff.missing.length === 0 && runtimeDiff.extra.length === 0
+  return {
+    schemaVersion: 'echo.studio.modules.lock.status.v1',
+    studioLockPath: relative(projectPath, studioLockPath),
+    runtimeLockPath: relative(projectPath, runtimeLockPath),
+    studioExists: Boolean(studioLock),
+    runtimeExists: Boolean(runtimeLock),
+    runtimeExpected,
+    upToDate: studioUpToDate && runtimeUpToDate,
+    runtimeUpToDate,
+    projectMatches,
+    expectedModuleIds,
+    lockedModuleIds,
+    runtimeModuleIds,
+    missingFromLock: studioDiff.missing,
+    extraInLock: studioDiff.extra,
+    missingFromRuntimeLock: runtimeDiff.missing,
+    extraInRuntimeLock: runtimeDiff.extra,
+    lockedProjectId: studioLock?.project.id,
+    lockedProjectVersion: studioLock?.project.version,
+    generatedAt: studioLock?.generatedAt
   }
 }
 
@@ -551,12 +626,14 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     fileStatus(projectPath, '.echo-studio/release-checklist.md', mode),
     fileStatus(projectPath, 'release', mode)
   ])
+  const modulePlan = resolveProjectModulePlan(manifest, moduleCatalog.catalog)
   const hasGradleWrapper = files.some((file) => ['gradlew.bat', 'gradlew'].includes(file.path) && file.exists)
   const gradleReady = files.some((file) => file.path === 'build.gradle' && file.exists) && files.some((file) => file.path === 'settings.gradle' && file.exists)
   const sourceReady = files.some((file) => file.path.startsWith('src/main/java') && file.exists)
   const expectedReady = files.filter((file) => file.expected).every((file) => file.exists)
+  const lockStatus = await moduleLockStatus(projectPath, manifest, modulePlan, mode)
   return {
-    ready: Boolean(parsed.lastSetupAt) && expectedReady,
+    ready: Boolean(parsed.lastSetupAt) && expectedReady && lockStatus.upToDate,
     mode,
     projectPath,
     gradleReady,
@@ -564,7 +641,8 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     sourceReady,
     runtimeTargets: parsed.runtimeTargets ?? manifest.runtime.supports,
     files,
-    modulePlan: resolveProjectModulePlan(manifest, moduleCatalog.catalog),
+    modulePlan,
+    moduleLock: lockStatus,
     artifacts: await collectArtifacts(projectPath),
     lastSetupAt: parsed.lastSetupAt
   }
