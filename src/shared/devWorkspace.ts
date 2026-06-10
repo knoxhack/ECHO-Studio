@@ -170,6 +170,21 @@ export interface DevRuntimeLauncherStatus {
   ready: boolean
 }
 
+export interface DevToolchainStatus {
+  schemaVersion: 'echo.studio.toolchain.status.v1'
+  requiredJavaVersion: number
+  javaHome?: string
+  javaAvailable: boolean
+  javaVersion?: string
+  javaMajorVersion?: number
+  javaMeetsRequirement: boolean
+  gradleWrapper: boolean
+  gradleAvailable: boolean
+  gradleVersion?: string
+  gradleCommand: string
+  issues: string[]
+}
+
 export interface DevWorkspaceState {
   ready: boolean
   mode: DevWorkspaceMode
@@ -179,6 +194,7 @@ export interface DevWorkspaceState {
   sourceReady: boolean
   runtimeTargets: Runtime[]
   files: DevWorkspaceFileStatus[]
+  toolchain: DevToolchainStatus
   modulePlan: ProjectModulePlan
   moduleCatalog: DevModuleCatalogStatus
   moduleWorkspace: DevModuleWorkspaceStatus

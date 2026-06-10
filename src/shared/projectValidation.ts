@@ -141,6 +141,32 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
+    if (expectsCodeWorkspace && !input.devWorkspace.toolchain.javaAvailable) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Toolchain',
+        message: 'Java is not available for Gradle builds.',
+        fix: `Install Java ${input.devWorkspace.toolchain.requiredJavaVersion} or add it to PATH before running local build and preview tasks.`,
+        aiFixable: false
+      })
+    } else if (expectsCodeWorkspace && !input.devWorkspace.toolchain.javaMeetsRequirement) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Toolchain',
+        message: `Java ${input.devWorkspace.toolchain.javaVersion ?? 'version'} is below the generated target ${input.devWorkspace.toolchain.requiredJavaVersion}.`,
+        fix: `Use Java ${input.devWorkspace.toolchain.requiredJavaVersion} for generated Gradle workspaces.`,
+        aiFixable: false
+      })
+    }
+    if (expectsCodeWorkspace && !input.devWorkspace.toolchain.gradleAvailable) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Toolchain',
+        message: 'No Gradle launcher is available for local build tasks.',
+        fix: 'Run Dev Workspace setup to generate the pinned Gradle launcher, or install Gradle on PATH.',
+        aiFixable: false
+      })
+    }
     if (input.devWorkspace.runtimeLaunchers.nativeExpected && !input.devWorkspace.runtimeLaunchers.nativeConfigured) {
       extra.push({
         level: 'WARNING',

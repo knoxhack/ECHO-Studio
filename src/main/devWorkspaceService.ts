@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevModuleCatalogStatus, type DevModuleLock, type DevModuleLockStatus, type DevModuleWorkspaceMap, type DevModuleWorkspaceStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { DEV_TASKS, type DevArtifact, type DevModuleCatalogStatus, type DevModuleLock, type DevModuleLockStatus, type DevModuleWorkspaceMap, type DevModuleWorkspaceStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevToolchainStatus, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { AddonManifest, Runtime } from '../shared/types'
@@ -373,6 +373,112 @@ function parseGradleProperties(text: string): Record<string, string> {
     if (key) properties[key] = value
   }
   return properties
+}
+
+interface ToolchainProbe {
+  javaAvailable: boolean
+  javaVersion?: string
+  javaMajorVersion?: number
+  systemGradleAvailable: boolean
+  systemGradleVersion?: string
+}
+
+let toolchainProbeCache: { at: number; value: ToolchainProbe } | null = null
+
+function parseJavaVersion(output: string): { version?: string; majorVersion?: number } {
+  const match = output.match(/(?:openjdk|java)\s+version\s+"?([0-9][^"\s]*)/i) ?? output.match(/\b([0-9]+(?:\.[0-9]+)+)\b/)
+  const version = match?.[1]
+  if (!version) return {}
+  const parts = version.split('.').map((part) => Number.parseInt(part, 10))
+  const majorVersion = parts[0] === 1 ? parts[1] : parts[0]
+  return Number.isFinite(majorVersion) ? { version, majorVersion } : { version }
+}
+
+function parseGradleVersion(output: string): string | undefined {
+  return output.match(/\bGradle\s+([0-9][^\s\r\n]*)/i)?.[1]
+}
+
+function probeCommand(command: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; output: string }> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(command, args, { windowsHide: true })
+    } catch {
+      resolve({ ok: false, output: '' })
+      return
+    }
+    let output = ''
+    let settled = false
+    function finish(ok: boolean): void {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve({ ok, output })
+    }
+    const timeout = setTimeout(() => {
+      child.kill()
+      finish(false)
+    }, timeoutMs)
+    child.stdout?.on('data', (chunk) => { output += String(chunk) })
+    child.stderr?.on('data', (chunk) => { output += String(chunk) })
+    child.on('close', (code) => {
+      finish(code === 0)
+    })
+    child.on('error', () => {
+      finish(false)
+    })
+  })
+}
+
+async function systemToolchainProbe(): Promise<ToolchainProbe> {
+  const now = Date.now()
+  if (toolchainProbeCache && now - toolchainProbeCache.at < 30000) return toolchainProbeCache.value
+
+  const gradleExecutable = process.platform === 'win32' ? 'gradle.cmd' : 'gradle'
+  const [java, gradle] = await Promise.all([
+    probeCommand('java', ['-version'], 2500),
+    probeCommand(gradleExecutable, ['--version'], 2500)
+  ])
+  const javaVersion = java.ok ? parseJavaVersion(java.output) : {}
+  const value: ToolchainProbe = {
+    javaAvailable: java.ok,
+    ...(javaVersion.version ? { javaVersion: javaVersion.version } : {}),
+    ...(javaVersion.majorVersion ? { javaMajorVersion: javaVersion.majorVersion } : {}),
+    systemGradleAvailable: gradle.ok,
+    ...(gradle.ok && parseGradleVersion(gradle.output) ? { systemGradleVersion: parseGradleVersion(gradle.output) } : {})
+  }
+  toolchainProbeCache = { at: now, value }
+  return value
+}
+
+async function toolchainStatus(projectPath: string, hasGradleWrapper: boolean): Promise<DevToolchainStatus> {
+  const properties = parseGradleProperties(await readText(join(projectPath, 'gradle.properties')))
+  const requiredJavaVersion = Number.parseInt(properties.java_language_version ?? '25', 10) || 25
+  const probe = await systemToolchainProbe()
+  const javaMeetsRequirement = Boolean(probe.javaMajorVersion && probe.javaMajorVersion >= requiredJavaVersion)
+  const gradleAvailable = hasGradleWrapper || probe.systemGradleAvailable
+  const issues = [
+    !probe.javaAvailable ? 'Java is not available on PATH.' : '',
+    probe.javaAvailable && !javaMeetsRequirement
+      ? `Java ${probe.javaVersion ?? 'version'} is below the generated target ${requiredJavaVersion}.`
+      : '',
+    !gradleAvailable ? 'No generated Gradle launcher or system Gradle was found.' : ''
+  ].filter(Boolean)
+
+  return {
+    schemaVersion: 'echo.studio.toolchain.status.v1',
+    requiredJavaVersion,
+    ...(process.env.JAVA_HOME ? { javaHome: process.env.JAVA_HOME } : {}),
+    javaAvailable: probe.javaAvailable,
+    ...(probe.javaVersion ? { javaVersion: probe.javaVersion } : {}),
+    ...(probe.javaMajorVersion ? { javaMajorVersion: probe.javaMajorVersion } : {}),
+    javaMeetsRequirement,
+    gradleWrapper: hasGradleWrapper,
+    gradleAvailable,
+    ...(probe.systemGradleVersion ? { gradleVersion: probe.systemGradleVersion } : {}),
+    gradleCommand: hasGradleWrapper ? (process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew') : 'gradle',
+    issues
+  }
 }
 
 async function runtimeLauncherStatus(
@@ -827,6 +933,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const lockStatus = await moduleLockStatus(projectPath, manifest, modulePlan, mode)
   const moduleWorkspace = await moduleWorkspaceStatus(projectPath, manifest, modulePlan)
   const runtimeLaunchers = await runtimeLauncherStatus(projectPath, runtimes, mode)
+  const toolchain = await toolchainStatus(projectPath, hasGradleWrapper)
   return {
     ready: Boolean(parsed.lastSetupAt) && expectedReady && lockStatus.upToDate && moduleWorkspace.upToDate,
     mode,
@@ -836,6 +943,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     sourceReady,
     runtimeTargets: runtimes,
     files,
+    toolchain,
     modulePlan,
     moduleCatalog: moduleCatalogStatus(moduleCatalog),
     moduleWorkspace,

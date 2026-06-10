@@ -119,6 +119,16 @@ export default function DevWorkspace(): JSX.Element {
       ? state.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
       : 'Missing'
     : '...'
+  const toolchainReady = Boolean(state?.toolchain.javaMeetsRequirement && state.toolchain.gradleAvailable)
+  const toolchainValue = state
+    ? toolchainReady
+      ? 'Ready'
+      : !state.toolchain.javaAvailable
+        ? 'Java Missing'
+        : !state.toolchain.javaMeetsRequirement
+          ? `Java ${state.toolchain.requiredJavaVersion} Needed`
+          : 'Gradle Missing'
+    : '...'
   const launcherValue = state
     ? state.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
     : '...'
@@ -139,6 +149,9 @@ export default function DevWorkspace(): JSX.Element {
     if (!state) return 'Inspecting workspace.'
     if (taskId === 'modules:validate' && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
+    if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaAvailable) return `Install Java ${state.toolchain.requiredJavaVersion} or add it to PATH.`
+    if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaMeetsRequirement) return `Use Java ${state.toolchain.requiredJavaVersion} for this generated workspace.`
+    if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.gradleAvailable) return 'Run setup to generate the pinned Gradle launcher or install Gradle.'
     if (taskId === 'gradle:moduleWorkspace' && !state.moduleWorkspace.upToDate) return 'Run setup to refresh the module workspace map.'
     if (taskId === 'gradle:runClient' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'gradle:runServer' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
@@ -168,8 +181,8 @@ export default function DevWorkspace(): JSX.Element {
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Workspace" value={state?.ready ? 'Ready' : 'Needs Setup'} tone={readyTone} />
         <Metric label="Gradle" value={gradleValue} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Toolchain" value={toolchainValue} tone={toolchainReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Launchers" value={launcherValue} tone={state?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
-        <Metric label="Expected Files" value={state ? `${expectedFiles.filter((file) => file.exists).length}/${expectedFiles.length}` : '...'} tone={state?.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
@@ -215,6 +228,15 @@ export default function DevWorkspace(): JSX.Element {
               Generated workspace is missing: {workspaceLauncherIssues.join(', ')}.
               <div className="fix">
                 Set runtime executable paths in Settings and run Set Up Workspace to update {state?.runtimeLaunchers.gradlePropertiesPath}.
+              </div>
+            </div>
+          )}
+          {state && state.mode !== 'visual' && state.toolchain.issues.length > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">WARNING</span>
+              Toolchain needs attention: {state.toolchain.issues.join(' ')}
+              <div className="fix">
+                Required Java: {state.toolchain.requiredJavaVersion}. Gradle command: {state.toolchain.gradleCommand}.
               </div>
             </div>
           )}

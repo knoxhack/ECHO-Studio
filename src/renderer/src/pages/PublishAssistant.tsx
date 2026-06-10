@@ -288,6 +288,19 @@ export default function PublishAssistant(): JSX.Element {
             }
           />
           <StepRow
+            done={Boolean(workspace && (workspace.mode === 'visual' || (workspace.toolchain.javaMeetsRequirement && workspace.toolchain.gradleAvailable)))}
+            label="Local toolchain"
+            detail={
+              workspace
+                ? workspace.mode === 'visual'
+                  ? 'Visual mode does not require Java or Gradle tasks.'
+                  : workspace.toolchain.issues.length > 0
+                    ? workspace.toolchain.issues.join(' ')
+                    : `Java ${workspace.toolchain.javaVersion ?? workspace.toolchain.requiredJavaVersion} and ${workspace.toolchain.gradleCommand} are ready.`
+                : 'Inspecting Java and Gradle availability.'
+            }
+          />
+          <StepRow
             done={Boolean(workspace?.moduleLock.upToDate)}
             label="Module lock"
             detail={

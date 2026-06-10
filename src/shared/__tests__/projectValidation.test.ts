@@ -35,6 +35,19 @@ function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspa
     sourceReady: true,
     runtimeTargets: ['neoforge'],
     files: [],
+    toolchain: {
+      schemaVersion: 'echo.studio.toolchain.status.v1',
+      requiredJavaVersion: 25,
+      javaAvailable: true,
+      javaVersion: '25.0.1',
+      javaMajorVersion: 25,
+      javaMeetsRequirement: true,
+      gradleWrapper: true,
+      gradleAvailable: true,
+      gradleVersion: '9.1.0',
+      gradleCommand: '.\\gradlew.bat',
+      issues: []
+    },
     modulePlan: {
       declared: [],
       normalizedDeclared: [],
@@ -250,6 +263,29 @@ describe('runProjectCheck', () => {
     expect(report.issues.some((i) => i.message === 'ECHO Native preview executable is not configured in the generated workspace.')).toBe(true)
     expect(report.issues.some((i) => i.message === 'Standalone preview executable is not configured in the generated workspace.')).toBe(true)
     expect(report.issues.find((i) => i.message.includes('ECHO Native preview executable'))?.file).toBe('gradle.properties')
+  })
+
+  it('warns when Java is missing for generated Gradle workspaces', () => {
+    const workspace = makeDevWorkspace([])
+    workspace.toolchain = {
+      ...workspace.toolchain,
+      javaAvailable: false,
+      javaVersion: undefined,
+      javaMajorVersion: undefined,
+      javaMeetsRequirement: false,
+      issues: ['Java is not available on PATH.']
+    }
+
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: workspace
+    })
+
+    expect(report.issues.some((i) => i.message === 'Java is not available for Gradle builds.')).toBe(true)
+    expect(report.issues.find((i) => i.message === 'Java is not available for Gradle builds.')?.fix).toContain('Java 25')
   })
 
   it('warns when the ECHO module workspace map is missing', () => {

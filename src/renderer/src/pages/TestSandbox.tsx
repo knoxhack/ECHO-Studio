@@ -114,6 +114,9 @@ export default function TestSandbox(): JSX.Element {
     if (!activeProject) return 'Select a project first.'
     if (!devWorkspace) return 'Inspecting workspace.'
     if (!devWorkspace.gradleReady) return 'Set up a Gradle workspace first.'
+    if (!devWorkspace.toolchain.javaAvailable) return `Install Java ${devWorkspace.toolchain.requiredJavaVersion} or add it to PATH.`
+    if (!devWorkspace.toolchain.javaMeetsRequirement) return `Use Java ${devWorkspace.toolchain.requiredJavaVersion} for this generated workspace.`
+    if (!devWorkspace.toolchain.gradleAvailable) return 'Run Dev Workspace setup to generate the pinned Gradle launcher or install Gradle.'
     if (taskId === 'gradle:runClient' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
     if (taskId === 'gradle:runServer' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
     if (taskId === 'preview:native' && !devWorkspace.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
@@ -147,6 +150,16 @@ export default function TestSandbox(): JSX.Element {
       ? devWorkspace.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
       : 'Missing'
     : '...'
+  const toolchainReady = Boolean(devWorkspace?.toolchain.javaMeetsRequirement && devWorkspace.toolchain.gradleAvailable)
+  const toolchainValue = devWorkspace
+    ? toolchainReady
+      ? 'Ready'
+      : !devWorkspace.toolchain.javaAvailable
+        ? 'Java Missing'
+        : !devWorkspace.toolchain.javaMeetsRequirement
+          ? `Java ${devWorkspace.toolchain.requiredJavaVersion} Needed`
+          : 'Gradle Missing'
+    : '...'
   const launcherValue = devWorkspace
     ? devWorkspace.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
     : '...'
@@ -178,7 +191,7 @@ export default function TestSandbox(): JSX.Element {
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Workspace" value={devWorkspace?.ready ? 'Ready' : 'Needs Setup'} tone={devWorkspace?.ready ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Gradle" value={gradleValue} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
-        <Metric label="Runtime Targets" value={devWorkspace?.runtimeTargets.length ? String(devWorkspace.runtimeTargets.length) : '0'} tone={devWorkspace?.runtimeTargets.length ? 'var(--accent)' : 'var(--warn)'} />
+        <Metric label="Toolchain" value={toolchainValue} tone={toolchainReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Launchers" value={launcherValue} tone={devWorkspace?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>
 

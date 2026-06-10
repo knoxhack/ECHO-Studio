@@ -43,6 +43,19 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
     sourceReady: true,
     runtimeTargets: ['neoforge'],
     files: [],
+    toolchain: {
+      schemaVersion: 'echo.studio.toolchain.status.v1',
+      requiredJavaVersion: 25,
+      javaAvailable: true,
+      javaVersion: '25.0.1',
+      javaMajorVersion: 25,
+      javaMeetsRequirement: true,
+      gradleWrapper: true,
+      gradleAvailable: true,
+      gradleVersion: '9.1.0',
+      gradleCommand: '.\\gradlew.bat',
+      issues: []
+    },
     modulePlan: {
       declared: ['echo:core'],
       normalizedDeclared: ['echocore'],
