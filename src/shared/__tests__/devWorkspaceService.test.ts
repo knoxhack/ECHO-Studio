@@ -77,6 +77,17 @@ describe('setupDevWorkspace', () => {
       expect(result.state.files.find((file) => file.path === 'META-INF/echo-addon-package.json')?.expected).toBe(false)
       await expect(fs.access(path.join(project, 'build.gradle'))).resolves.toBeUndefined()
       await expect(fs.access(path.join(project, 'META-INF', 'echo-addon-package.json'))).rejects.toThrow()
+
+      const gradleProperties = await fs.readFile(path.join(project, 'gradle.properties'), 'utf8')
+      const gradlewBat = await fs.readFile(path.join(project, 'gradlew.bat'), 'utf8')
+      const gradlewSh = await fs.readFile(path.join(project, 'gradlew'), 'utf8')
+      expect(gradleProperties).toContain('echo_gradle_version=9.1.0')
+      expect(gradlewBat).toContain('https://services.gradle.org/distributions/gradle-9.1.0-bin.zip')
+      expect(gradlewBat).toContain('.gradle\\studio')
+      expect(gradlewBat).not.toContain('where gradle')
+      expect(gradlewSh).toContain('https://services.gradle.org/distributions/gradle-9.1.0-bin.zip')
+      expect(gradlewSh).toContain('.gradle/studio')
+      expect(gradlewSh).not.toContain('command -v gradle')
     })
   })
 

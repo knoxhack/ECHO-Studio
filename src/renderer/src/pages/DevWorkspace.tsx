@@ -13,8 +13,8 @@ const RUNTIME_OPTIONS: Array<{ id: Runtime; label: string }> = [
 
 const MODES: Array<{ id: DevWorkspaceMode; label: string; description: string }> = [
   { id: 'visual', label: 'Visual Only', description: 'Keep code optional and use builders, validation, preview, and release tools.' },
-  { id: 'gradle', label: 'Gradle Project', description: 'Generate Gradle files, source folders, resources, scripts, and local build tasks.' },
-  { id: 'full', label: 'Full Developer Workspace', description: 'Generate Gradle setup plus multi-runtime preview and release scaffolding.' }
+  { id: 'gradle', label: 'Gradle Project', description: 'Generate pinned Gradle launchers, source folders, resources, scripts, and local build tasks.' },
+  { id: 'full', label: 'Full Developer Workspace', description: 'Generate pinned Gradle setup plus multi-runtime preview and release scaffolding.' }
 ]
 
 export default function DevWorkspace(): JSX.Element {
@@ -106,6 +106,11 @@ export default function DevWorkspace(): JSX.Element {
   }
 
   const readyTone = state?.ready ? 'var(--good)' : 'var(--warn)'
+  const gradleValue = state
+    ? state.gradleReady
+      ? state.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
+      : 'Missing'
+    : '...'
   const expectedFiles = state?.files.filter((file) => file.expected) ?? []
   const optionalFiles = state?.files.filter((file) => !file.expected) ?? []
 
@@ -137,7 +142,7 @@ export default function DevWorkspace(): JSX.Element {
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Workspace" value={state?.ready ? 'Ready' : 'Needs Setup'} tone={readyTone} />
-        <Metric label="Gradle" value={state?.gradleReady ? 'Ready' : 'Missing'} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Gradle" value={gradleValue} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Source" value={state?.sourceReady ? 'Ready' : 'Missing'} tone={state?.sourceReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Expected Files" value={state ? `${expectedFiles.filter((file) => file.exists).length}/${expectedFiles.length}` : '...'} tone={state?.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>

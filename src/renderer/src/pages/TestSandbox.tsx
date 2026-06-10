@@ -140,6 +140,12 @@ export default function TestSandbox(): JSX.Element {
     nav('/codex', { state: { prefilled: prompt } })
   }
 
+  const gradleValue = devWorkspace
+    ? devWorkspace.gradleReady
+      ? devWorkspace.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
+      : 'Missing'
+    : '...'
+
   if (!activeProject) {
     return (
       <Page title="Preview" subtitle="Test runtime profiles, dependency loading, content registration, runtime launches, and log output before packaging.">
@@ -166,7 +172,7 @@ export default function TestSandbox(): JSX.Element {
       <ActiveBar />
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Workspace" value={devWorkspace?.ready ? 'Ready' : 'Needs Setup'} tone={devWorkspace?.ready ? 'var(--good)' : 'var(--warn)'} />
-        <Metric label="Gradle" value={devWorkspace?.gradleReady ? 'Ready' : 'Missing'} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Gradle" value={gradleValue} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Runtime Targets" value={devWorkspace?.runtimeTargets.length ? String(devWorkspace.runtimeTargets.length) : '0'} tone={devWorkspace?.runtimeTargets.length ? 'var(--accent)' : 'var(--warn)'} />
         <Metric label="Artifacts" value={String(devWorkspace?.artifacts.length ?? 0)} />
       </div>
