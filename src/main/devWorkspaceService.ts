@@ -511,6 +511,7 @@ async function moduleWorkspaceStatus(
     localModuleCount: workspace?.localModuleCount ?? 0,
     gradleBuildCount: workspace?.gradleBuildCount ?? workspace?.modules.filter((mod) => mod.gradleBuild).length ?? 0,
     gradleDependencyReadyCount: workspace?.gradleDependencyReadyCount ?? workspace?.modules.filter((mod) => mod.gradleDependencyReady).length ?? 0,
+    modules: workspace?.modules ?? [],
     expectedModuleIds,
     mappedModuleIds,
     missingFromMap: diff.missing,

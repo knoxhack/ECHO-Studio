@@ -86,7 +86,12 @@ export default function Modules(): JSX.Element {
   }, [activeProject])
 
   const plan = useMemo(() => manifest ? resolveProjectModulePlan(manifest, catalog) : null, [manifest, catalog])
+  const workspaceModulesById = useMemo(
+    () => new Map((devWorkspace?.moduleWorkspace.modules ?? []).map((mod) => [mod.id, mod])),
+    [devWorkspace?.moduleWorkspace.modules]
+  )
   const selected = findEchoModule(selectedId, catalog) ?? catalog[0] ?? ECHO_MODULE_CATALOG[0]
+  const selectedWorkspaceModule = workspaceModulesById.get(selected.id)
   const enabledIds = new Set(plan?.enabled.map((mod) => mod.id) ?? [])
 
   if (!activeProject) {
@@ -425,6 +430,7 @@ export default function Modules(): JSX.Element {
         <div className="grid cols-2">
           {filtered.map((mod) => {
             const enabled = enabledIds.has(mod.id)
+            const workspaceMod = workspaceModulesById.get(mod.id)
             return (
               <button
                 key={mod.id}
@@ -443,6 +449,9 @@ export default function Modules(): JSX.Element {
                   {mod.trustLevel && <span className={`badge ${trustBadgeClass(mod)}`}>{mod.trustLevel}</span>}
                   {(mod.blocked || mod.trustLevel === 'blocked') && <span className="badge fixes">Blocked</span>}
                   {mod.standaloneReady && <span className="badge ready">Standalone</span>}
+                  {workspaceMod?.localSource && <span className="badge ready">Local source</span>}
+                  {workspaceMod?.gradleBuild && <span className="badge ready">Gradle</span>}
+                  {workspaceMod?.gradleBuild && !workspaceMod.gradleDependencyReady && <span className="badge fixes">Dependency gap</span>}
                 </div>
               </button>
             )
@@ -464,6 +473,53 @@ export default function Modules(): JSX.Element {
             <div>Launcher visible: {selected.launcherVisible ? 'yes' : 'no'}</div>
             <div>Ashfall required: {selected.ashfallRequired ? 'yes' : 'no'}</div>
           </div>
+
+          {selectedWorkspaceModule && (
+            <>
+              <div className="section-title">Local Source Link</div>
+              <div className="btn-row" style={{ marginBottom: 8 }}>
+                <span className={`badge ${selectedWorkspaceModule.localSource ? 'ready' : 'local'}`}>
+                  {selectedWorkspaceModule.localSource ? 'Local source' : 'Catalog metadata'}
+                </span>
+                {selectedWorkspaceModule.gradleBuild && <span className="badge ready">Gradle build</span>}
+                {selectedWorkspaceModule.dependencyNotation && <span className="badge ready">{selectedWorkspaceModule.dependencyNotation}</span>}
+                {selectedWorkspaceModule.gradleBuild && !selectedWorkspaceModule.gradleDependencyReady && <span className="badge fixes">Dependency gap</span>}
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.9 }}>
+                {selectedWorkspaceModule.moduleDir && (
+                  <div>Module folder: <span className="mono">{selectedWorkspaceModule.moduleDir}</span></div>
+                )}
+                {selectedWorkspaceModule.descriptorPath && (
+                  <div>Descriptor: <span className="mono">{selectedWorkspaceModule.descriptorPath}</span></div>
+                )}
+                {selectedWorkspaceModule.gradleBuildPath && (
+                  <div>Gradle build: <span className="mono">{selectedWorkspaceModule.gradleBuildPath}</span></div>
+                )}
+                {selectedWorkspaceModule.gradleProjectPath && (
+                  <div>Gradle project: <span className="mono">{selectedWorkspaceModule.gradleProjectPath}</span></div>
+                )}
+              </div>
+              {(selectedWorkspaceModule.missingGradleProjectDependencies?.length ?? 0) > 0 && (
+                <div className="issue WARNING" style={{ marginTop: 10 }}>
+                  <span className="lvl">GRADLE</span>
+                  Missing local project dependency: {selectedWorkspaceModule.missingGradleProjectDependencies?.join(', ')}.
+                  <div className="fix">Add the missing module projects to the selected closure, then refresh locks and map.</div>
+                </div>
+              )}
+              <div className="btn-row" style={{ marginTop: 10 }}>
+                {selectedWorkspaceModule.moduleDir && (
+                  <button className="btn ghost" onClick={() => window.studio.openPath(selectedWorkspaceModule.moduleDir!)}>
+                    Open Local Source
+                  </button>
+                )}
+                {selectedWorkspaceModule.gradleBuildPath && (
+                  <button className="btn ghost" onClick={() => window.studio.openPath(selectedWorkspaceModule.gradleBuildPath!)}>
+                    Open Gradle Build
+                  </button>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="section-title">Provides</div>
           {(selected.blocked || selected.trustLevel === 'blocked') && (

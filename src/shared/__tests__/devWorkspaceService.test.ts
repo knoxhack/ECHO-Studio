@@ -388,6 +388,13 @@ describe('setupDevWorkspace', () => {
           moduleDir: path.join(modulesRoot, 'addons', 'echocore'),
           descriptorPath
         })
+        expect(result.state.moduleWorkspace.modules?.[0]).toMatchObject({
+          id: 'echocore',
+          localSource: true,
+          gradleBuild: true,
+          gradleBuildPath: path.join(modulesRoot, 'addons', 'echocore', 'build.gradle'),
+          dependencyNotation: 'project(":echocore")'
+        })
         expect(settingsGradle).toContain('include(projectPath)')
         expect(settingsGradle).toContain('project(projectPath).projectDir = moduleRoot')
         expect(settingsGradle).toContain('.echo-studio/module-workspace.json')

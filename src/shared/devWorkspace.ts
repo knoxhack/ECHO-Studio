@@ -161,6 +161,7 @@ export interface DevModuleWorkspaceStatus {
   localModuleCount: number
   gradleBuildCount?: number
   gradleDependencyReadyCount?: number
+  modules?: DevModuleWorkspaceModule[]
   expectedModuleIds: string[]
   mappedModuleIds: string[]
   missingFromMap: string[]
