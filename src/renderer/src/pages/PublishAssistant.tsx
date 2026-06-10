@@ -142,6 +142,7 @@ export default function PublishAssistant(): JSX.Element {
   const readinessReport = pkg?.report ?? preflight
   const moduleClosure = workspace?.modulePlan.closure ?? []
   const blockedModules = moduleClosure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
+  const gradleDependencyIssues = workspace?.moduleWorkspace.gradleDependencyIssues ?? []
   const moduleReady = Boolean(
     workspace &&
     workspace.moduleLock.upToDate &&
@@ -538,6 +539,17 @@ export default function PublishAssistant(): JSX.Element {
               Unknown module dependencies: {workspace.modulePlan.unknown.join(', ')}.
             </div>
           ) : null}
+          {gradleDependencyIssues.length > 0 && (
+            <div className="issue WARNING" style={{ marginBottom: 12 }}>
+              <span className="lvl">GRADLE</span>
+              Local module compile links are incomplete.
+              <div className="fix">
+                {gradleDependencyIssues.map((issue) => (
+                  `${issue.moduleName} missing ${issue.missingProjectDependencies.join(', ')}`
+                )).join('; ')}.
+              </div>
+            </div>
+          )}
 
           <div className="btn-row">
             {moduleClosure.map((mod) => (

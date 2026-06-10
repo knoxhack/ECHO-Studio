@@ -256,6 +256,17 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
+    const gradleDependencyIssues = input.devWorkspace.moduleWorkspace.gradleDependencyIssues ?? []
+    if (expectsCodeWorkspace && gradleDependencyIssues.length > 0) {
+      extra.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: 'Some local ECHO module builds are not wired as Gradle compile dependencies.',
+        fix: `Add the missing local Gradle project dependencies to the selected module closure, then run Set Up Workspace again: ${gradleDependencyIssues.map((issue) => `${issue.moduleId} missing ${issue.missingProjectDependencies.join(', ')}`).join('; ')}.`,
+        file: input.devWorkspace.moduleWorkspace.path,
+        aiFixable: false
+      })
+    }
     const checkArtifactReadiness = input.artifactReadiness !== 'packaging'
     if (checkArtifactReadiness && input.devWorkspace.artifacts.length === 0) {
       extra.push({

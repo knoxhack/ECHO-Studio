@@ -424,4 +424,32 @@ describe('runProjectCheck', () => {
     expect(report.issues.some((i) => i.message === 'ECHO module workspace map has not been generated.')).toBe(true)
     expect(report.issues.find((i) => i.message === 'ECHO module workspace map has not been generated.')?.file).toBe('.echo-studio/module-workspace.json')
   })
+
+  it('warns when local module Gradle project dependencies are unresolved', () => {
+    const workspace = makeDevWorkspace([])
+    workspace.moduleWorkspace = {
+      ...workspace.moduleWorkspace,
+      gradleBuildCount: 1,
+      gradleDependencyReadyCount: 0,
+      gradleDependencyIssues: [{
+        moduleId: 'echocore',
+        moduleName: 'Core',
+        projectPath: ':echocore',
+        missingProjectDependencies: [':echo-native-contracts']
+      }]
+    }
+
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: workspace
+    })
+
+    const issue = report.issues.find((item) => item.message === 'Some local ECHO module builds are not wired as Gradle compile dependencies.')
+    expect(issue?.level).toBe('WARNING')
+    expect(issue?.file).toBe('.echo-studio/module-workspace.json')
+    expect(issue?.fix).toContain('echocore missing :echo-native-contracts')
+  })
 })

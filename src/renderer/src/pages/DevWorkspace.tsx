@@ -227,6 +227,7 @@ export default function DevWorkspace(): JSX.Element {
     : []
   const blockedModules = state?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
   const moduleGateReason = state ? moduleReadinessDisabledReason(state, 'running local build, preview, or package tasks') : null
+  const gradleDependencyIssues = state?.moduleWorkspace.gradleDependencyIssues ?? []
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
@@ -425,6 +426,17 @@ export default function DevWorkspace(): JSX.Element {
                     Run Set Up Workspace to refresh {state.moduleWorkspace.path}.
                     {state.moduleWorkspace.missingFromMap.length > 0 ? ` Missing: ${state.moduleWorkspace.missingFromMap.join(', ')}.` : ''}
                     {state.moduleWorkspace.extraInMap.length > 0 ? ` Extra: ${state.moduleWorkspace.extraInMap.join(', ')}.` : ''}
+                  </div>
+                </div>
+              )}
+              {gradleDependencyIssues.length > 0 && (
+                <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                  <span className="lvl">WARNING</span>
+                  Some local module builds are not wired as compile dependencies.
+                  <div className="fix">
+                    {gradleDependencyIssues.map((issue) => (
+                      `${issue.moduleName} missing ${issue.missingProjectDependencies.join(', ')}`
+                    )).join('; ')}. Add those local projects to the selected module closure, then run Set Up Workspace again.
                   </div>
                 </div>
               )}

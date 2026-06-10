@@ -281,7 +281,8 @@ describe('setupDevWorkspace', () => {
           moduleCount: 1,
           localModuleCount: 1,
           gradleBuildCount: 1,
-          gradleDependencyReadyCount: 1
+          gradleDependencyReadyCount: 1,
+          gradleDependencyIssues: []
         })
         expect(moduleWorkspace.localModuleCount).toBe(1)
         expect(moduleWorkspace.gradleBuildCount).toBe(1)
@@ -361,7 +362,13 @@ describe('setupDevWorkspace', () => {
 
         expect(result.state.moduleWorkspace).toMatchObject({
           gradleBuildCount: 1,
-          gradleDependencyReadyCount: 0
+          gradleDependencyReadyCount: 0,
+          gradleDependencyIssues: [{
+            moduleId: 'echocore',
+            moduleName: 'Core',
+            projectPath: ':echocore',
+            missingProjectDependencies: [':echo-native-contracts']
+          }]
         })
         expect(moduleWorkspace.modules[0]).toMatchObject({
           id: 'echocore',

@@ -165,6 +165,12 @@ export interface DevModuleWorkspaceStatus {
   mappedModuleIds: string[]
   missingFromMap: string[]
   extraInMap: string[]
+  gradleDependencyIssues?: Array<{
+    moduleId: string
+    moduleName: string
+    projectPath?: string
+    missingProjectDependencies: string[]
+  }>
   generatedAt?: string
 }
 

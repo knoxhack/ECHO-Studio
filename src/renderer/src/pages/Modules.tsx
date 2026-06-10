@@ -185,6 +185,7 @@ export default function Modules(): JSX.Element {
 
   const workspaceCurrent = Boolean(devWorkspace?.lastSetupAt && devWorkspace.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate)
   const workspaceLabel = !devWorkspace?.lastSetupAt ? 'Not Set Up' : workspaceCurrent ? 'Current' : 'Stale'
+  const gradleDependencyIssues = devWorkspace?.moduleWorkspace.gradleDependencyIssues ?? []
 
   return (
     <Page
@@ -263,6 +264,17 @@ export default function Modules(): JSX.Element {
               <span className="lvl">WARNING</span>
               Module selections changed after workspace setup.
               <div className="fix">Refresh generated module locks and the local source map before running clients, builds, preview, or packaging.</div>
+            </div>
+          )}
+          {gradleDependencyIssues.length > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">GRADLE</span>
+              Some local module builds are not wired into compile dependencies.
+              <div className="fix">
+                {gradleDependencyIssues.map((issue) => (
+                  `${issue.moduleName} missing ${issue.missingProjectDependencies.join(', ')}`
+                )).join('; ')}. Add those projects/modules to the closure, then refresh locks and map.
+              </div>
             </div>
           )}
         </div>

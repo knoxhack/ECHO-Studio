@@ -486,6 +486,14 @@ async function moduleWorkspaceStatus(
   const expectedModuleIds = sortedUnique(plan.closure.map((mod) => mod.id))
   const mappedModuleIds = sortedUnique(workspace?.modules.map((mod) => mod.id) ?? [])
   const diff = diffIds(expectedModuleIds, mappedModuleIds)
+  const gradleDependencyIssues = (workspace?.modules ?? [])
+    .filter((mod) => mod.gradleBuild && !mod.gradleDependencyReady && (mod.missingGradleProjectDependencies?.length ?? 0) > 0)
+    .map((mod) => ({
+      moduleId: mod.id,
+      moduleName: mod.name,
+      ...(mod.gradleProjectPath ? { projectPath: mod.gradleProjectPath } : {}),
+      missingProjectDependencies: mod.missingGradleProjectDependencies ?? []
+    }))
   const projectMatches = Boolean(
     workspace &&
     workspace.project.id === manifest.id &&
@@ -507,6 +515,7 @@ async function moduleWorkspaceStatus(
     mappedModuleIds,
     missingFromMap: diff.missing,
     extraInMap: diff.extra,
+    gradleDependencyIssues,
     generatedAt: workspace?.generatedAt
   }
 }
