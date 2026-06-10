@@ -27,6 +27,7 @@ export default function TestSandbox(): JSX.Element {
   const [profile, setProfile] = useState(config.sandbox?.defaultProfile || PROFILES[0])
   const [running, setRunning] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
+  const [runtimeStopping, setRuntimeStopping] = useState(false)
   const [result, setResult] = useState<SandboxResult | null>(null)
   const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [runtimeRun, setRuntimeRun] = useState<DevTaskRun | null>(null)
@@ -110,6 +111,32 @@ export default function TestSandbox(): JSX.Element {
     }
   }
 
+  const stopRuntime = async (): Promise<void> => {
+    if (!activeProject || !runtimeRun?.logPath) return
+    setRuntimeStopping(true)
+    const res = await window.studio.stopDevTask(activeProject.path, runtimeRun.logPath)
+    setRuntimeStopping(false)
+    if (res.ok && res.data) {
+      const stop = res.data
+      setRuntimeRun((current) =>
+        current && current.logPath === stop.logPath
+          ? {
+              ...current,
+              status: stop.status === 'stopped' ? 'stopped' : current.status,
+              finishedAt: stop.finishedAt ?? current.finishedAt,
+              stdout: `${current.stdout}${current.stdout ? '\n' : ''}${stop.message}`
+            }
+          : current
+      )
+      const log = await window.studio.readDevTaskLog(activeProject.path, stop.logPath)
+      if (log.ok && log.data !== undefined) setRuntimeLog(log.data)
+      toast(stop.message)
+      void inspectDevWorkspace()
+    } else {
+      setError(res.error || 'Unable to stop runtime task.')
+    }
+  }
+
   const runtimeDisabledReason = (taskId: DevTaskId): string | null => {
     if (!activeProject) return 'Select a project first.'
     if (!devWorkspace) return 'Inspecting workspace.'
@@ -163,6 +190,12 @@ export default function TestSandbox(): JSX.Element {
   const launcherValue = devWorkspace
     ? devWorkspace.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
     : '...'
+
+  const taskStatusClass = (status: DevTaskRun['status']): string => {
+    if (status === 'failed') return 'fixes'
+    if (status === 'started' || status === 'stopped') return 'local'
+    return 'ready'
+  }
 
   if (!activeProject) {
     return (
@@ -282,6 +315,11 @@ export default function TestSandbox(): JSX.Element {
             <button className="btn ghost" onClick={() => nav('/dev-workspace')}>
               Open Dev Workspace
             </button>
+            {runtimeRun?.status === 'started' && runtimeRun.logPath && (
+              <button className="btn" disabled={runtimeStopping} onClick={stopRuntime}>
+                {runtimeStopping ? 'Stopping...' : 'Stop Runtime'}
+              </button>
+            )}
             {runtimeRun?.logPath && (
               <button className="btn ghost" onClick={() => window.studio.openPath(runtimeRun.logPath!)}>
                 Open Runtime Log
@@ -294,7 +332,7 @@ export default function TestSandbox(): JSX.Element {
           <h3>Runtime Log</h3>
           {runtimeRun && (
             <div className="btn-row" style={{ marginBottom: 10 }}>
-              <span className={`badge ${runtimeRun.status === 'failed' ? 'fixes' : 'ready'}`}>{runtimeRun.status}</span>
+              <span className={`badge ${taskStatusClass(runtimeRun.status)}`}>{runtimeRun.status}</span>
               <span className="badge">{runtimeRun.command}</span>
               {runtimeRun.pid && <span className="badge">pid {runtimeRun.pid}</span>}
             </div>
