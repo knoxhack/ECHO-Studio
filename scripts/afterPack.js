@@ -1,5 +1,5 @@
 /**
- * afterPack hook — embeds the application icon into the Electron .exe
+ * afterPack hook - embeds the application icon into the Electron .exe
  * using resedit (pure Node.js), bypassing the need for winCodeSign / signtool.
  *
  * This is the same approach used by ECHO Launcher.
@@ -12,7 +12,7 @@ module.exports = async function (context) {
   // Only run for Windows builds
   if (context.electronPlatformName !== 'win32') return
 
-  const exePath = path.join(context.appOutDir, 'ECHO Addon Studio.exe')
+  const exePath = path.join(context.appOutDir, 'ECHO Studio.exe')
   if (!fs.existsSync(exePath)) {
     console.warn('[afterPack] Executable not found:', exePath)
     return

@@ -1,11 +1,12 @@
-ECHO Addon Studio — End User License Agreement
+ECHO Studio - End User License Agreement
 
 Copyright (c) 2024 ECHO Platform. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to use,
-copy, modify, and distribute the Software for the purpose of building addons
-and content for the ECHO Platform, subject to the following conditions:
+copy, modify, and distribute the Software for the purpose of building addons,
+modules, experiences, and content for the ECHO Platform, subject to the
+following conditions:
 
 1. The above copyright notice and this permission notice shall be included in
    all copies or substantial portions of the Software.

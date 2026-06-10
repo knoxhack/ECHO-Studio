@@ -1,4 +1,4 @@
-// Mocked ECHO Addon Assistant. Produces canned, SDK-safe responses.
+// Mocked ECHO Studio Assistant. Produces canned, SDK-safe responses.
 // Real model integration can replace generateAiReply later.
 
 export interface AiAction {
@@ -73,6 +73,6 @@ export function generateAiReply(prompt: string): AiReply {
   }
 
   return {
-    text: `I'm the ECHO Addon Assistant. I can create missions, recipes, Index entries, HoloMap markers, manifests, and fix PackOS issues. ${SAFETY_NOTE}\n\nTry: "Create a mission pack for Ashfall about a lost convoy."`
+    text: `I'm the ECHO Studio Assistant. I can create missions, recipes, Index entries, HoloMap markers, manifests, and fix PackOS issues. ${SAFETY_NOTE}\n\nTry: "Create a mission pack for Ashfall about a lost convoy."`
   }
 }

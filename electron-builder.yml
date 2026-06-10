@@ -1,6 +1,6 @@
-appId: dev.echoplatform.addonstudio
-productName: ECHO Addon Studio
-copyright: Copyright © 2024 ECHO Platform
+appId: dev.echoplatform.studio
+productName: ECHO Studio
+copyright: Copyright (c) 2024 ECHO Platform
 afterPack: scripts/afterPack.js
 directories:
   output: release

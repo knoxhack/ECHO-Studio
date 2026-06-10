@@ -107,7 +107,7 @@ function realCommitSha(value: unknown): string | undefined {
 }
 
 async function sourceCommitSha(projectPath: string): Promise<string | undefined> {
-  const override = realCommitSha(process.env.ECHO_ADDON_STUDIO_COMMIT_SHA)
+  const override = realCommitSha(process.env.ECHO_STUDIO_COMMIT_SHA) ?? realCommitSha(process.env.ECHO_ADDON_STUDIO_COMMIT_SHA)
   if (override) return override
   try {
     const { stdout } = await execFileAsync('git', ['-C', projectPath, 'rev-parse', 'HEAD'], { timeout: 3000 })

@@ -1,4 +1,4 @@
-// Shared domain types for ECHO Addon Studio.
+// Shared domain types for ECHO Studio.
 // Used by both the Electron main process (filesystem) and the renderer (UI).
 
 export type AddonType =

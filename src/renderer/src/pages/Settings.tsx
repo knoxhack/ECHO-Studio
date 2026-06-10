@@ -8,8 +8,14 @@ import type { DeveloperRole } from '@shared/types'
 function validNamespace(ns: string): boolean {
   return /^[a-z][a-z0-9_]*$/.test(ns) && ns.length >= 2 && ns.length <= 32
 }
-function validUrl(u: string): boolean {
-  try { new URL(u); return true } catch { return false }
+
+function validUrl(url: string): boolean {
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
 }
 
 interface UpdateStatus {
@@ -18,7 +24,8 @@ interface UpdateStatus {
   percent?: number
   message?: string
 }
-const ADDON_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
+
+const ECHO_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
 
 export default function Settings(): JSX.Element {
   const { workspaceDir, chooseWorkspace, refresh, profile, config, updateProfile, updateConfig, toast } =
@@ -32,20 +39,20 @@ export default function Settings(): JSX.Element {
     return unsub
   }, [])
 
-  const updateLabel = (u: UpdateStatus): string => {
-    switch (u.status) {
-      case 'checking': return 'Checking for updates…'
-      case 'available': return `Update available: v${u.version}`
-      case 'downloading': return `Downloading… ${u.percent ?? 0}%`
-      case 'downloaded': return `v${u.version} ready to install`
+  const updateLabel = (value: UpdateStatus): string => {
+    switch (value.status) {
+      case 'checking': return 'Checking for updates...'
+      case 'available': return `Update available: v${value.version}`
+      case 'downloading': return `Downloading... ${value.percent ?? 0}%`
+      case 'downloaded': return `v${value.version} ready to install`
       case 'not-available': return 'You are on the latest version.'
-      case 'error': return `Update error: ${u.message}`
-      default: return u.status
+      case 'error': return `Update error: ${value.message}`
+      default: return value.status
     }
   }
 
   return (
-    <Page title="Settings" subtitle="Configure your creator profile, workspace, SDK, AI and sandbox. Changes persist.">
+    <Page title="Settings" subtitle="Configure your creator profile, workspace, SDK, AI, sandbox, and updates. Changes persist.">
       <div className="grid cols-2">
         <div className="card">
           <h3>Account &amp; Creator</h3>
@@ -53,32 +60,41 @@ export default function Settings(): JSX.Element {
             <span>Creator name</span>
             <input
               value={profile.creatorName}
-              onChange={(e) => updateProfile({ creatorName: e.target.value })}
+              onChange={(event) => updateProfile({ creatorName: event.target.value })}
             />
           </label>
           <label className="field">
             <span>Creator namespace</span>
             <input
               value={profile.namespace}
-              onChange={(e) => { updateProfile({ namespace: e.target.value }); setNsTouched(true) }}
+              onChange={(event) => {
+                updateProfile({ namespace: event.target.value })
+                setNsTouched(true)
+              }}
               style={{ borderColor: nsTouched && !validNamespace(profile.namespace) ? 'var(--bad)' : undefined }}
             />
             {nsTouched && !validNamespace(profile.namespace) && (
-              <span style={{ color: 'var(--bad)', fontSize: 12 }}>Namespace must be 2–32 chars, lowercase letters/numbers/underscores, starting with a letter.</span>
+              <span style={{ color: 'var(--bad)', fontSize: 12 }}>
+                Namespace must be 2-32 chars, lowercase letters/numbers/underscores, starting with a letter.
+              </span>
             )}
           </label>
           <label className="field">
             <span>Role</span>
-            <select value={profile.role} onChange={(e) => updateProfile({ role: e.target.value as DeveloperRole })}>
-              {(Object.keys(ROLE_LABELS) as DeveloperRole[]).map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABELS[r]}
+            <select value={profile.role} onChange={(event) => updateProfile({ role: event.target.value as DeveloperRole })}>
+              {(Object.keys(ROLE_LABELS) as DeveloperRole[]).map((role) => (
+                <option key={role} value={role}>
+                  {ROLE_LABELS[role]}
                 </option>
               ))}
             </select>
           </label>
           <label className="checkbox">
-            <input type="checkbox" checked={profile.verified} onChange={(e) => updateProfile({ verified: e.target.checked, verifiedBy: e.target.checked ? 'ECHO Labs' : undefined })} />
+            <input
+              type="checkbox"
+              checked={profile.verified}
+              onChange={(event) => updateProfile({ verified: event.target.checked, verifiedBy: event.target.checked ? 'ECHO Labs' : undefined })}
+            />
             Verified creator
           </label>
         </div>
@@ -99,7 +115,11 @@ export default function Settings(): JSX.Element {
         <div className="card">
           <h3>AI Assistant</h3>
           <label className="checkbox">
-            <input type="checkbox" checked={config.ai.enabled} onChange={(e) => updateConfig({ ai: { ...config.ai, enabled: e.target.checked } })} />
+            <input
+              type="checkbox"
+              checked={config.ai.enabled}
+              onChange={(event) => updateConfig({ ai: { ...config.ai, enabled: event.target.checked } })}
+            />
             Enable AI assistant
           </label>
           <label className="field">
@@ -107,15 +127,18 @@ export default function Settings(): JSX.Element {
             <input
               type="password"
               value={config.ai.apiKey}
-              placeholder="sk-…  (leave blank to run offline)"
-              onChange={(e) => updateConfig({ ai: { ...config.ai, apiKey: e.target.value } })}
+              placeholder="sk-...  (leave blank to run offline)"
+              onChange={(event) => updateConfig({ ai: { ...config.ai, apiKey: event.target.value } })}
             />
           </label>
           <label className="field">
             <span>Base URL</span>
             <input
               value={config.ai.baseUrl}
-              onChange={(e) => { updateConfig({ ai: { ...config.ai, baseUrl: e.target.value } }); setUrlTouched(true) }}
+              onChange={(event) => {
+                updateConfig({ ai: { ...config.ai, baseUrl: event.target.value } })
+                setUrlTouched(true)
+              }}
               style={{ borderColor: urlTouched && !validUrl(config.ai.baseUrl) ? 'var(--bad)' : undefined }}
             />
             {urlTouched && !validUrl(config.ai.baseUrl) && (
@@ -124,10 +147,10 @@ export default function Settings(): JSX.Element {
           </label>
           <label className="field">
             <span>Model</span>
-            <input value={config.ai.model} onChange={(e) => updateConfig({ ai: { ...config.ai, model: e.target.value } })} />
+            <input value={config.ai.model} onChange={(event) => updateConfig({ ai: { ...config.ai, model: event.target.value } })} />
           </label>
           <p className="dim" style={{ fontSize: 12 }}>
-            {config.ai.apiKey ? 'Model-powered generation enabled.' : 'No key set — the assistant runs offline with deterministic generation.'}
+            {config.ai.apiKey ? 'Model-powered generation enabled.' : 'No key set - the assistant runs offline with deterministic generation.'}
           </p>
         </div>
 
@@ -138,12 +161,16 @@ export default function Settings(): JSX.Element {
             <div>Target SDK: <b>{config.sdk.targetVersion}</b></div>
           </div>
           <label className="checkbox">
-            <input type="checkbox" checked={config.sdk.autoUpdate} onChange={(e) => updateConfig({ sdk: { ...config.sdk, autoUpdate: e.target.checked } })} />
+            <input
+              type="checkbox"
+              checked={config.sdk.autoUpdate}
+              onChange={(event) => updateConfig({ sdk: { ...config.sdk, autoUpdate: event.target.checked } })}
+            />
             Auto-update SDK
           </label>
           <label className="field" style={{ marginTop: 8 }}>
             <span>Default sandbox profile</span>
-            <select value={config.sandbox.defaultProfile} onChange={(e) => updateConfig({ sandbox: { ...config.sandbox, defaultProfile: e.target.value } })}>
+            <select value={config.sandbox.defaultProfile} onChange={(event) => updateConfig({ sandbox: { ...config.sandbox, defaultProfile: event.target.value } })}>
               <option>Ashfall Sandbox</option>
               <option>ECHO Prime Sandbox</option>
               <option>Arcana Sandbox</option>
@@ -153,13 +180,13 @@ export default function Settings(): JSX.Element {
           </label>
           <label className="field" style={{ marginTop: 8 }}>
             <span>Theme</span>
-            <select value={config.theme} onChange={(e) => updateConfig({ theme: e.target.value })}>
+            <select value={config.theme} onChange={(event) => updateConfig({ theme: event.target.value })}>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
             </select>
           </label>
           <label className="checkbox">
-            <input type="checkbox" checked={config.git.enabled} onChange={(e) => updateConfig({ git: { enabled: e.target.checked } })} />
+            <input type="checkbox" checked={config.git.enabled} onChange={(event) => updateConfig({ git: { enabled: event.target.checked } })} />
             Enable Git integration
           </label>
         </div>
@@ -168,7 +195,7 @@ export default function Settings(): JSX.Element {
           <h3>Updates</h3>
           <div style={{ fontSize: 13, lineHeight: 2 }}>
             <div>Current version: <b>{window.studio.getVersion?.() ?? '0.1.0'}</b></div>
-            <div style={{ color: 'var(--text-dim)' }}>{update ? updateLabel(update) : 'Checking for updates…'}</div>
+            <div style={{ color: 'var(--text-dim)' }}>{update ? updateLabel(update) : 'Checking for updates...'}</div>
             {update?.status === 'downloaded' && (
               <button className="btn primary" style={{ marginTop: 8 }} onClick={() => window.studio.installUpdate()}>
                 Install &amp; Restart
@@ -180,7 +207,7 @@ export default function Settings(): JSX.Element {
               </div>
             )}
             {update?.status === 'error' && (
-              <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => window.studio.openExternal(ADDON_STUDIO_RELEASES_URL)}>
+              <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => window.studio.openExternal(ECHO_STUDIO_RELEASES_URL)}>
                 Manual install from releases page
               </button>
             )}
@@ -190,22 +217,28 @@ export default function Settings(): JSX.Element {
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <h3>Team Members</h3>
           {profile.team.length === 0 && <p className="dim" style={{ fontSize: 12 }}>No team members. Add collaborators with roles.</p>}
-          {profile.team.map((m, i) => (
-            <div className="list-row" key={i} style={{ background: 'var(--bg-2)' }}>
+          {profile.team.map((member, index) => (
+            <div className="list-row" key={index} style={{ background: 'var(--bg-2)' }}>
               <input
                 style={{ flex: 1 }}
-                value={m.name}
-                onChange={(e) => updateProfile({ team: profile.team.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
+                value={member.name}
+                onChange={(event) => updateProfile({
+                  team: profile.team.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item))
+                })}
               />
               <select
-                value={m.role}
-                onChange={(e) => updateProfile({ team: profile.team.map((x, j) => (j === i ? { ...x, role: e.target.value as DeveloperRole } : x)) })}
+                value={member.role}
+                onChange={(event) => updateProfile({
+                  team: profile.team.map((item, itemIndex) => (itemIndex === index ? { ...item, role: event.target.value as DeveloperRole } : item))
+                })}
               >
-                {(Object.keys(ROLE_LABELS) as DeveloperRole[]).map((r) => (
-                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                {(Object.keys(ROLE_LABELS) as DeveloperRole[]).map((role) => (
+                  <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                 ))}
               </select>
-              <button className="btn ghost" onClick={() => updateProfile({ team: profile.team.filter((_, j) => j !== i) })}>✕</button>
+              <button className="btn ghost" onClick={() => updateProfile({ team: profile.team.filter((_, itemIndex) => itemIndex !== index) })}>
+                Remove
+              </button>
             </div>
           ))}
           <button

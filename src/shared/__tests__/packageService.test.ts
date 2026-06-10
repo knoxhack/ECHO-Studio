@@ -34,8 +34,10 @@ function manifest(): AddonManifest {
 describe('packageAddon', () => {
   it('writes SDK-validated release artifacts and sidecars', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
-    const previousCommitSha = process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
-    process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = '1234567890abcdef1234567890abcdef12345678'
+    const previousCommitSha = process.env.ECHO_STUDIO_COMMIT_SHA
+    const previousLegacyCommitSha = process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
+    process.env.ECHO_STUDIO_COMMIT_SHA = '1234567890abcdef1234567890abcdef12345678'
+    delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
     try {
       const project = path.join(root, 'project')
       await fs.mkdir(project, { recursive: true })
@@ -128,8 +130,10 @@ describe('packageAddon', () => {
       expect(draft.attestation.subjects).toHaveLength(assetNames.length)
       expect(result.releaseIndexHandoff?.entryFileName).toBe('weather_pack.json')
     } finally {
-      if (previousCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
-      else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousCommitSha
+      if (previousCommitSha === undefined) delete process.env.ECHO_STUDIO_COMMIT_SHA
+      else process.env.ECHO_STUDIO_COMMIT_SHA = previousCommitSha
+      if (previousLegacyCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
+      else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousLegacyCommitSha
       await fs.rm(root, { recursive: true, force: true })
     }
   })

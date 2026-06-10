@@ -20,7 +20,7 @@ const POLICY = {
     owner: 'knoxhack',
     repo: 'ECHO-Addons-Studio',
     tagPrefix: 'v',
-    packageNames: ['echo-addons-studio', 'echo-addon-studio'],
+    packageNames: ['echo-studio', 'echo-addons-studio', 'echo-addon-studio'],
     sourcePairs: [['UPDATE_FEED_OWNER_PUBLIC', 'UPDATE_FEED_REPO_PUBLIC']],
     forbiddenSourcePairs: [['UPDATE_FEED_OWNER_INTERNAL', 'UPDATE_FEED_REPO_INTERNAL']],
     publicOnly: true,

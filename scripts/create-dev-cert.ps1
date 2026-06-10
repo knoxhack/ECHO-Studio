@@ -13,7 +13,7 @@ $cert = New-SelfSignedCertificate `
   -Type CodeSigningCert `
   -Subject "CN=$certName, O=ECHO Platform, C=US" `
   -KeyUsage DigitalSignature `
-  -FriendlyName "ECHO Addon Studio Dev Cert" `
+  -FriendlyName "ECHO Studio Dev Cert" `
   -CertStoreLocation Cert:\CurrentUser\My `
   -NotAfter (Get-Date).AddYears(5)
 
