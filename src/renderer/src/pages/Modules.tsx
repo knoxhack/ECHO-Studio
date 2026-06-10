@@ -14,7 +14,7 @@ import {
   type EchoModuleCatalogResult,
   type EchoModuleRecord
 } from '@shared/moduleCatalog'
-import type { DevWorkspaceState } from '@shared/devWorkspace'
+import type { DevTaskId, DevTaskRun, DevWorkspaceState } from '@shared/devWorkspace'
 import type { AddonManifest } from '@shared/types'
 
 const FILTERS = ['All', 'Enabled', 'Foundation', 'UI', 'World', 'Tech', 'Developer'] as const
@@ -29,6 +29,10 @@ const CAPABILITIES = [
   ['Developer', 'developer']
 ] as const
 
+function taskOutput(run: DevTaskRun): string {
+  return [run.stdout, run.stderr].filter(Boolean).join('\n') || `${run.artifacts.length} artifact(s) detected.`
+}
+
 export default function Modules(): JSX.Element {
   const { activeProject, config, refresh, toast } = useWorkspace()
   const nav = useNavigate()
@@ -37,6 +41,8 @@ export default function Modules(): JSX.Element {
   const [catalogResult, setCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
   const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
+  const [moduleTaskBusy, setModuleTaskBusy] = useState(false)
+  const [moduleTaskRun, setModuleTaskRun] = useState<DevTaskRun | null>(null)
   const [filter, setFilter] = useState<Filter>('All')
   const [selectedId, setSelectedId] = useState('echomissioncore')
 
@@ -170,6 +176,24 @@ export default function Modules(): JSX.Element {
     }
   }
 
+  const runModuleTask = async (taskId: DevTaskId): Promise<void> => {
+    setModuleTaskBusy(true)
+    try {
+      const result = await window.studio.runDevTask(activeProject.path, taskId)
+      if (result.ok && result.data) {
+        setModuleTaskRun(result.data)
+        toast(`${taskId} ${result.data.status}`)
+        loadDevWorkspace(activeProject.path)
+      } else {
+        toast(result.error || `${taskId} failed`)
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : `${taskId} failed`)
+    } finally {
+      setModuleTaskBusy(false)
+    }
+  }
+
   const statusColor = (status: EchoModuleRecord['status']): string => {
     if (status === 'stable') return 'var(--good)'
     if (status === 'beta') return 'var(--accent)'
@@ -186,6 +210,13 @@ export default function Modules(): JSX.Element {
   const workspaceCurrent = Boolean(devWorkspace?.lastSetupAt && devWorkspace.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate)
   const workspaceLabel = !devWorkspace?.lastSetupAt ? 'Not Set Up' : workspaceCurrent ? 'Current' : 'Stale'
   const gradleDependencyIssues = devWorkspace?.moduleWorkspace.gradleDependencyIssues ?? []
+  const localSourceCount = plan.closure.filter((mod) => mod.moduleDir || mod.descriptorPath).length
+  const moduleToolDisabledReason = (taskId: DevTaskId): string | null => {
+    if (catalogResult?.source !== 'local-index') return 'Local ECHO-Modules index is required.'
+    if (taskId === 'modules:releaseSelected' && !workspaceCurrent) return 'Refresh Dev Workspace locks and map first.'
+    if (taskId === 'modules:releaseSelected' && localSourceCount === 0) return 'No selected module closure entries are linked to local ECHO-Modules source.'
+    return null
+  }
 
   return (
     <Page
@@ -232,6 +263,41 @@ export default function Modules(): JSX.Element {
             <div className="issue WARNING" style={{ marginTop: 10 }}>
               <span className="lvl">WARNING</span>
               {catalogResult.warnings.join(' ')}
+            </div>
+          )}
+          <div className="section-title">Local ECHO-Modules Tools</div>
+          <div className="btn-row">
+            {([
+              ['modules:validate', 'Validate Graph'],
+              ['modules:releaseSelected', 'Generate Selected Release'],
+              ['modules:verifyRelease', 'Verify Release Assets']
+            ] as Array<[DevTaskId, string]>).map(([taskId, label]) => {
+              const reason = moduleToolDisabledReason(taskId)
+              return (
+                <button
+                  key={taskId}
+                  className="btn"
+                  disabled={moduleTaskBusy || Boolean(reason)}
+                  title={reason ?? label}
+                  onClick={() => { void runModuleTask(taskId) }}
+                >
+                  {moduleTaskBusy ? 'Working...' : label}
+                </button>
+              )
+            })}
+          </div>
+          {moduleTaskRun && (
+            <div className={`issue ${moduleTaskRun.status === 'completed' ? 'INFO' : 'WARNING'}`} style={{ marginTop: 10 }}>
+              <span className="lvl">{moduleTaskRun.status.toUpperCase()}</span>
+              {moduleTaskRun.command}
+              <div className="fix">
+                {taskOutput(moduleTaskRun)}
+              </div>
+              {moduleTaskRun.logPath && (
+                <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => window.studio.openPath(moduleTaskRun.logPath!)}>
+                  Open Task Log
+                </button>
+              )}
             </div>
           )}
         </div>
