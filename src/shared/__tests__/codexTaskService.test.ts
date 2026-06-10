@@ -282,6 +282,19 @@ describe('codex task service', () => {
     })
   })
 
+  it('blocks Codex release asset prep when the local release gate is not publishable', async () => {
+    await withProject(async (project) => {
+      const broken = manifest()
+      broken.namespace = 'echo'
+      broken.id = 'echo:weather_pack'
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(broken, null, 2), 'utf8')
+
+      const { applyCodexTask } = await import('../../main/codexTaskService')
+
+      await expect(applyCodexTask(project, 'release:package-local')).rejects.toThrow('Local release gate must pass')
+    })
+  })
+
   it('proposes and applies missing mission localization keys', async () => {
     await withProject(async (project) => {
       const { applyCodexTask, listCodexTasks, setCodexTaskApproved } = await import('../../main/codexTaskService')

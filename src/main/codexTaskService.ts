@@ -857,7 +857,11 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
   }
 
   if (taskId === 'release:package-local') {
-    const packageResult = await packageAddon(projectPath, await inspectDevWorkspace(projectPath))
+    const context = await loadContext(projectPath)
+    if (!context.report.publishingReady) {
+      throw new Error('Local release gate must pass before preparing public release assets. Fix validation blockers and errors first.')
+    }
+    const packageResult = await packageAddon(projectPath, context.devWorkspace ?? await inspectDevWorkspace(projectPath))
     await writeStore(projectPath, store)
     return {
       taskId,

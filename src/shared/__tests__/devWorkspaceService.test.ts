@@ -319,6 +319,33 @@ describe('setupDevWorkspace', () => {
     })
   })
 
+  it('fails release asset preparation when the local release gate is not publishable', async () => {
+    await withProject(async (project) => {
+      const broken = manifest()
+      broken.namespace = 'echo'
+      broken.id = 'echo:weather_pack'
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(broken, null, 2), 'utf8')
+
+      const { readDevTaskLog, runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['neoforge'],
+        force: false
+      })
+      const result = await runDevTask(project, 'package:local')
+      const log = await readDevTaskLog(project, result.logPath!)
+
+      expect(result.status).toBe('failed')
+      expect(result.command).toBe('ECHO Studio prepare release assets')
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain('Release gate: fail')
+      expect(result.stdout).toContain('Publishing ready: no')
+      expect(result.stderr).toContain('BLOCKER Manifest')
+      expect(result.artifacts.some((artifact) => artifact.name.endsWith('.echo-addon'))).toBe(false)
+      expect(log).toContain('[status] failed')
+    })
+  })
+
   it('writes local ECHO module source links into the dev-only workspace map', async () => {
     const previous = process.env.ECHO_MODULES_DIR
     await withProject(async (project) => {

@@ -1481,11 +1481,34 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
   }
 
   if (task.id === 'package:local') {
-    const command = 'ECHO Studio packageAddon'
+    const command = 'ECHO Studio prepare release assets'
     const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
     let result: Awaited<ReturnType<typeof packageAddon>>
     try {
-      result = await packageAddon(projectPath, await inspectDevWorkspace(projectPath))
+      const state = await inspectDevWorkspace(projectPath)
+      const report = await fullProjectReport(projectPath, state)
+      if (!report.publishingReady) {
+        const stdout = releaseGateSummary(report, state)
+        const stderr = validationIssueText(report)
+        const finishedAt = new Date().toISOString()
+        await appendTaskLog(logPath, 'stdout', stdout)
+        await appendTaskLog(logPath, 'issues', stderr)
+        await finishTaskLog(logPath, 'failed', finishedAt, 1)
+        return {
+          taskId,
+          status: 'failed',
+          command,
+          cwd: projectPath,
+          logPath,
+          exitCode: 1,
+          stdout,
+          stderr,
+          startedAt,
+          finishedAt,
+          artifacts: await collectCurrentArtifacts(projectPath)
+        }
+      }
+      result = await packageAddon(projectPath, state)
     } catch (error) {
       const finishedAt = new Date().toISOString()
       await appendTaskLog(logPath, 'error', error instanceof Error ? error.message : String(error))
