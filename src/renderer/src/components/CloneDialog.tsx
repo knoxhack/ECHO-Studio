@@ -4,6 +4,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { buildManifest } from '@shared/templates'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 import { RESERVED_NAMESPACE } from '@shared/constants'
+import { recommendedDevWorkspaceMode, type DevWorkspaceMode } from '@shared/devWorkspace'
 import { createOptionsFromTemplate, type TemplateDef } from '@shared/templateLibrary'
 
 // Modal that collects namespace/id/name and creates a project from a template.
@@ -14,12 +15,14 @@ export function CloneDialog({
   template: TemplateDef
   onClose: () => void
 }): JSX.Element {
-  const { workspaceDir, refresh, setActiveProject, toast, moduleCatalog, moduleCatalogResult } = useWorkspace()
+  const { workspaceDir, refresh, setActiveProject, toast, config, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const nav = useNavigate()
   const [namespace, setNamespace] = useState('teamnova')
   const [addonId, setAddonId] = useState(template.id)
   const [name, setName] = useState(template.name)
   const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+  const [postCreateMode, setPostCreateMode] = useState<DevWorkspaceMode | 'none'>(recommendedDevWorkspaceMode(template.runtimes))
   const [error, setError] = useState<string | null>(null)
 
   const blocked = namespace.trim().toLowerCase() === RESERVED_NAMESPACE
@@ -40,17 +43,41 @@ export function CloneDialog({
   const create = async (): Promise<void> => {
     setBusy(true)
     setError(null)
+    setStatus('Creating project...')
     const res = await window.studio.createFromTemplate(workspaceDir, template.id, namespace.trim(), addonId.trim(), name.trim())
-    setBusy(false)
     if (!res.ok) {
+      setBusy(false)
+      setStatus('')
       setError(res.error || 'Failed to create project')
       return
     }
+    let route = '/modules'
+    let message = `Created ${namespace}:${addonId}. Review modules next.`
+    if (res.data && postCreateMode !== 'none' && moduleIssueCount === 0) {
+      setStatus('Setting up Dev Workspace...')
+      const setup = await window.studio.setupDevWorkspace(res.data, {
+        mode: postCreateMode,
+        runtimes: currentOptions.runtimes,
+        force: false,
+        runtimeTools: {
+          echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
+          standaloneExecutable: config.runtimeTools.standaloneExecutable
+        }
+      })
+      route = '/dev-workspace'
+      message = setup.ok && setup.data
+        ? `Created ${namespace}:${addonId} and set up ${postCreateMode === 'full' ? 'full developer' : 'Gradle'} workspace.`
+        : `Created ${namespace}:${addonId}. Dev Workspace setup needs attention: ${setup.error || 'open Dev Workspace to finish setup.'}`
+    } else if (postCreateMode !== 'none' && moduleIssueCount > 0) {
+      message = `Created ${namespace}:${addonId}. Review module issues before workspace setup.`
+    }
     await refresh()
     if (res.data) setActiveProject(res.data)
-    toast(`Created ${namespace}:${addonId}. Review modules next.`)
+    toast(message)
+    setBusy(false)
+    setStatus('')
     onClose()
-    nav('/modules')
+    nav(route)
   }
 
   return (
@@ -124,6 +151,20 @@ export function CloneDialog({
             Review {moduleIssueCount} module issue{moduleIssueCount === 1 ? '' : 's'} before Dev Workspace setup.
           </div>
         )}
+        <label className="field" style={{ marginTop: 12 }}>
+          <span>After creation</span>
+          <select
+            value={postCreateMode}
+            onChange={(event) => setPostCreateMode(event.target.value as DevWorkspaceMode | 'none')}
+          >
+            <option value="full">Set up full developer workspace</option>
+            <option value="gradle">Set up Gradle project</option>
+            <option value="none">Review modules first</option>
+          </select>
+        </label>
+        <p className="dim" style={{ fontSize: 12 }}>
+          Setup uses this template&rsquo;s runtimes and writes Gradle launchers, module locks, local source maps, and preview properties.
+        </p>
         {blocked && (
           <div className="issue BLOCKER" style={{ marginTop: 10 }}>
             <span className="lvl">BLOCKER</span>
@@ -139,7 +180,7 @@ export function CloneDialog({
         <div className="btn-row" style={{ marginTop: 14 }}>
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!valid || busy} onClick={create}>
-            {busy ? 'Creating...' : 'Create Project'}
+            {busy ? status || 'Creating...' : 'Create Project'}
           </button>
         </div>
       </div>

@@ -263,6 +263,10 @@ export interface DevTaskStopResult {
   message: string
 }
 
+export function recommendedDevWorkspaceMode(runtimes: Runtime[]): DevWorkspaceMode {
+  return runtimes.includes('echo_native') || runtimes.includes('standalone') ? 'full' : 'gradle'
+}
+
 export const DEV_TASKS: DevTask[] = [
   {
     id: 'gradle:tasks',

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { buildManifest } from '@shared/templates'
+import { recommendedDevWorkspaceMode, type DevWorkspaceMode } from '@shared/devWorkspace'
 import {
   ECHO_MODULE_CATALOG,
   resolveProjectModulePlan,
@@ -20,10 +21,11 @@ import type { AddonType, CreateAddonOptions, Runtime, TargetExperience } from '@
 const STEPS = ['Type', 'Target', 'Identity', 'Runtime', 'Modules', 'Options', 'Generate']
 
 export default function CreateAddon(): JSX.Element {
-  const { workspaceDir, refresh, setActiveProject, toast } = useWorkspace()
+  const { workspaceDir, refresh, setActiveProject, toast, config } = useWorkspace()
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
   const [catalogResult, setCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
@@ -43,6 +45,7 @@ export default function CreateAddon(): JSX.Element {
     includeLocalization: true,
     includePreviewProfile: true
   })
+  const [postCreateMode, setPostCreateMode] = useState<DevWorkspaceMode | 'none'>(recommendedDevWorkspaceMode(runtimes))
 
   const nsBlocked = namespace.trim().toLowerCase() === RESERVED_NAMESPACE
   const idValid = /^[a-z0-9_]+$/.test(addonId) && /^[a-z0-9_]+$/.test(namespace)
@@ -93,22 +96,51 @@ export default function CreateAddon(): JSX.Element {
   const modulePlan = useMemo(() => resolveProjectModulePlan(previewManifest, catalog), [catalog, previewManifest])
   const moduleIssues = modulePlan.missingRequired.length + modulePlan.unknown.length + modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked').length
 
-  const toggleRuntime = (r: Runtime): void =>
-    setRuntimes((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]))
+  const toggleRuntime = (r: Runtime): void => {
+    setRuntimes((cur) => {
+      const next = cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]
+      setPostCreateMode((current) => current === 'none' ? current : recommendedDevWorkspaceMode(next))
+      return next
+    })
+  }
 
   const generate = async (): Promise<void> => {
     setError(null)
+    setStatus('Creating project...')
     setBusy(true)
     const res = await window.studio.createAddon(currentOptions)
-    setBusy(false)
     if (!res.ok) {
+      setBusy(false)
+      setStatus('')
       setError(res.error || 'Failed to create project.')
       return
     }
+    let route = '/modules'
+    let message = `Created ${namespace}:${addonId}. Review modules next.`
+    if (res.data && postCreateMode !== 'none' && moduleIssues === 0) {
+      setStatus('Setting up Dev Workspace...')
+      const setup = await window.studio.setupDevWorkspace(res.data, {
+        mode: postCreateMode,
+        runtimes,
+        force: false,
+        runtimeTools: {
+          echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
+          standaloneExecutable: config.runtimeTools.standaloneExecutable
+        }
+      })
+      route = '/dev-workspace'
+      message = setup.ok && setup.data
+        ? `Created ${namespace}:${addonId} and set up ${postCreateMode === 'full' ? 'full developer' : 'Gradle'} workspace.`
+        : `Created ${namespace}:${addonId}. Dev Workspace setup needs attention: ${setup.error || 'open Dev Workspace to finish setup.'}`
+    } else if (postCreateMode !== 'none' && moduleIssues > 0) {
+      message = `Created ${namespace}:${addonId}. Review module issues before workspace setup.`
+    }
     await refresh()
     if (res.data) setActiveProject(res.data)
-    toast(`Created ${namespace}:${addonId}. Review modules next.`)
-    nav('/modules')
+    toast(message)
+    setBusy(false)
+    setStatus('')
+    nav(route)
   }
 
   const canNext =
@@ -319,6 +351,27 @@ export default function CreateAddon(): JSX.Element {
               {label}
             </label>
           ))}
+          <div className="section-title">After generation</div>
+          <label className="field">
+            <span>Next action</span>
+            <select
+              value={postCreateMode}
+              onChange={(event) => setPostCreateMode(event.target.value as DevWorkspaceMode | 'none')}
+            >
+              <option value="full">Set up full developer workspace</option>
+              <option value="gradle">Set up Gradle project</option>
+              <option value="none">Review modules first</option>
+            </select>
+          </label>
+          <p className="dim" style={{ fontSize: 12 }}>
+            Workspace setup writes Gradle launchers, module locks, local module source maps, runtime preview properties, and release scaffolding for the selected targets.
+          </p>
+          {postCreateMode !== 'none' && moduleIssues > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">WARNING</span>
+              Studio will create the project first, then route you to Modules before setup because this scaffold has module issues.
+            </div>
+          )}
         </div>
       )}
 
@@ -334,7 +387,7 @@ export default function CreateAddon(): JSX.Element {
             <div className="mono">ID: {namespace}:{addonId}</div>
             <div>Runtime: {runtimes.map((r) => RUNTIME_LABELS[r]).join(' + ')}</div>
             <div>Modules: {modulePlan.targetModules.length} target / {modulePlan.requiredModules.length} required / {modulePlan.closure.length} resolved</div>
-            <div>Next: review Modules, then run Dev Workspace setup.</div>
+            <div>Next: {postCreateMode === 'none' || moduleIssues > 0 ? 'review Modules, then run Dev Workspace setup.' : `set up ${postCreateMode === 'full' ? 'the full developer workspace' : 'a Gradle project'} automatically.`}</div>
           </div>
           {error && (
             <div className="issue ERROR" style={{ marginTop: 12 }}>
@@ -355,7 +408,7 @@ export default function CreateAddon(): JSX.Element {
           </button>
         ) : (
           <button className="btn primary" disabled={busy} onClick={generate}>
-            {busy ? 'Generating...' : 'Generate Project'}
+            {busy ? status || 'Generating...' : 'Generate Project'}
           </button>
         )}
       </div>
