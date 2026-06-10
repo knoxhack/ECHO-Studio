@@ -21,6 +21,20 @@ const OBJECTIVES = [
   'choose_dialogue'
 ]
 
+function localId(id: string): string {
+  return id.includes(':') ? id.split(':')[1] : id
+}
+
+function defaultIndexEntryId(mission: Mission, namespace: string): string {
+  const local = localId(mission.id || 'mission')
+  return `${namespace}:${local}_entry`
+}
+
+function defaultMarkerId(mission: Mission, namespace: string): string {
+  const local = localId(mission.id || 'mission')
+  return `${namespace}:${local}_marker`
+}
+
 export default function Missions(): JSX.Element {
   const { activeProject } = useWorkspace()
   const { records, save, remove, reload } = useContent('mission')
@@ -65,6 +79,7 @@ export default function Missions(): JSX.Element {
           {records.length === 0 && <span className="dim">No missions yet - create one.</span>}
           {records.map((r) => {
             const m = r.data as Mission
+            const rewards = m.rewards ?? []
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="dim">-&gt;</span>
@@ -75,8 +90,13 @@ export default function Missions(): JSX.Element {
                 >
                   <h4 style={{ fontSize: 13 }}>{m.title}</h4>
                   <p className="mono" style={{ fontSize: 10 }}>{m.id}</p>
-                  {m.rewards.length === 0 && (
-                    <p style={{ color: 'var(--warn)', fontSize: 11 }}>⚠ no reward</p>
+                  <div className="btn-row" style={{ gap: 5, marginTop: 6 }}>
+                    {m.indexEntry && <span className="badge">Index</span>}
+                    {m.holomapMarker && <span className="badge">Map</span>}
+                    {rewards.length === 0 && <span className="badge local">No reward</span>}
+                  </div>
+                  {rewards.length === 0 && (
+                    <p style={{ color: 'var(--warn)', fontSize: 11 }}>Needs reward</p>
                   )}
                 </button>
               </div>
@@ -129,9 +149,47 @@ export default function Missions(): JSX.Element {
               <span>Unlock after (mission id)</span>
               <input
                 value={draft.unlockAfter || ''}
-                onChange={(e) => update({ unlockAfter: e.target.value })}
+                onChange={(e) => update({ unlockAfter: e.target.value || undefined })}
               />
             </label>
+            <div className="section-title">Discovery Links</div>
+            <label className="field">
+              <span>HoloMap marker id</span>
+              <input
+                value={draft.holomapMarker || ''}
+                onChange={(e) => update({ holomapMarker: e.target.value || undefined })}
+                placeholder={`${ns}:beacon_marker`}
+              />
+            </label>
+            <label className="field">
+              <span>Index entry id</span>
+              <input
+                value={draft.indexEntry || ''}
+                onChange={(e) => update({ indexEntry: e.target.value || undefined })}
+                placeholder={`${ns}:mission_entry`}
+              />
+            </label>
+            <label className="field">
+              <span>Completion text</span>
+              <textarea
+                value={draft.completion || ''}
+                onChange={(e) => update({ completion: e.target.value || undefined })}
+              />
+            </label>
+            <div className="btn-row">
+              <button
+                className="btn ghost"
+                onClick={() => update({ indexEntry: defaultIndexEntryId(draft, ns) })}
+              >
+                Default Index ID
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => update({ holomapMarker: defaultMarkerId(draft, ns) })}
+              >
+                Default Marker ID
+              </button>
+            </div>
             <div className="btn-row">
               <label className="checkbox">
                 <input
@@ -162,14 +220,14 @@ export default function Missions(): JSX.Element {
 
           <div className="card">
             <h3>Rewards &amp; Validation</h3>
-            {draft.rewards.map((rw, i) => (
+            {(draft.rewards ?? []).map((rw, i) => (
               <div className="btn-row" key={i} style={{ marginBottom: 6 }}>
                 <input
                   style={{ flex: 2 }}
                   value={rw.item}
                   onChange={(e) =>
                     update({
-                      rewards: draft.rewards.map((x, j) => (j === i ? { ...x, item: e.target.value } : x))
+                      rewards: (draft.rewards ?? []).map((x, j) => (j === i ? { ...x, item: e.target.value } : x))
                     })
                   }
                 />
@@ -179,7 +237,7 @@ export default function Missions(): JSX.Element {
                   value={rw.count}
                   onChange={(e) =>
                     update({
-                      rewards: draft.rewards.map((x, j) =>
+                      rewards: (draft.rewards ?? []).map((x, j) =>
                         j === i ? { ...x, count: Number(e.target.value) } : x
                       )
                     })
@@ -187,23 +245,23 @@ export default function Missions(): JSX.Element {
                 />
                 <button
                   className="btn ghost"
-                  onClick={() => update({ rewards: draft.rewards.filter((_, j) => j !== i) })}
+                  onClick={() => update({ rewards: (draft.rewards ?? []).filter((_, j) => j !== i) })}
                 >
-                  ✕
+                  Remove
                 </button>
               </div>
             ))}
             <button
               className="btn ghost"
               onClick={() =>
-                update({ rewards: [...draft.rewards, { item: `${ns}:reward`, count: 1 }] })
+                update({ rewards: [...(draft.rewards ?? []), { item: `${ns}:reward`, count: 1 }] })
               }
             >
               + Add reward
             </button>
 
             <div style={{ marginTop: 14 }}>
-              {draft.rewards.length === 0 ? (
+              {(draft.rewards?.length ?? 0) === 0 ? (
                 <div className="issue WARNING">
                   <span className="lvl">WARNING</span>
                   Mission has no reward.
@@ -214,6 +272,29 @@ export default function Missions(): JSX.Element {
                   Mission looks valid. Run PackOS Check for cross-content validation.
                 </div>
               )}
+            </div>
+            <div className="section-title">Linked Content</div>
+            <div className="list-row" style={{ padding: '8px 10px' }}>
+              <span className={`badge ${draft.indexEntry ? 'ready' : 'local'}`}>
+                {draft.indexEntry ? 'Ready' : 'Pending'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <b>Index entry</b>
+                <div className="dim mono" style={{ fontSize: 11 }}>
+                  {draft.indexEntry || 'No Index entry linked.'}
+                </div>
+              </div>
+            </div>
+            <div className="list-row" style={{ padding: '8px 10px' }}>
+              <span className={`badge ${draft.holomapMarker ? 'ready' : 'local'}`}>
+                {draft.holomapMarker ? 'Ready' : 'Pending'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <b>HoloMap marker</b>
+                <div className="dim mono" style={{ fontSize: 11 }}>
+                  {draft.holomapMarker || 'No marker linked.'}
+                </div>
+              </div>
             </div>
 
             <div className="btn-row" style={{ marginTop: 12 }}>
