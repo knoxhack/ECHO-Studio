@@ -29,6 +29,7 @@ type DraftFixtureOptions = {
   releaseIndexHandoff?: unknown
   releaseIndexHandoffSidecar?: unknown
   releaseEntry?: unknown
+  requireValidationReady?: boolean
   requirePackOSReady?: boolean
   attestation?: unknown
   handoffAttestation?: unknown
@@ -131,6 +132,7 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
     ingestion: {
       status: 'pending-review',
       requireSchemaValidation: true,
+      requireValidationReady: options.requireValidationReady ?? true,
       requirePackOSReady: options.requirePackOSReady ?? true,
       notes: []
     }
@@ -360,9 +362,33 @@ describe('GitHub App broker publishing', () => {
   it('rejects release drafts whose handoff does not require validation-ready assets', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {
-      const draftPath = await writeDraftFixture(root, { requirePackOSReady: false })
+      const draftPath = await writeDraftFixture(root, {
+        requireValidationReady: false,
+        requirePackOSReady: false
+      })
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/validation-ready/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts legacy handoffs that only require PackOS-ready assets', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, {
+        requireValidationReady: false,
+        requirePackOSReady: true
+      })
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => jsonResponse({ url: 'https://github.com/knoxhack/my-addon/releases/tag/v0.1.0' }))
+      )
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).resolves.toMatchObject({
+        authProvider: 'github-app'
+      })
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

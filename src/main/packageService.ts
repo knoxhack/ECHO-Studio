@@ -58,6 +58,7 @@ function addProjectFiles(zip: AdmZip, projectPath: string, entries: Dirent[]): v
 function addCommonMetadata(zip: AdmZip, manifest: unknown, packageManifest: unknown, report: PackOSReport): void {
   zip.addFile('META-INF/echo.mod.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'))
   zip.addFile('echo-addon-package.json', Buffer.from(JSON.stringify(packageManifest, null, 2), 'utf-8'))
+  zip.addFile('validation.report.json', Buffer.from(JSON.stringify(report, null, 2), 'utf-8'))
   zip.addFile('packos.report.json', Buffer.from(JSON.stringify(report, null, 2), 'utf-8'))
 }
 
@@ -180,6 +181,11 @@ function buildReleaseManifest(
       schemaVersion: packageManifest.schemaVersion,
       targets: packageManifest.targets
     },
+    validationReport: {
+      publishingReady: report.publishingReady,
+      issueCount: report.issues.length,
+      compatibilityScore: report.compatibilityScore
+    },
     packos: {
       publishingReady: report.publishingReady,
       issueCount: report.issues.length,
@@ -253,6 +259,7 @@ function buildReleaseIndexHandoff(
     ingestion: {
       status: 'pending-review',
       requireSchemaValidation: true,
+      requireValidationReady: report.publishingReady,
       requirePackOSReady: report.publishingReady,
       notes: [
         'Release Index ingestion must verify all SHA-256 digests before approval.',
@@ -362,7 +369,7 @@ export async function fullProjectReport(projectPath: string, devWorkspace?: DevW
 }
 
 // Build a distributable .echo-addon of the project (excludes local Studio state and build outputs),
-// writes packos.report.json into the bundle, and returns a content hash.
+// writes validation report sidecars into the bundle, and returns a content hash.
 export async function packageAddon(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<PackageResult> {
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')

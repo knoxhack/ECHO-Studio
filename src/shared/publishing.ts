@@ -107,6 +107,8 @@ export interface ReleaseIndexHandoff {
   ingestion: {
     status: 'pending-review'
     requireSchemaValidation: true
+    requireValidationReady: boolean
+    /** @deprecated Use requireValidationReady. Kept for older handoff validators. */
     requirePackOSReady: boolean
     notes: string[]
   }

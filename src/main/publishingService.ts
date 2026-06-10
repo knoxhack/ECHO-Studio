@@ -164,7 +164,12 @@ function validateReleaseDraftMetadata(draft: ReleaseDraftFile, assets: DraftAsse
   if (handoff.entry.validation === 'rejected') {
     throw new Error('Release Index handoff is rejected. Resolve validation, module, and release issues before creating a GitHub draft.')
   }
-  if (!isRecord(handoff.ingestion) || handoff.ingestion.requirePackOSReady !== true) {
+  if (!isRecord(handoff.ingestion)) {
+    throw new Error('Release Index handoff must require validation-ready assets before creating a GitHub draft.')
+  }
+  const requiresValidationReady =
+    handoff.ingestion.requireValidationReady === true || handoff.ingestion.requirePackOSReady === true
+  if (!requiresValidationReady) {
     throw new Error('Release Index handoff must require validation-ready assets before creating a GitHub draft.')
   }
 
