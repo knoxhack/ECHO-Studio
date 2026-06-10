@@ -13,13 +13,13 @@ import {
 import type {
   AddonManifest,
   IssueLevel,
-  PackOSReport,
+  ValidationReport,
   ValidationIssue
 } from './types'
 
 // Validation - the core safety gate. Pure function over a manifest so it can
 // run in either process and be unit-tested easily.
-export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModuleRecord[]): PackOSReport {
+export function runValidationCheck(manifest: AddonManifest, moduleCatalog?: EchoModuleRecord[]): ValidationReport {
   const issues: ValidationIssue[] = []
 
   // --- Namespace / identity --------------------------------------------------
@@ -203,7 +203,10 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
   return buildReport(manifest, issues)
 }
 
-function buildReport(manifest: AddonManifest, issues: ValidationIssue[]): PackOSReport {
+/** @deprecated Use runValidationCheck. Kept for older callers and saved workflows. */
+export const runPackOSCheck = runValidationCheck
+
+function buildReport(manifest: AddonManifest, issues: ValidationIssue[]): ValidationReport {
   const counts: Record<IssueLevel, number> = {
     BLOCKER: 0,
     ERROR: 0,

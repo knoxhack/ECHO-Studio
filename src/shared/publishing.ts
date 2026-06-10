@@ -1,5 +1,5 @@
 import type { AddonPackageValidationResult } from './addonPackageContract'
-import type { PackOSReport, PublishStatus } from './types'
+import type { PublishStatus, ValidationReport } from './types'
 
 export interface ReleaseReviewMessage {
   from: 'reviewer' | 'creator'
@@ -52,7 +52,7 @@ export interface PackageResult {
   zipPath: string
   hash: string
   bytes: number
-  report: PackOSReport
+  report: ValidationReport
   sdkValidation: AddonPackageValidationResult
   assetPaths: string[]
   checksumsPath?: string

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
-import { runPackOSCheck } from '@shared/validation'
+import { runValidationCheck } from '@shared/validation'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 import { ADDON_TYPE_LABELS, RUNTIME_LABELS, TARGET_LABELS } from '@shared/constants'
 import type { AddonProject, PublishStatus } from '@shared/types'
@@ -20,7 +20,7 @@ export default function MyAddons(): JSX.Element {
     () =>
       projects.map((p) => ({
         project: p,
-        report: runPackOSCheck(p.manifest, moduleCatalog),
+        report: runValidationCheck(p.manifest, moduleCatalog),
         modulePlan: resolveProjectModulePlan(p.manifest, moduleCatalog)
       })),
     [moduleCatalog, projects]

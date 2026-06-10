@@ -104,7 +104,7 @@ export interface ValidationIssue {
   aiFixable?: boolean
 }
 
-export interface PackOSReport {
+export interface ValidationReport {
   compatibilityScore: number
   publishingReady: boolean
   counts: Record<IssueLevel, number>
@@ -117,6 +117,9 @@ export interface PackOSReport {
     publishing: 'Ready' | 'Not Ready'
   }
 }
+
+/** @deprecated Use ValidationReport. Kept for older Studio state and integrations. */
+export type PackOSReport = ValidationReport
 
 export interface CreateAddonOptions {
   workspaceDir: string

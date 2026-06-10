@@ -3,8 +3,8 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { ECHO_MODULE_CATALOG, type EchoModuleRecord } from '@shared/moduleCatalog'
-import { runPackOSCheck } from '@shared/validation'
-import type { AddonManifest, IssueLevel, PackOSReport } from '@shared/types'
+import { runValidationCheck } from '@shared/validation'
+import type { AddonManifest, IssueLevel, ValidationReport } from '@shared/types'
 
 type ContractLevel = 'ERROR' | 'WARNING'
 
@@ -198,7 +198,7 @@ export default function ManifestEditor(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [contractIssues, setContractIssues] = useState<ContractIssue[]>([])
-  const [report, setReport] = useState<PackOSReport | null>(null)
+  const [report, setReport] = useState<ValidationReport | null>(null)
   const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
   const [catalogLabel, setCatalogLabel] = useState('Built-in catalog')
   const [catalogWarnings, setCatalogWarnings] = useState<string[]>([])
@@ -235,7 +235,7 @@ export default function ManifestEditor(): JSX.Element {
       setRaw(nextRaw)
       setSavedRaw(nextRaw)
       setDirty(false)
-      const nextReport = runPackOSCheck(manifestResult.data, nextCatalog)
+      const nextReport = runValidationCheck(manifestResult.data, nextCatalog)
       setReport(nextReport)
       setContractIssues(validateManifestShape(manifestResult.data))
     } else {
@@ -284,7 +284,7 @@ export default function ManifestEditor(): JSX.Element {
         return null
       }
 
-      const draftReport = runPackOSCheck(parsed.manifest, catalog)
+      const draftReport = runValidationCheck(parsed.manifest, catalog)
       setReport(draftReport)
       setStatus(draftReport.publishingReady ? 'Draft passes manifest validation.' : 'Draft has validation issues.')
       return parsed.manifest
@@ -334,9 +334,9 @@ export default function ManifestEditor(): JSX.Element {
     setDirty(false)
     await refresh()
 
-    const fullCheck = await window.studio.fullCheck(activeProject.path)
-    if (fullCheck.ok && fullCheck.data) {
-      setReport(fullCheck.data)
+    const validationResult = await window.studio.validateProject(activeProject.path)
+    if (validationResult.ok && validationResult.data) {
+      setReport(validationResult.data)
     }
 
     setSaving(false)

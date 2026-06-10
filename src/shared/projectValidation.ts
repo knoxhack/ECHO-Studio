@@ -1,5 +1,5 @@
-import { runPackOSCheck } from './validation'
-import type { AddonManifest, PackOSReport, ValidationIssue } from './types'
+import { runValidationCheck } from './validation'
+import type { AddonManifest, ValidationReport, ValidationIssue } from './types'
 import type { EchoModuleRecord } from './moduleCatalog'
 import type { DevWorkspaceState } from './devWorkspace'
 import type {
@@ -30,8 +30,8 @@ export interface ProjectCheckInput {
 
 // Runs the manifest safety check PLUS cross-content relationship validation,
 // then merges everything into a single report (re-scored).
-export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
-  const base = runPackOSCheck(input.manifest, input.moduleCatalog)
+export function runProjectCheck(input: ProjectCheckInput): ValidationReport {
+  const base = runValidationCheck(input.manifest, input.moduleCatalog)
   const extra: ValidationIssue[] = []
 
   const missions = pick<Mission>(input, 'mission')
@@ -347,7 +347,7 @@ function detectRecipeCycle(recipes: Recipe[]): string | null {
   return found
 }
 
-function assetHealth(base: PackOSReport, input: ProjectCheckInput): number {
+function assetHealth(base: ValidationReport, input: ProjectCheckInput): number {
   if (!input.devWorkspace || input.artifactReadiness === 'packaging') return base.healthScore.assets
   if (input.devWorkspace.artifacts.length === 0) return 50
   const hasReleaseManifest = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'echo-release.json')
@@ -355,7 +355,7 @@ function assetHealth(base: PackOSReport, input: ProjectCheckInput): number {
   return hasReleaseManifest && hasChecksums ? 100 : 65
 }
 
-function mergeReport(base: PackOSReport, extra: ValidationIssue[], input: ProjectCheckInput): PackOSReport {
+function mergeReport(base: ValidationReport, extra: ValidationIssue[], input: ProjectCheckInput): ValidationReport {
   const issues = [...base.issues, ...extra]
   const counts = { BLOCKER: 0, ERROR: 0, WARNING: 0, INFO: 0, SUGGESTION: 0 }
   for (const i of issues) counts[i.level]++

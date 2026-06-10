@@ -11,7 +11,7 @@ import { runProjectCheck } from '../shared/projectValidation'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { validateAddonPackageManifest } from '../shared/addonPackageContract'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
-import type { PackOSReport, TargetExperience } from '../shared/types'
+import type { TargetExperience, ValidationReport } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
@@ -55,7 +55,7 @@ function addProjectFiles(zip: AdmZip, projectPath: string, entries: Dirent[]): v
   }
 }
 
-function addCommonMetadata(zip: AdmZip, manifest: unknown, packageManifest: unknown, report: PackOSReport): void {
+function addCommonMetadata(zip: AdmZip, manifest: unknown, packageManifest: unknown, report: ValidationReport): void {
   zip.addFile('META-INF/echo.mod.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'))
   zip.addFile('echo-addon-package.json', Buffer.from(JSON.stringify(packageManifest, null, 2), 'utf-8'))
   zip.addFile('validation.report.json', Buffer.from(JSON.stringify(report, null, 2), 'utf-8'))
@@ -148,7 +148,7 @@ function buildReleaseManifest(
   manifest: Awaited<ReturnType<typeof readManifest>>,
   packageManifest: AddonPackageManifest,
   artifacts: Array<{ name: string; sha256: string; bytes: number }>,
-  report: PackOSReport,
+  report: ValidationReport,
   commitSha?: string
 ) {
   if (!manifest) throw new Error('Missing echo.mod.json')
@@ -219,7 +219,7 @@ function buildReleaseIndexHandoff(
   releaseAssets: Array<{ path: string; name: string; sha256: string; bytes: number }>,
   sidecars: Array<{ path: string; name: string; sha256: string; bytes: number }>,
   checksumsRecord: { name: string; sha256: string },
-  report: PackOSReport,
+  report: ValidationReport,
   commitSha?: string
 ): ReleaseIndexHandoff {
   const sourceRepo = releaseManifest.sourceRepo
@@ -272,7 +272,7 @@ function buildReleaseIndexHandoff(
 
 function buildReleaseIndexSubmissionNotes(
   handoff: ReleaseIndexHandoff,
-  report: PackOSReport,
+  report: ValidationReport,
   handoffRecord: { name: string; sha256: string; bytes: number }
 ): string {
   const entry = handoff.entry as {
@@ -346,7 +346,7 @@ function buildReleaseIndexSubmissionNotes(
 }
 
 // Run the full project check (used before packaging).
-export async function fullProjectReport(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<PackOSReport> {
+export async function fullProjectReport(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<ValidationReport> {
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
   const all = await readAllContent(projectPath)

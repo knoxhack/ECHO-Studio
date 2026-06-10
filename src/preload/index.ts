@@ -6,10 +6,10 @@ import type {
   FileNode,
   IpcResult,
   PublishStatus,
-  Runtime
+  Runtime,
+  ValidationReport
 } from '../shared/types'
 import type { ContentRecord, ContentType } from '../shared/content/schemas'
-import type { PackOSReport } from '../shared/types'
 import type { AssetReport } from '../shared/assets'
 import type {
   PackageResult,
@@ -74,7 +74,9 @@ const api = {
   deleteContent: (filePath: string) => invoke<void>('content:delete', filePath),
   listAllContent: (projectPath: string) =>
     invoke<Record<ContentType, ContentRecord[]>>('content:listAll', projectPath),
-  fullCheck: (projectPath: string) => invoke<PackOSReport>('project:fullCheck', projectPath),
+  validateProject: (projectPath: string) => invoke<ValidationReport>('project:validate', projectPath),
+  /** @deprecated Use validateProject. */
+  fullCheck: (projectPath: string) => invoke<ValidationReport>('project:fullCheck', projectPath),
 
   scanAssets: (projectPath: string) => invoke<AssetReport>('assets:scan', projectPath),
   importAssets: (projectPath: string, folder: string) =>

@@ -66,6 +66,28 @@ function handle<TArgs extends unknown[], TResult>(
   })
 }
 
+async function validateProject(projectPath: string) {
+  const manifest = await readManifest(projectPath)
+  if (!manifest) throw new Error('Missing echo.mod.json')
+  const moduleCatalog = await listEchoModules(projectPath)
+  const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
+  const all = await readAllContent(projectPath)
+  const content: Record<string, { id: string; data: unknown }[]> = {}
+  for (const [type, records] of Object.entries(all)) {
+    content[type] = records.map((r) => ({ id: r.id, data: r.data }))
+  }
+  const langKeys = await readLangKeys(projectPath)
+  const assetFiles = await listAssetFiles(projectPath)
+  return runProjectCheck({
+    manifest,
+    content: content as never,
+    langKeys,
+    assetFiles,
+    moduleCatalog: moduleCatalog.catalog,
+    devWorkspace
+  })
+}
+
 export function registerIpc(): void {
   ipcMain.on('app:version', (event) => {
     event.returnValue = app.getVersion()
@@ -156,27 +178,8 @@ export function registerIpc(): void {
   handle('content:delete', (filePath: string) => deleteContent(filePath))
   handle('content:listAll', (projectPath: string) => readAllContent(projectPath))
 
-  handle('project:fullCheck', async (projectPath: string) => {
-    const manifest = await readManifest(projectPath)
-    if (!manifest) throw new Error('Missing echo.mod.json')
-    const moduleCatalog = await listEchoModules(projectPath)
-    const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
-    const all = await readAllContent(projectPath)
-    const content: Record<string, { id: string; data: unknown }[]> = {}
-    for (const [type, records] of Object.entries(all)) {
-      content[type] = records.map((r) => ({ id: r.id, data: r.data }))
-    }
-    const langKeys = await readLangKeys(projectPath)
-    const assetFiles = await listAssetFiles(projectPath)
-    return runProjectCheck({
-      manifest,
-      content: content as never,
-      langKeys,
-      assetFiles,
-      moduleCatalog: moduleCatalog.catalog,
-      devWorkspace
-    })
-  })
+  handle('project:validate', (projectPath: string) => validateProject(projectPath))
+  handle('project:fullCheck', (projectPath: string) => validateProject(projectPath))
 
   handle('assets:scan', (projectPath: string) => scanAssets(projectPath))
   handle('assets:import', (projectPath: string, folder: string) => importAssets(projectPath, folder))

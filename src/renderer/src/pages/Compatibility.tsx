@@ -4,12 +4,12 @@ import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { RUNTIME_LABELS, ALLOWED_PERMISSIONS, BLOCKED_PERMISSIONS } from '@shared/constants'
 import { normalizeModuleId, preferredModuleAlias, resolveProjectModulePlan } from '@shared/moduleCatalog'
-import type { AddonManifest, PackOSReport, Runtime } from '@shared/types'
+import type { AddonManifest, Runtime, ValidationReport } from '@shared/types'
 
 export default function Compatibility(): JSX.Element {
   const { activeProject, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const [m, setM] = useState<AddonManifest | null>(null)
-  const [report, setReport] = useState<PackOSReport | null>(null)
+  const [report, setReport] = useState<ValidationReport | null>(null)
 
   useEffect(() => {
     if (!activeProject) {
@@ -18,7 +18,7 @@ export default function Compatibility(): JSX.Element {
       return
     }
     window.studio.readManifest(activeProject.path).then((r) => r.ok && setM(r.data!))
-    window.studio.fullCheck(activeProject.path).then((r) => r.ok && setReport(r.data!))
+    window.studio.validateProject(activeProject.path).then((r) => r.ok && setReport(r.data!))
   }, [activeProject])
 
   const modulePlan = useMemo(() => m ? resolveProjectModulePlan(m, moduleCatalog) : null, [m, moduleCatalog])

@@ -4,8 +4,8 @@ import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { RUNTIME_LABELS, TARGET_LABELS } from '@shared/constants'
 import { preferredModuleAlias, resolveProjectModulePlan, type ProjectModulePlan } from '@shared/moduleCatalog'
-import { runPackOSCheck } from '@shared/validation'
-import type { AddonProject, PackOSReport } from '@shared/types'
+import { runValidationCheck } from '@shared/validation'
+import type { AddonProject, ValidationReport } from '@shared/types'
 
 type IndexLane = 'all' | 'local' | 'handoff' | 'review' | 'indexed' | 'blocked'
 
@@ -17,7 +17,7 @@ const LANES: Array<{ id: IndexLane; label: string; detail: string; badge: string
   { id: 'blocked', label: 'Blocked', detail: 'Rejected or blocked from public install.', badge: 'fixes' }
 ]
 
-function laneFor(project: AddonProject, report: PackOSReport): IndexLane {
+function laneFor(project: AddonProject, report: ValidationReport): IndexLane {
   if (project.manifest.trust.level === 'blocked' || project.publishStatus === 'rejected') return 'blocked'
   if (project.publishStatus === 'published' || project.publishStatus === 'approved') return 'indexed'
   if (['submitted', 'in_validation', 'changes_requested'].includes(project.publishStatus)) return 'review'
@@ -59,7 +59,7 @@ export default function CommunityCatalog(): JSX.Element {
 
   const rows = useMemo(
     () => projects.map((project) => {
-      const report = runPackOSCheck(project.manifest, moduleCatalog)
+      const report = runValidationCheck(project.manifest, moduleCatalog)
       const modulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
       return { project, report, modulePlan, lane: laneFor(project, report) }
     }),

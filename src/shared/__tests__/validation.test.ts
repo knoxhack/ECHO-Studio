@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runPackOSCheck, autoFixManifest } from '../validation'
+import { autoFixManifest, runPackOSCheck, runValidationCheck } from '../validation'
 import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry, type EchoModuleRecord } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
 
@@ -25,10 +25,10 @@ function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
   } as AddonManifest
 }
 
-describe('runPackOSCheck', () => {
+describe('runValidationCheck', () => {
   it('passes a clean manifest with no issues', () => {
     const manifest = makeManifest()
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.counts.BLOCKER).toBe(0)
     expect(report.counts.ERROR).toBe(0)
     expect(report.compatibilityScore).toBeGreaterThan(80)
@@ -37,21 +37,21 @@ describe('runPackOSCheck', () => {
 
   it('flags reserved namespace as BLOCKER', () => {
     const manifest = makeManifest({ namespace: 'echo', id: 'echo:bad_addon' })
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
     expect(report.issues.some((i) => i.message.includes('reserved namespace'))).toBe(true)
   })
 
   it('flags blocked permissions', () => {
     const manifest = makeManifest({ permissions: ['file_system.write_global'] })
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
     expect(report.issues.some((i) => i.message.includes('Restricted permission'))).toBe(true)
   })
 
   it('flags missing echo:core dependency as ERROR', () => {
     const manifest = makeManifest({ dependencies: { required: [], optional: [] } })
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.counts.ERROR).toBeGreaterThanOrEqual(1)
     expect(report.issues.some((i) => i.message.includes('echo:core'))).toBe(true)
   })
@@ -61,13 +61,13 @@ describe('runPackOSCheck', () => {
       permissions: ['mission.register'],
       dependencies: { required: ['echo:core'], optional: [] }
     })
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.issues.some((i) => i.message.includes('MissionCore'))).toBe(true)
   })
 
   it('flags bad version as WARNING', () => {
     const manifest = makeManifest({ version: 'v1' })
-    const report = runPackOSCheck(manifest)
+    const report = runValidationCheck(manifest)
     expect(report.counts.WARNING).toBeGreaterThanOrEqual(1)
     expect(report.issues.some((i) => i.message.includes('semantic versioning'))).toBe(true)
   })
@@ -98,12 +98,16 @@ describe('runPackOSCheck', () => {
       dependencies: { required: ['echo:core', 'echo:unsafe'], optional: [] },
       target: { experiences: ['ashfall'], modules: ['echo:unsafe'] }
     })
-    const report = runPackOSCheck(manifest, [...ECHO_MODULE_CATALOG, blockedModule])
+    const report = runValidationCheck(manifest, [...ECHO_MODULE_CATALOG, blockedModule])
 
     expect(report.counts.BLOCKER).toBeGreaterThanOrEqual(1)
     expect(report.publishingReady).toBe(false)
     expect(report.issues.some((issue) => issue.message.includes('Unsafe is blocked'))).toBe(true)
     expect(report.issues.find((issue) => issue.message.includes('Unsafe is blocked'))?.fix).toBe('Security review failed.')
+  })
+
+  it('keeps the legacy runPackOSCheck alias for older callers', () => {
+    expect(runPackOSCheck(makeManifest()).compatibilityScore).toBe(runValidationCheck(makeManifest()).compatibilityScore)
   })
 })
 

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
-import { runPackOSCheck } from '@shared/validation'
+import { runValidationCheck } from '@shared/validation'
 import { SDK_VERSION } from '@shared/constants'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
 
@@ -17,7 +17,7 @@ export default function Dashboard(): JSX.Element {
     let readyToRelease = 0
     let resolvedModules = 0
     for (const project of projects) {
-      const report = runPackOSCheck(project.manifest, moduleCatalog)
+      const report = runValidationCheck(project.manifest, moduleCatalog)
       const modulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
       resolvedModules += modulePlan.closure.length
       if (report.counts.BLOCKER > 0 || report.counts.ERROR > 0) failed++

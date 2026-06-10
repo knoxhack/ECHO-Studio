@@ -6,7 +6,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { editorLabelForProjectFile, editorRouteForProjectFile } from '@shared/content/routes'
 import type { CodexTask } from '@shared/codexTasks'
 import type { DevWorkspaceState } from '@shared/devWorkspace'
-import type { PackOSReport } from '@shared/types'
+import type { ValidationReport } from '@shared/types'
 
 function diffDetail(missing: string[], extra: string[], ready: string): string {
   const parts = [
@@ -41,7 +41,7 @@ function StepRow({
 export default function Validation(): JSX.Element {
   const { activeProject } = useWorkspace()
   const nav = useNavigate()
-  const [report, setReport] = useState<PackOSReport | null>(null)
+  const [report, setReport] = useState<ValidationReport | null>(null)
   const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [loading, setLoading] = useState(false)
   const [codexTasks, setCodexTasks] = useState<CodexTask[]>([])
@@ -50,7 +50,7 @@ export default function Validation(): JSX.Element {
     if (!activeProject) return
     setLoading(true)
     const [res, tasks, workspace] = await Promise.all([
-      window.studio.fullCheck(activeProject.path),
+      window.studio.validateProject(activeProject.path),
       window.studio.listCodexTasks(activeProject.path),
       window.studio.inspectDevWorkspace(activeProject.path)
     ])

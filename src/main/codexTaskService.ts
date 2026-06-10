@@ -10,7 +10,7 @@ import {
   type CodexTaskLane
 } from '../shared/codexTasks'
 import { addRequiredModuleClosureToManifest, resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord } from '../shared/moduleCatalog'
-import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
+import type { AddonManifest, Runtime, ValidationReport } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
 import type { ContentRecord, ContentType, HoloMapLayer, HoloMapMarker, IndexEntry, Mission, Recipe } from '../shared/content/schemas'
@@ -31,7 +31,7 @@ interface ProjectContext {
   manifest: AddonManifest
   moduleCatalog: EchoModuleRecord[]
   moduleCatalogResult: EchoModuleCatalogResult
-  report: PackOSReport
+  report: ValidationReport
   content: Record<ContentType, ContentRecord[]>
   langKeys: string[]
   assetFiles: string[]
@@ -103,7 +103,7 @@ function reportFromContext(context: {
   assetFiles: string[]
   moduleCatalog: EchoModuleRecord[]
   devWorkspace?: DevWorkspaceState
-}, overrides?: { manifest?: AddonManifest; langKeys?: string[]; content?: Record<ContentType, ContentRecord[]> }): PackOSReport {
+}, overrides?: { manifest?: AddonManifest; langKeys?: string[]; content?: Record<ContentType, ContentRecord[]> }): ValidationReport {
   const content: Record<string, { id: string; data: unknown }[]> = {}
   for (const [type, records] of Object.entries(overrides?.content ?? context.content)) {
     content[type] = records.map((record) => ({ id: record.id, data: record.data }))

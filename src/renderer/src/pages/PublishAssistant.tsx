@@ -6,7 +6,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import type { GitHubPublishingStatus, PackageResult, ReleaseIndexHandoffAsset } from '@shared/publishing'
 import type { DevTaskRun, DevWorkspaceState } from '@shared/devWorkspace'
 import type { EchoModuleRecord } from '@shared/moduleCatalog'
-import type { PackOSReport } from '@shared/types'
+import type { ValidationReport } from '@shared/types'
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path
@@ -93,7 +93,7 @@ export default function PublishAssistant(): JSX.Element {
   const [releaseUrl, setReleaseUrl] = useState('')
   const [authStatus, setAuthStatus] = useState<GitHubPublishingStatus | null>(null)
   const [workspace, setWorkspace] = useState<DevWorkspaceState | null>(null)
-  const [preflight, setPreflight] = useState<PackOSReport | null>(null)
+  const [preflight, setPreflight] = useState<ValidationReport | null>(null)
   const [releaseGateRun, setReleaseGateRun] = useState<DevTaskRun | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
 
@@ -111,7 +111,7 @@ export default function PublishAssistant(): JSX.Element {
     setReadinessLoading(true)
     const [workspaceResult, checkResult] = await Promise.all([
       window.studio.inspectDevWorkspace(activeProject.path),
-      window.studio.fullCheck(activeProject.path)
+      window.studio.validateProject(activeProject.path)
     ])
     setReadinessLoading(false)
     setWorkspace(workspaceResult.ok && workspaceResult.data ? workspaceResult.data : null)
@@ -297,7 +297,7 @@ export default function PublishAssistant(): JSX.Element {
   }
 
   const sdkReady = pkg?.sdkValidation.ok ?? false
-  const packosReady = readinessReport?.publishingReady ?? false
+  const validationReady = readinessReport?.publishingReady ?? false
   const releaseSidecarsReady = Boolean(
     pkg?.checksumsPath &&
     pkg.packageManifestPath &&
@@ -338,8 +338,8 @@ export default function PublishAssistant(): JSX.Element {
       detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} contract issue(s) need review.`) : 'Run Prepare Assets to validate the package manifest.'
     },
     {
-      key: 'packos',
-      ready: packosReady,
+      key: 'validation',
+      ready: validationReady,
       label: 'Validation',
       detail: readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}.` : 'Run project validation or Prepare Assets.'
     },
@@ -399,7 +399,7 @@ export default function PublishAssistant(): JSX.Element {
     .map((requirement) => `${requirement.label}: ${requirement.detail}`)
   const publishReady = Boolean(
     sdkReady &&
-    packosReady &&
+    validationReady &&
     moduleReady &&
     releaseSidecarsReady &&
     handoffReady &&
@@ -446,7 +446,7 @@ export default function PublishAssistant(): JSX.Element {
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Package Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
-        <Metric label="Validation" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={packosReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
+        <Metric label="Validation" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={validationReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
         <Metric label="ECHO Modules" value={moduleReady ? 'Current' : workspace ? 'Needs Sync' : 'Checking'} tone={moduleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Publish Auth" value={providerLabel(authStatus)} tone={authStatus?.activeProvider === 'none' ? 'var(--warn)' : 'var(--good)'} />
       </div>
@@ -522,7 +522,7 @@ export default function PublishAssistant(): JSX.Element {
             }
           />
           <StepRow
-            done={packosReady}
+            done={validationReady}
             label="Validation preflight"
             detail={
               readinessReport
@@ -625,7 +625,7 @@ export default function PublishAssistant(): JSX.Element {
           <h3>Local Release Pipeline</h3>
           <StepRow done={releaseGateReady} label="Local release gate" detail={releaseGateDetail} />
           <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
-          <StepRow done={packosReady} label="Project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
+          <StepRow done={validationReady} label="Project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
           <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md (review notes), and github-release-draft.json." />
           <StepRow
             done={handoffReady}
