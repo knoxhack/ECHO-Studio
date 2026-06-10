@@ -105,7 +105,7 @@ export default function AIAssistant(): JSX.Element {
               </div>
             </div>
           ))}
-          {busy && <div className="chat-msg ai"><div className="chat-bubble dim">Thinking…</div></div>}
+          {busy && <div className="chat-msg ai"><div className="chat-bubble dim">Thinking...</div></div>}
           <div ref={endRef} />
         </div>
 

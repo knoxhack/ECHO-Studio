@@ -142,11 +142,11 @@ export default function Ecosystem(): JSX.Element {
           <div style={{ marginTop: 12 }}>
             {tab === 'experience' ? (
               <button className="btn primary" disabled={!canBuild || busy} onClick={buildExperience}>
-                {busy ? 'Building…' : 'Create Experience'}
+                {busy ? 'Building...' : 'Create Experience'}
               </button>
             ) : (
               <button className="btn primary" disabled={selected.size === 0 || !name.trim() || busy} onClick={buildServerPack}>
-                {busy ? 'Exporting…' : 'Export Server Pack'}
+                {busy ? 'Exporting...' : 'Export Server Pack'}
               </button>
             )}
           </div>

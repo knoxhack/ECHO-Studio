@@ -65,7 +65,7 @@ export default function ContentBuilder(): JSX.Element {
             Content
           </div>
           <input
-            placeholder="Filter files…"
+            placeholder="Filter files..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ marginBottom: 8 }}

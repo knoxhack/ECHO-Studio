@@ -110,7 +110,7 @@ export default function DialogueBuilder(): JSX.Element {
                         lines: draft.lines.map((x, j) => (j === i ? { ...x, text: e.target.value } : x))
                       })
                     }
-                    placeholder="Dialogue text…"
+                    placeholder="Dialogue text..."
                     style={{ minHeight: 60 }}
                   />
                 </div>

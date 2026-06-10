@@ -67,7 +67,7 @@ export default function Missions(): JSX.Element {
             const m = r.data as Mission
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="dim">→</span>
+                <span className="dim">-&gt;</span>
                 <button
                   className={`tile ${draft?.id === m.id ? 'selected' : ''}`}
                   style={{ minWidth: 150, padding: 12 }}
@@ -82,7 +82,7 @@ export default function Missions(): JSX.Element {
               </div>
             )
           })}
-          <span className="dim">→</span>
+          <span className="dim">-&gt;</span>
           <div className="badge verified">Final Reward</div>
         </div>
       </div>

@@ -27,7 +27,7 @@ export default function Compatibility(): JSX.Element {
         <NoProject />
       </Page>
     )
-  if (!m || !report) return <Page title="Compatibility"><div className="empty">Loading…</div></Page>
+  if (!m || !report) return <Page title="Compatibility"><div className="empty">Loading...</div></Page>
 
   const hs = report.healthScore
   const blockedUsed = m.permissions.filter((p) => p in BLOCKED_PERMISSIONS)

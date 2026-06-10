@@ -149,7 +149,7 @@ export default function Git(): JSX.Element {
           )}
           {!status?.isRepo && (
             <button className="btn primary" style={{ marginTop: 10 }} disabled={busy} onClick={initRepo}>
-              {busy ? 'Initialising…' : 'Init Repository'}
+              {busy ? 'Initialising...' : 'Init Repository'}
             </button>
           )}
         </div>
@@ -160,11 +160,11 @@ export default function Git(): JSX.Element {
             <>
               <label className="field">
                 <span>Message</span>
-                <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe your changes…" onKeyDown={(e) => e.key === 'Enter' && commit()} />
+                <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe your changes..." onKeyDown={(e) => e.key === 'Enter' && commit()} />
               </label>
               <div className="btn-row">
                 <button className="btn primary" disabled={busy || !message.trim() || status.files.length === 0} onClick={commit}>
-                  {busy ? 'Committing…' : 'Commit All'}
+                  {busy ? 'Committing...' : 'Commit All'}
                 </button>
                 <button className="btn" disabled={busy || !status.branch} onClick={push}>Push</button>
                 <button className="btn" disabled={busy || !status.branch} onClick={pull}>Pull</button>

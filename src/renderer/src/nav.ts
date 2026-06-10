@@ -74,11 +74,11 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/submit': 'Release Submission',
   '/publish-assistant': 'Release',
   '/releases': 'Release Builder',
-  '/catalog': 'Catalog',
+  '/catalog': 'Release Index Catalog',
   '/ecosystem': 'Ecosystem Builder',
   '/docs': 'Docs',
   '/examples': 'Examples',
-  '/ai': 'Legacy AI Chat',
+  '/ai': 'ECHO Studio Assistant',
   '/git': 'Version Control',
   '/shortcuts': 'Shortcuts'
 }

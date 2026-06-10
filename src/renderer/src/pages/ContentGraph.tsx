@@ -171,7 +171,7 @@ export default function ContentGraph(): JSX.Element {
                     strokeWidth={1.2}
                   />
                   <text x={p.x + 10} y={p.y + 23} fill="#d6e2f0" fontSize={11}>
-                    {node.label.length > 18 ? node.label.slice(0, 17) + '…' : node.label}
+                    {node.label.length > 18 ? node.label.slice(0, 17) + '...' : node.label}
                   </text>
                 </g>
               )

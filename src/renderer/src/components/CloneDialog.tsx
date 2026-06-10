@@ -82,7 +82,7 @@ export function CloneDialog({
         <div className="btn-row" style={{ marginTop: 14 }}>
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!valid || busy} onClick={create}>
-            {busy ? 'Creating…' : 'Create Project'}
+            {busy ? 'Creating...' : 'Create Project'}
           </button>
         </div>
       </div>

@@ -80,7 +80,7 @@ export default function Assets(): JSX.Element {
       actions={
         <>
           <button className="btn" disabled={loading} onClick={scan}>
-            {loading ? 'Scanning…' : 'Batch Validate'}
+            {loading ? 'Scanning...' : 'Batch Validate'}
           </button>
           <button className="btn" onClick={() => importInto('textures')}>
             Import Texture

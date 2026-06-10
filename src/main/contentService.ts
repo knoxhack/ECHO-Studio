@@ -50,7 +50,7 @@ export function unwrap(type: ContentType, raw: unknown): unknown[] {
   const obj = raw as Record<string, unknown> | null
   if (type === 'index' && Array.isArray(obj?.entries)) return obj.entries as unknown[]
   if (type === 'holomap' && Array.isArray(obj?.markers)) {
-    // Legacy marker file → synthesize a layer record.
+    // Legacy marker file -> synthesize a layer record.
     return [{ id: (obj.layer as string) ?? 'layer', title: 'Layer', type: 'poi', markers: obj.markers }]
   }
   return [raw]
