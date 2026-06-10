@@ -50,6 +50,20 @@ function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspa
       localAvailable: false,
       warnings: []
     },
+    moduleWorkspace: {
+      schemaVersion: 'echo.studio.modules.workspace.status.v1',
+      path: '.echo-studio/module-workspace.json',
+      exists: true,
+      upToDate: true,
+      projectMatches: true,
+      moduleCount: 1,
+      localModuleCount: 0,
+      expectedModuleIds: ['echocore'],
+      mappedModuleIds: ['echocore'],
+      missingFromMap: [],
+      extraInMap: [],
+      generatedAt: '2026-06-09T00:00:00.000Z'
+    },
     moduleLock: {
       schemaVersion: 'echo.studio.modules.lock.status.v1',
       studioLockPath: '.echo-studio/modules.lock.json',
@@ -236,5 +250,27 @@ describe('runProjectCheck', () => {
     expect(report.issues.some((i) => i.message === 'ECHO Native preview executable is not configured in the generated workspace.')).toBe(true)
     expect(report.issues.some((i) => i.message === 'Standalone preview executable is not configured in the generated workspace.')).toBe(true)
     expect(report.issues.find((i) => i.message.includes('ECHO Native preview executable'))?.file).toBe('gradle.properties')
+  })
+
+  it('warns when the ECHO module workspace map is missing', () => {
+    const workspace = makeDevWorkspace([])
+    workspace.moduleWorkspace = {
+      ...workspace.moduleWorkspace,
+      exists: false,
+      upToDate: false,
+      moduleCount: 0,
+      mappedModuleIds: []
+    }
+
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: workspace
+    })
+
+    expect(report.issues.some((i) => i.message === 'ECHO module workspace map has not been generated.')).toBe(true)
+    expect(report.issues.find((i) => i.message === 'ECHO module workspace map has not been generated.')?.file).toBe('.echo-studio/module-workspace.json')
   })
 })

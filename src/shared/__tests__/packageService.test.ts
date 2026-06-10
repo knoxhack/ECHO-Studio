@@ -58,6 +58,20 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
       localAvailable: false,
       warnings: []
     },
+    moduleWorkspace: {
+      schemaVersion: 'echo.studio.modules.workspace.status.v1',
+      path: '.echo-studio/module-workspace.json',
+      exists: true,
+      upToDate: true,
+      projectMatches: true,
+      moduleCount: 1,
+      localModuleCount: 0,
+      expectedModuleIds: ['echocore'],
+      mappedModuleIds: ['echocore'],
+      missingFromMap: [],
+      extraInMap: [],
+      generatedAt: '2026-06-09T00:00:00.000Z'
+    },
     moduleLock: {
       schemaVersion: 'echo.studio.modules.lock.status.v1',
       studioLockPath: '.echo-studio/modules.lock.json',

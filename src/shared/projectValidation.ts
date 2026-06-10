@@ -184,6 +184,25 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
+    if (!input.devWorkspace.moduleWorkspace.exists) {
+      extra.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: 'ECHO module workspace map has not been generated.',
+        fix: 'Open Dev Workspace and run Set Up Workspace to write .echo-studio/module-workspace.json.',
+        file: input.devWorkspace.moduleWorkspace.path,
+        aiFixable: false
+      })
+    } else if (!input.devWorkspace.moduleWorkspace.upToDate) {
+      extra.push({
+        level: 'WARNING',
+        category: 'ECHO Modules',
+        message: 'ECHO module workspace map is stale.',
+        fix: 'Open Dev Workspace and run Set Up Workspace to refresh local module source links.',
+        file: input.devWorkspace.moduleWorkspace.path,
+        aiFixable: false
+      })
+    }
     const checkArtifactReadiness = input.artifactReadiness !== 'packaging'
     if (checkArtifactReadiness && input.devWorkspace.artifacts.length === 0) {
       extra.push({

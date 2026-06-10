@@ -71,6 +71,39 @@ export interface DevModuleLock {
   unknown: string[]
 }
 
+export interface DevModuleWorkspaceModule {
+  id: string
+  name: string
+  version?: string
+  role: string
+  publicApi: string
+  runtimes: string[]
+  requires: string[]
+  optional: string[]
+  localSource: boolean
+  source?: string
+  moduleDir?: string
+  descriptorPath?: string
+}
+
+export interface DevModuleWorkspaceMap {
+  schemaVersion: 'echo.studio.modules.workspace.v1'
+  generatedBy: string
+  generatedAt: string
+  project: {
+    id: string
+    version: string
+  }
+  catalog: DevModuleCatalogStatus
+  declared: string[]
+  normalizedDeclared: string[]
+  moduleCount: number
+  localModuleCount: number
+  modules: DevModuleWorkspaceModule[]
+  missingRequired: string[]
+  unknown: string[]
+}
+
 export interface DevModuleLockStatus {
   schemaVersion: 'echo.studio.modules.lock.status.v1'
   studioLockPath: string
@@ -103,6 +136,21 @@ export interface DevModuleCatalogStatus {
   warnings: string[]
 }
 
+export interface DevModuleWorkspaceStatus {
+  schemaVersion: 'echo.studio.modules.workspace.status.v1'
+  path: string
+  exists: boolean
+  upToDate: boolean
+  projectMatches: boolean
+  moduleCount: number
+  localModuleCount: number
+  expectedModuleIds: string[]
+  mappedModuleIds: string[]
+  missingFromMap: string[]
+  extraInMap: string[]
+  generatedAt?: string
+}
+
 export interface DevRuntimeLauncherStatus {
   schemaVersion: 'echo.studio.runtime.launchers.status.v1'
   gradlePropertiesPath: string
@@ -127,6 +175,7 @@ export interface DevWorkspaceState {
   files: DevWorkspaceFileStatus[]
   modulePlan: ProjectModulePlan
   moduleCatalog: DevModuleCatalogStatus
+  moduleWorkspace: DevModuleWorkspaceStatus
   moduleLock: DevModuleLockStatus
   runtimeLaunchers: DevRuntimeLauncherStatus
   artifacts: DevArtifact[]
@@ -144,6 +193,7 @@ export type DevTaskId =
   | 'gradle:build'
   | 'gradle:test'
   | 'gradle:clean'
+  | 'gradle:moduleWorkspace'
   | 'gradle:runClient'
   | 'gradle:runServer'
   | 'gradle:runData'
@@ -204,6 +254,13 @@ export const DEV_TASKS: DevTask[] = [
     description: 'Remove Gradle build outputs.',
     command: 'clean',
     kind: 'build'
+  },
+  {
+    id: 'gradle:moduleWorkspace',
+    label: 'Inspect Module Workspace',
+    description: 'Print the selected ECHO module closure and linked local source folders.',
+    command: 'echoModuleWorkspace',
+    kind: 'inspect'
   },
   {
     id: 'gradle:runClient',

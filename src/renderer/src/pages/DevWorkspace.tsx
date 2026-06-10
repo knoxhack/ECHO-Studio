@@ -139,6 +139,7 @@ export default function DevWorkspace(): JSX.Element {
     if (!state) return 'Inspecting workspace.'
     if (taskId === 'modules:validate' && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
+    if (taskId === 'gradle:moduleWorkspace' && !state.moduleWorkspace.upToDate) return 'Run setup to refresh the module workspace map.'
     if (taskId === 'gradle:runClient' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'gradle:runServer' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'gradle:runData' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
@@ -247,6 +248,9 @@ export default function DevWorkspace(): JSX.Element {
                 <span className={`badge ${state.moduleCatalog.localAvailable ? 'ready' : 'local'}`}>
                   {state.moduleCatalog.localAvailable ? 'Local ECHO-Modules' : 'Built-in Catalog'}
                 </span>
+                <span className={`badge ${state.moduleWorkspace.localModuleCount > 0 ? 'ready' : 'local'}`}>
+                  {state.moduleWorkspace.localModuleCount}/{state.moduleWorkspace.moduleCount} local sources
+                </span>
                 {state.moduleLock.generatedAt && (
                   <span className="dim" style={{ fontSize: 11 }}>
                     generated {new Date(state.moduleLock.generatedAt).toLocaleString()}
@@ -267,6 +271,17 @@ export default function DevWorkspace(): JSX.Element {
                 <div className="issue WARNING" style={{ marginBottom: 12 }}>
                   <span className="lvl">WARNING</span>
                   {state.moduleCatalog.warnings.join(' ')}
+                </div>
+              )}
+              {!state.moduleWorkspace.upToDate && (
+                <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                  <span className="lvl">WARNING</span>
+                  Module workspace map does not match the current manifest.
+                  <div className="fix">
+                    Run Set Up Workspace to refresh {state.moduleWorkspace.path}.
+                    {state.moduleWorkspace.missingFromMap.length > 0 ? ` Missing: ${state.moduleWorkspace.missingFromMap.join(', ')}.` : ''}
+                    {state.moduleWorkspace.extraInMap.length > 0 ? ` Extra: ${state.moduleWorkspace.extraInMap.join(', ')}.` : ''}
+                  </div>
                 </div>
               )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

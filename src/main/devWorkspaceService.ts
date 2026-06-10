@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevModuleCatalogStatus, type DevModuleLock, type DevModuleLockStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { DEV_TASKS, type DevArtifact, type DevModuleCatalogStatus, type DevModuleLock, type DevModuleLockStatus, type DevModuleWorkspaceMap, type DevModuleWorkspaceStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { AddonManifest, Runtime } from '../shared/types'
@@ -35,6 +35,15 @@ async function readModuleLock(path: string): Promise<DevModuleLock | null> {
   try {
     const parsed = JSON.parse(await fs.readFile(path, 'utf8')) as Partial<DevModuleLock>
     return parsed.schemaVersion === 'echo.studio.modules.lock.v1' ? parsed as DevModuleLock : null
+  } catch {
+    return null
+  }
+}
+
+async function readModuleWorkspace(path: string): Promise<DevModuleWorkspaceMap | null> {
+  try {
+    const parsed = JSON.parse(await fs.readFile(path, 'utf8')) as Partial<DevModuleWorkspaceMap>
+    return parsed.schemaVersion === 'echo.studio.modules.workspace.v1' ? parsed as DevModuleWorkspaceMap : null
   } catch {
     return null
   }
@@ -78,6 +87,10 @@ function artifactKind(name: string): DevArtifact['kind'] {
   if (name.endsWith('.json')) return 'manifest'
   if (name.endsWith('.sha256')) return 'checksum'
   return 'other'
+}
+
+function relativePath(from: string, to: string): string {
+  return relative(from, to).replace(/\\/g, '/')
 }
 
 function safeTaskName(taskId: DevTaskId): string {
@@ -204,6 +217,45 @@ function moduleCatalogStatus(catalogResult: EchoModuleCatalogResult): DevModuleC
   }
 }
 
+function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModuleCatalogResult): DevModuleWorkspaceMap {
+  const plan = resolveProjectModulePlan(manifest, catalogResult.catalog)
+  const modules = plan.closure.map((mod) => {
+    const localSource = Boolean(mod.moduleDir || mod.descriptorPath)
+    return {
+      id: mod.id,
+      name: mod.name,
+      role: mod.role,
+      publicApi: mod.publicApi,
+      runtimes: mod.runtimes,
+      requires: mod.requires,
+      optional: mod.optional,
+      localSource,
+      ...(mod.version ? { version: mod.version } : {}),
+      ...(mod.source ? { source: mod.source } : {}),
+      ...(mod.moduleDir ? { moduleDir: mod.moduleDir } : {}),
+      ...(mod.descriptorPath ? { descriptorPath: mod.descriptorPath } : {})
+    }
+  })
+
+  return {
+    schemaVersion: 'echo.studio.modules.workspace.v1',
+    generatedBy: STUDIO_MARKER,
+    generatedAt: new Date().toISOString(),
+    project: {
+      id: manifest.id,
+      version: manifest.version
+    },
+    catalog: moduleCatalogStatus(catalogResult),
+    declared: plan.declared,
+    normalizedDeclared: plan.normalizedDeclared,
+    moduleCount: modules.length,
+    localModuleCount: modules.filter((mod) => mod.localSource).length,
+    modules,
+    missingRequired: plan.missingRequired.map((mod) => mod.id),
+    unknown: plan.unknown
+  }
+}
+
 function sortedUnique(values: string[]): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b))
 }
@@ -249,8 +301,8 @@ async function moduleLockStatus(
   const runtimeUpToDate = !runtimeExpected || Boolean(runtimeLock) && runtimeProjectMatches && runtimeDiff.missing.length === 0 && runtimeDiff.extra.length === 0
   return {
     schemaVersion: 'echo.studio.modules.lock.status.v1',
-    studioLockPath: relative(projectPath, studioLockPath),
-    runtimeLockPath: relative(projectPath, runtimeLockPath),
+    studioLockPath: relativePath(projectPath, studioLockPath),
+    runtimeLockPath: relativePath(projectPath, runtimeLockPath),
     studioExists: Boolean(studioLock),
     runtimeExists: Boolean(runtimeLock),
     runtimeExpected,
@@ -267,6 +319,39 @@ async function moduleLockStatus(
     lockedProjectId: studioLock?.project.id,
     lockedProjectVersion: studioLock?.project.version,
     generatedAt: studioLock?.generatedAt
+  }
+}
+
+async function moduleWorkspaceStatus(
+  projectPath: string,
+  manifest: AddonManifest,
+  plan: ProjectModulePlan
+): Promise<DevModuleWorkspaceStatus> {
+  const workspacePath = join(projectPath, '.echo-studio', 'module-workspace.json')
+  const workspace = await readModuleWorkspace(workspacePath)
+  const expectedModuleIds = sortedUnique(plan.closure.map((mod) => mod.id))
+  const mappedModuleIds = sortedUnique(workspace?.modules.map((mod) => mod.id) ?? [])
+  const diff = diffIds(expectedModuleIds, mappedModuleIds)
+  const projectMatches = Boolean(
+    workspace &&
+    workspace.project.id === manifest.id &&
+    workspace.project.version === manifest.version
+  )
+  const upToDate = Boolean(workspace) && projectMatches && diff.missing.length === 0 && diff.extra.length === 0
+
+  return {
+    schemaVersion: 'echo.studio.modules.workspace.status.v1',
+    path: relativePath(projectPath, workspacePath),
+    exists: Boolean(workspace),
+    upToDate,
+    projectMatches,
+    moduleCount: workspace?.moduleCount ?? 0,
+    localModuleCount: workspace?.localModuleCount ?? 0,
+    expectedModuleIds,
+    mappedModuleIds,
+    missingFromMap: diff.missing,
+    extraInMap: diff.extra,
+    generatedAt: workspace?.generatedAt
   }
 }
 
@@ -301,7 +386,7 @@ async function runtimeLauncherStatus(
 
   return {
     schemaVersion: 'echo.studio.runtime.launchers.status.v1',
-    gradlePropertiesPath: relative(projectPath, gradlePropertiesPath),
+    gradlePropertiesPath: relativePath(projectPath, gradlePropertiesPath),
     gradlePropertiesExists,
     nativeExpected,
     nativeConfigured,
@@ -369,6 +454,7 @@ def enableNative = providers.gradleProperty("enable_echo_native").orElse("false"
 def enableStandalone = providers.gradleProperty("enable_standalone").orElse("false").get().toBoolean()
 def echoNativeExecutable = providers.gradleProperty("echo_native_executable").orElse("")
 def echoStandaloneExecutable = providers.gradleProperty("echo_standalone_executable").orElse("")
+def echoModuleWorkspaceFile = file(".echo-studio/module-workspace.json")
 
 version = providers.gradleProperty("mod_version").get()
 group = providers.gradleProperty("mod_group_id").get()
@@ -395,6 +481,22 @@ dependencies {
 
 sourceSets.main.resources {
     srcDir("src/generated/resources")
+}
+
+tasks.register("echoModuleWorkspace") {
+    group = "echo dev"
+    description = "Prints the selected ECHO module closure and linked local source folders."
+    doLast {
+        if (!echoModuleWorkspaceFile.exists()) {
+            throw new GradleException("ECHO module workspace map is missing. Run Set Up Workspace in ECHO Studio.")
+        }
+        def map = new groovy.json.JsonSlurper().parse(echoModuleWorkspaceFile)
+        println "ECHO module workspace: \${map.moduleCount ?: 0} module(s), \${map.localModuleCount ?: 0} local source link(s)."
+        (map.modules ?: []).each { module ->
+            def source = module.localSource ? (module.moduleDir ?: module.descriptorPath ?: "local source") : "catalog metadata"
+            println " - \${module.id} (\${module.publicApi ?: 'api unknown'}) -> \${source}"
+        }
+    }
 }
 
 if (enableNeoForge) {
@@ -633,7 +735,12 @@ Version: ${manifest.version}
 }
 
 function expectedModes(rel: string): DevWorkspaceMode[] {
-  if (rel === 'echo.mod.json' || rel === '.echo-studio/dev-workspace.json' || rel === '.echo-studio/modules.lock.json') return ['visual', 'gradle', 'full']
+  if (
+    rel === 'echo.mod.json' ||
+    rel === '.echo-studio/dev-workspace.json' ||
+    rel === '.echo-studio/modules.lock.json' ||
+    rel === '.echo-studio/module-workspace.json'
+  ) return ['visual', 'gradle', 'full']
   if (
     [
       'settings.gradle',
@@ -689,6 +796,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     fileStatus(projectPath, 'echo.mod.json', mode, runtimes),
     fileStatus(projectPath, '.echo-studio/dev-workspace.json', mode, runtimes),
     fileStatus(projectPath, '.echo-studio/modules.lock.json', mode, runtimes),
+    fileStatus(projectPath, '.echo-studio/module-workspace.json', mode, runtimes),
     fileStatus(projectPath, 'META-INF/echo-addon-package.json', mode, runtimes),
     fileStatus(projectPath, 'settings.gradle', mode, runtimes),
     fileStatus(projectPath, 'build.gradle', mode, runtimes),
@@ -711,9 +819,10 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const sourceReady = files.some((file) => file.path.startsWith('src/main/java') && file.exists)
   const expectedReady = files.filter((file) => file.expected).every((file) => file.exists)
   const lockStatus = await moduleLockStatus(projectPath, manifest, modulePlan, mode)
+  const moduleWorkspace = await moduleWorkspaceStatus(projectPath, manifest, modulePlan)
   const runtimeLaunchers = await runtimeLauncherStatus(projectPath, runtimes, mode)
   return {
-    ready: Boolean(parsed.lastSetupAt) && expectedReady && lockStatus.upToDate,
+    ready: Boolean(parsed.lastSetupAt) && expectedReady && lockStatus.upToDate && moduleWorkspace.upToDate,
     mode,
     projectPath,
     gradleReady,
@@ -723,6 +832,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     files,
     modulePlan,
     moduleCatalog: moduleCatalogStatus(moduleCatalog),
+    moduleWorkspace,
     moduleLock: lockStatus,
     runtimeLaunchers,
     artifacts: await collectArtifacts(projectPath),
@@ -737,12 +847,15 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
   const moduleCatalog = await listEchoModules(projectPath)
   const moduleLock = buildModuleLock(manifest, moduleCatalog)
   const moduleLockJson = `${JSON.stringify(moduleLock, null, 2)}\n`
+  const moduleWorkspace = buildModuleWorkspace(manifest, moduleCatalog)
+  const moduleWorkspaceJson = `${JSON.stringify(moduleWorkspace, null, 2)}\n`
   const written: string[] = []
   const skipped: string[] = []
   const force = Boolean(options.force)
 
   await fs.mkdir(join(projectPath, '.echo-studio'), { recursive: true })
   await writeGenerated(join(projectPath, '.echo-studio', 'modules.lock.json'), moduleLockJson, written)
+  await writeGenerated(join(projectPath, '.echo-studio', 'module-workspace.json'), moduleWorkspaceJson, written)
 
   if (options.mode === 'gradle' || options.mode === 'full') {
     await writeIfAllowed(join(projectPath, 'settings.gradle'), settingsGradle(manifest), force, written, skipped)
