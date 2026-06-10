@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { DEFAULT_CONFIG } from '../shared/config'
+import { PREVIEW_SCAN_PROFILE_NAMES, normalizePreviewScanProfile } from '../shared/previewScan'
 import type { AppConfig } from '../shared/config'
 
 type LegacyAppConfig = Partial<AppConfig> & {
@@ -16,12 +17,8 @@ function configPath(): string {
 
 function normalizePreviewProfile(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined
-  return value
-    .replace('Ashfall Sandbox', 'Ashfall Compatibility')
-    .replace('ECHO Prime Sandbox', 'ECHO Prime Compatibility')
-    .replace('Arcana Sandbox', 'Arcana Compatibility')
-    .replace('Generic ECHO Runtime Sandbox', 'Generic Runtime Compatibility')
-    .replace('Server Sandbox', 'Server Compatibility')
+  const normalized = normalizePreviewScanProfile(value.trim())
+  return PREVIEW_SCAN_PROFILE_NAMES.includes(normalized) ? normalized : undefined
 }
 
 function normalizeConfig(raw: LegacyAppConfig): AppConfig {

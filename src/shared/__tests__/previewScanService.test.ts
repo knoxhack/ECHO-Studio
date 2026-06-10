@@ -2,7 +2,13 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, it, expect, vi } from 'vitest'
-import { computePreviewScore, previewScanAssistantPrompt } from '../previewScan'
+import {
+  computePreviewScore,
+  getPreviewScanProfile,
+  normalizePreviewScanProfile,
+  previewProfileForManifest,
+  previewScanAssistantPrompt
+} from '../previewScan'
 import type { AddonManifest, Runtime } from '../types'
 
 vi.mock('electron', () => ({
@@ -89,6 +95,29 @@ describe('computePreviewScore', () => {
       '',
       'Can you explain what went wrong and how to fix it?'
     ].join('\n'))
+  })
+})
+
+describe('preview scan profiles', () => {
+  it('normalizes legacy sandbox profile names', () => {
+    expect(normalizePreviewScanProfile('Generic ECHO Runtime Sandbox')).toBe('Generic Runtime Compatibility')
+    expect(getPreviewScanProfile('Ashfall Sandbox').name).toBe('Ashfall Compatibility')
+  })
+
+  it('selects a project-aware default profile from manifest target and runtimes', () => {
+    expect(previewProfileForManifest(manifest())).toBe('Ashfall Compatibility')
+    expect(previewProfileForManifest(manifest({
+      target: { experiences: ['echo_prime'], modules: [] },
+      runtime: { supports: ['echo_native'], nativeReadiness: 'partial', minimumEchoSdk: '1.4.0' }
+    }))).toBe('ECHO Prime Compatibility')
+    expect(previewProfileForManifest(manifest({
+      target: { experiences: ['generic'], modules: [] },
+      runtime: { supports: ['standalone'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' }
+    }))).toBe('Generic Runtime Compatibility')
+    expect(previewProfileForManifest(manifest({
+      target: { experiences: ['custom'], modules: [] },
+      runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' }
+    }))).toBe('Server Compatibility')
   })
 })
 

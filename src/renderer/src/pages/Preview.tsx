@@ -4,21 +4,20 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
-import { previewScanAssistantPrompt, type PreviewScanResult, type PreviewScanOptions } from '@shared/previewScan'
+import {
+  PREVIEW_SCAN_PROFILE_NAMES,
+  normalizePreviewScanProfile,
+  previewProfileForManifest,
+  previewScanAssistantPrompt,
+  type PreviewScanResult,
+  type PreviewScanOptions
+} from '@shared/previewScan'
 import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '@shared/previewRuntime'
-
-const PROFILES = [
-  'Ashfall Compatibility',
-  'ECHO Prime Compatibility',
-  'Arcana Compatibility',
-  'Generic Runtime Compatibility',
-  'Server Compatibility'
-]
 
 export default function Preview(): JSX.Element {
   const { activeProject, workspaceDir, config, toast } = useWorkspace()
   const nav = useNavigate()
-  const [profile, setProfile] = useState(config.preview.defaultProfile || PROFILES[0])
+  const [profile, setProfile] = useState(normalizePreviewScanProfile(config.preview.defaultProfile || PREVIEW_SCAN_PROFILE_NAMES[0]))
   const [running, setRunning] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [runtimeStopping, setRuntimeStopping] = useState(false)
@@ -62,6 +61,16 @@ export default function Preview(): JSX.Element {
   useEffect(() => {
     void inspectDevWorkspace()
   }, [inspectDevWorkspace])
+
+  const suggestedProfile = activeProject
+    ? previewProfileForManifest(activeProject.manifest, config.preview.defaultProfile)
+    : normalizePreviewScanProfile(config.preview.defaultProfile || PREVIEW_SCAN_PROFILE_NAMES[0])
+
+  useEffect(() => {
+    setProfile(suggestedProfile)
+    setResult(null)
+    setError('')
+  }, [activeProject?.path, suggestedProfile])
 
   useEffect(() => {
     if (!activeProject || !runtimeRun?.logPath) {
@@ -282,11 +291,19 @@ export default function Preview(): JSX.Element {
           <label className="field">
             <span>Target profile</span>
             <select value={profile} onChange={(event) => setProfile(event.target.value)}>
-              {PROFILES.map((item) => (
+              {PREVIEW_SCAN_PROFILE_NAMES.map((item) => (
                 <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </label>
+          <div className="btn-row" style={{ marginBottom: 10 }}>
+            <span className="badge local">Suggested: {suggestedProfile}</span>
+            {profile !== suggestedProfile && (
+              <button className="btn ghost" onClick={() => setProfile(suggestedProfile)}>
+                Use Suggested
+              </button>
+            )}
+          </div>
           {([
             { key: 'loadOnlySelected', label: 'Load only selected project' },
             { key: 'debugOverlay', label: 'Enable debug overlay checks' },
