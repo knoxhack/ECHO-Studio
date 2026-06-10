@@ -10,7 +10,7 @@ import type {
   PublishStatus
 } from '../shared/types'
 import { buildManifest, buildProjectFiles } from '../shared/templates'
-import { templateById } from '../shared/templateLibrary'
+import { createOptionsFromTemplate, templateById } from '../shared/templateLibrary'
 
 // Default workspace where projects live. Stored under userData so it is writable.
 export function defaultWorkspace(): string {
@@ -60,17 +60,12 @@ export async function createFromTemplate(
 ): Promise<string> {
   const tmpl = templateById(templateId)
   if (!tmpl) throw new Error(`Unknown template: ${templateId}`)
-  const opts: CreateAddonOptions = {
+  const opts = createOptionsFromTemplate(tmpl, {
     workspaceDir,
-    type: tmpl.type,
-    target: tmpl.target,
     namespace,
     addonId,
-    name,
-    description: tmpl.description,
-    runtimes: tmpl.runtimes,
-    options: tmpl.options
-  }
+    name
+  })
   const workspace = workspaceDir || defaultWorkspace()
   await ensureDir(workspace)
   const folderName = `${namespace}_${addonId}`

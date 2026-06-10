@@ -1,4 +1,4 @@
-import type { AddonType, CreateAddonScaffoldOptions, Runtime, TargetExperience } from './types'
+import type { AddonType, CreateAddonOptions, CreateAddonScaffoldOptions, Runtime, TargetExperience } from './types'
 
 export type TemplateCategory =
   | 'Starter'
@@ -25,6 +25,13 @@ export interface TemplateDef {
   options: CreateAddonScaffoldOptions
   // Extra files (relative path -> content), layered on top of the base scaffold.
   extraFiles?: (ctx: TemplateContext) => Record<string, string>
+}
+
+export interface TemplateInstantiationOptions {
+  workspaceDir: string
+  namespace: string
+  addonId: string
+  name: string
 }
 
 const ALL_OPTS = {
@@ -283,6 +290,20 @@ export const TEMPLATES: TemplateDef[] = [
 
 export function templateById(id: string): TemplateDef | undefined {
   return TEMPLATES.find((t) => t.id === id)
+}
+
+export function createOptionsFromTemplate(template: TemplateDef, input: TemplateInstantiationOptions): CreateAddonOptions {
+  return {
+    workspaceDir: input.workspaceDir,
+    type: template.type,
+    target: template.target,
+    namespace: input.namespace,
+    addonId: input.addonId,
+    name: input.name,
+    description: template.description,
+    runtimes: template.runtimes,
+    options: template.options
+  }
 }
 
 export function templatesByCategory(): Record<TemplateCategory, TemplateDef[]> {

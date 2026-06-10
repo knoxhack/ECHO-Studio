@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
+import { createOptionsFromTemplate, templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
 import { buildManifest, buildProjectFiles } from '../templates'
 import { resolveProjectModulePlan } from '../moduleCatalog'
 import type { CreateAddonOptions } from '../types'
@@ -13,6 +13,30 @@ describe('templateById', () => {
 
   it('returns undefined for unknown id', () => {
     expect(templateById('not_real')).toBeUndefined()
+  })
+})
+
+describe('createOptionsFromTemplate', () => {
+  it('builds the same create options used by template previews and project creation', () => {
+    const template = templateById('example_mission')!
+    const options = createOptionsFromTemplate(template, {
+      workspaceDir: 'C:\\workspace',
+      namespace: 'teamnova',
+      addonId: 'signal_route',
+      name: 'Signal Route'
+    })
+
+    expect(options).toMatchObject({
+      workspaceDir: 'C:\\workspace',
+      type: template.type,
+      target: template.target,
+      namespace: 'teamnova',
+      addonId: 'signal_route',
+      name: 'Signal Route',
+      description: template.description,
+      runtimes: template.runtimes,
+      options: template.options
+    })
   })
 })
 

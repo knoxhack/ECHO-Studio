@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Page } from '../components/Page'
 import { CloneDialog } from '../components/CloneDialog'
-import { templatesByCategory } from '@shared/templateLibrary'
+import { buildManifest } from '@shared/templates'
+import { resolveProjectModulePlan } from '@shared/moduleCatalog'
+import { createOptionsFromTemplate, templatesByCategory } from '@shared/templateLibrary'
 import type { TemplateDef } from '@shared/templateLibrary'
 
 export default function Templates(): JSX.Element {
@@ -17,12 +19,24 @@ export default function Templates(): JSX.Element {
         <div key={cat}>
           <div className="section-title">{cat} Templates</div>
           <div className="grid cols-3">
-            {items.map((t) => (
-              <div className="tile" key={t.id} onClick={() => setClone(t)}>
-                <h4>{t.name}</h4>
-                <p>{t.description}</p>
-              </div>
-            ))}
+            {items.map((t) => {
+              const plan = resolveProjectModulePlan(buildManifest(createOptionsFromTemplate(t, {
+                workspaceDir: '',
+                namespace: 'teamnova',
+                addonId: t.id,
+                name: t.name
+              })))
+              return (
+                <div className="tile" key={t.id} onClick={() => setClone(t)}>
+                  <h4>{t.name}</h4>
+                  <p>{t.description}</p>
+                  <div className="btn-row" style={{ marginTop: 8 }}>
+                    <span className="badge ready">{plan.enabled.length} selected</span>
+                    <span className="badge local">{plan.closure.length} in closure</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       ))}
