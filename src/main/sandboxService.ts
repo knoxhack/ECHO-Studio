@@ -10,27 +10,27 @@ const PROFILES: Record<string, { runtime: Runtime; experiences: string[]; permis
   'Ashfall Sandbox': {
     runtime: 'neoforge',
     experiences: ['ashfall'],
-    permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom', 'index.append']
+    permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom_ui', 'index.entries']
   },
   'ECHO Prime Sandbox': {
     runtime: 'echo_native',
     experiences: ['echo_prime'],
-    permissions: ['mission.register', 'recipe.register', 'screen.custom', 'index.append', 'theme.apply']
+    permissions: ['mission.register', 'recipe.register', 'screen.custom_ui', 'index.entries']
   },
   'Arcana Sandbox': {
     runtime: 'neoforge',
     experiences: ['arcana_division'],
-    permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom', 'index.append']
+    permissions: ['mission.register', 'recipe.register', 'holomap.layers', 'screen.custom_ui', 'index.entries']
   },
   'Generic ECHO Runtime Sandbox': {
     runtime: 'standalone',
     experiences: ['generic', 'custom'],
-    permissions: ['mission.register', 'recipe.register', 'screen.custom', 'index.append']
+    permissions: ['mission.register', 'recipe.register', 'screen.custom_ui', 'index.entries']
   },
   'Server Sandbox': {
     runtime: 'neoforge',
     experiences: ['generic'],
-    permissions: ['mission.register', 'recipe.register', 'index.append']
+    permissions: ['mission.register', 'recipe.register', 'index.entries']
   }
 }
 

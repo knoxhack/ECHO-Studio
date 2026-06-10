@@ -138,4 +138,19 @@ describe('runSandbox', () => {
       ]))
     })
   })
+
+  it('accepts current public UI and index permissions in runtime profiles', async () => {
+    await withWorkspace(async (root) => {
+      const project = await writeProject(root, 'weather', manifest({
+        permissions: ['mission.register', 'screen.custom_ui', 'index.entries'],
+        runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' }
+      }))
+      const { runSandbox } = await import('../../main/sandboxService')
+
+      const result = await runSandbox(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
+
+      expect(result.warnings.some((warning) => warning.includes('Unknown permissions'))).toBe(false)
+      expect(result.logs.some((log) => log.message.includes('Unknown permissions'))).toBe(false)
+    })
+  })
 })
