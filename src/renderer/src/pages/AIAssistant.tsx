@@ -11,6 +11,10 @@ interface Msg {
   usedModel?: boolean
 }
 
+interface AssistantRouteState {
+  prefilled?: unknown
+}
+
 const SUGGESTIONS = [
   'Create a mission pack for Ashfall about a lost convoy.',
   'Generate a grinder recipe for ash alloy.',
@@ -33,9 +37,9 @@ export default function AIAssistant(): JSX.Element {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const prefilled = (location.state as any)?.prefilled as string | undefined
+    const prefilled = (location.state as AssistantRouteState | null)?.prefilled
     if (prefilled) {
-      send(prefilled)
+      if (typeof prefilled === 'string') send(prefilled)
       window.history.replaceState({}, document.title)
     }
   }, [])

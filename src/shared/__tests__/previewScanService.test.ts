@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, it, expect, vi } from 'vitest'
-import { computePreviewScore } from '../previewScan'
+import { computePreviewScore, previewScanAssistantPrompt } from '../previewScan'
 import type { AddonManifest, Runtime } from '../types'
 
 vi.mock('electron', () => ({
@@ -79,6 +79,16 @@ describe('computePreviewScore', () => {
 
   it('clamps to a minimum of 0', () => {
     expect(computePreviewScore(100, 100, 100, 100)).toBe(0)
+  })
+
+  it('formats preview scan errors for assistant handoff', () => {
+    expect(previewScanAssistantPrompt(['Missing echo:core', '  Bad screen binding  '])).toBe([
+      'My preview compatibility scan found these errors:',
+      '- Missing echo:core',
+      '- Bad screen binding',
+      '',
+      'Can you explain what went wrong and how to fix it?'
+    ].join('\n'))
   })
 })
 

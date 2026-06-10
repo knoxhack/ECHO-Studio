@@ -36,6 +36,19 @@ export function computePreviewScore(
   return Math.max(0, Math.min(100, score))
 }
 
+export function previewScanAssistantPrompt(errors: string[]): string {
+  const errorLines = errors
+    .map((error) => error.trim())
+    .filter(Boolean)
+    .map((error) => `- ${error}`)
+  return [
+    'My preview compatibility scan found these errors:',
+    errorLines.length ? errorLines.join('\n') : '- No preview errors were captured.',
+    '',
+    'Can you explain what went wrong and how to fix it?'
+  ].join('\n')
+}
+
 export type SandboxLog = PreviewScanLog
 export type SandboxResult = PreviewScanResult
 export type SandboxOptions = PreviewScanOptions

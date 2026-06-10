@@ -4,7 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
-import type { PreviewScanResult, PreviewScanOptions } from '@shared/previewScan'
+import { previewScanAssistantPrompt, type PreviewScanResult, type PreviewScanOptions } from '@shared/previewScan'
 
 const PROFILES = [
   'Ashfall Compatibility',
@@ -183,9 +183,7 @@ export default function Preview(): JSX.Element {
 
   const askAi = (): void => {
     if (!result || result.errors.length === 0) return
-    const errorText = result.errors.join('\n')
-    const prompt = `My preview compatibility scan found these errors:\n${errorText}\n\nCan you explain what went wrong and how to fix it?`
-    nav('/codex', { state: { prefilled: prompt } })
+    nav('/ai', { state: { prefilled: previewScanAssistantPrompt(result.errors) } })
   }
 
   const gradleValue = devWorkspace
