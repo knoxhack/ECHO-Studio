@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runPackOSCheck, autoFixManifest } from '../validation'
-import { ECHO_MODULE_CATALOG, type EchoModuleRecord } from '../moduleCatalog'
+import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry, type EchoModuleRecord } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
 
 function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
@@ -119,6 +119,54 @@ describe('autoFixManifest', () => {
     const manifest = makeManifest({ dependencies: { required: [], optional: [] } })
     const fixed = autoFixManifest(manifest)
     expect(fixed.dependencies.required).toContain('echo:core')
+  })
+
+  it('adds the full ECHO module closure when fixing missing module dependencies', () => {
+    const manifest = makeManifest({
+      permissions: ['mission.register'],
+      dependencies: { required: ['echo:core'], optional: [] },
+      target: { experiences: ['ashfall'], modules: [] }
+    })
+    const fixed = autoFixManifest(manifest)
+
+    expect(fixed.dependencies.required).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core',
+      'echo:mission_core'
+    ]))
+    expect(fixed.target.modules).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:net_core',
+      'echo:mission_core'
+    ]))
+  })
+
+  it('uses imported local catalog dependencies when fixing module closure', () => {
+    const catalog = mergeModuleCatalog([
+      moduleFromIndexEntry({
+        id: 'echomissioncore',
+        name: 'ECHO: MissionCore',
+        channel: 'beta',
+        requires: ['echocore', 'echonetcore', 'echoweathercore']
+      }),
+      moduleFromIndexEntry({
+        id: 'echoweathercore',
+        name: 'ECHO: WeatherCore',
+        channel: 'beta',
+        requires: ['echocore'],
+        provides: ['weather.events']
+      })
+    ], ECHO_MODULE_CATALOG)
+    const manifest = makeManifest({
+      permissions: ['mission.register'],
+      dependencies: { required: ['echo:core'], optional: [] },
+      target: { experiences: ['ashfall'], modules: [] }
+    })
+    const fixed = autoFixManifest(manifest, catalog)
+
+    expect(fixed.dependencies.required).toContain('echo:weather_core')
+    expect(fixed.target.modules).toContain('echo:weather_core')
   })
 
   it('adds default tags if missing', () => {

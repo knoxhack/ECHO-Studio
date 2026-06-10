@@ -3,7 +3,13 @@ import {
   BLOCKED_PERMISSIONS,
   RESERVED_NAMESPACE
 } from './constants'
-import { dependencyIncludes, resolveProjectModulePlan, type EchoModuleRecord } from './moduleCatalog'
+import {
+  addRequiredModuleClosureToManifest,
+  dependencyIncludes,
+  findEchoModule,
+  resolveProjectModulePlan,
+  type EchoModuleRecord
+} from './moduleCatalog'
 import type {
   AddonManifest,
   IssueLevel,
@@ -245,8 +251,8 @@ function buildReport(manifest: AddonManifest, issues: ValidationIssue[]): PackOS
 }
 
 // Apply automatic fixes a (mock) AI would make. Returns a new manifest.
-export function autoFixManifest(manifest: AddonManifest): AddonManifest {
-  const fixed: AddonManifest = JSON.parse(JSON.stringify(manifest))
+export function autoFixManifest(manifest: AddonManifest, moduleCatalog?: EchoModuleRecord[]): AddonManifest {
+  let fixed: AddonManifest = JSON.parse(JSON.stringify(manifest))
   const safeNs = fixed.publisher.id || 'teamnova'
 
   if (fixed.namespace === RESERVED_NAMESPACE) fixed.namespace = safeNs
@@ -259,21 +265,29 @@ export function autoFixManifest(manifest: AddonManifest): AddonManifest {
     new Set(fixed.permissions.map((p) => (p in BLOCKED_PERMISSIONS ? BLOCKED_PERMISSIONS[p] : p)))
   )
 
-  // Add missing required deps.
-  if (!dependencyIncludes(fixed.dependencies.required, 'echocore')) {
-    fixed.dependencies.required.unshift('echo:core')
+  // Add missing required deps with their full current ECHO Modules closure.
+  const modulesToRequire: EchoModuleRecord[] = []
+  const addModule = (id: string): void => {
+    const mod = findEchoModule(id, moduleCatalog)
+    if (mod && !modulesToRequire.some((item) => item.id === mod.id)) modulesToRequire.push(mod)
   }
+
+  if (!dependencyIncludes(fixed.dependencies.required, 'echocore', moduleCatalog)) addModule('echocore')
   if (
     fixed.permissions.includes('mission.register') &&
-    !dependencyIncludes(fixed.dependencies.required, 'echomissioncore')
+    !dependencyIncludes(fixed.dependencies.required, 'echomissioncore', moduleCatalog)
   ) {
-    fixed.dependencies.required.push('echo:mission_core')
+    addModule('echomissioncore')
   }
   if (
     fixed.permissions.includes('recipe.register') &&
-    !dependencyIncludes(fixed.dependencies.required, 'echorecipecore')
+    !dependencyIncludes(fixed.dependencies.required, 'echorecipecore', moduleCatalog)
   ) {
-    fixed.dependencies.required.push('echo:recipe_core')
+    addModule('echorecipecore')
+  }
+  for (const mod of resolveProjectModulePlan(fixed, moduleCatalog).missingRequired) addModule(mod.id)
+  if (modulesToRequire.length > 0) {
+    fixed = addRequiredModuleClosureToManifest(fixed, modulesToRequire, moduleCatalog)
   }
 
   if (fixed.runtime.supports.length === 0) fixed.runtime.supports = ['neoforge']

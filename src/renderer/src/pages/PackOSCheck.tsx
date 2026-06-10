@@ -83,7 +83,8 @@ export default function PackOSCheck(): JSX.Element {
     setFixing(true)
     const manifestRes = await window.studio.readManifest(activeProject.path)
     if (manifestRes.ok && manifestRes.data) {
-      const fixed = autoFixManifest(manifestRes.data)
+      const catalogRes = await window.studio.listEchoModules(activeProject.path)
+      const fixed = autoFixManifest(manifestRes.data, catalogRes.ok && catalogRes.data ? catalogRes.data.catalog : undefined)
       await window.studio.writeManifest(activeProject.path, fixed)
       await refresh()
     }
