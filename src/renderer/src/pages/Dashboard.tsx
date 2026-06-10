@@ -1,14 +1,28 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LocalLoopPanel } from '../components/LocalLoopPanel'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { buildLocalLoopStatus } from '@shared/localLoop'
 import { runValidationCheck } from '@shared/validation'
 import { SDK_VERSION } from '@shared/constants'
 import { resolveProjectModulePlan } from '@shared/moduleCatalog'
+import type { DevWorkspaceState } from '@shared/devWorkspace'
 
 export default function Dashboard(): JSX.Element {
-  const { projects, setActiveProject, profile, moduleCatalog, moduleCatalogResult } = useWorkspace()
+  const { projects, setActiveProject, profile, moduleCatalog, moduleCatalogResult, activeProject } = useWorkspace()
   const nav = useNavigate()
+  const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
+
+  useEffect(() => {
+    if (!activeProject) {
+      setDevWorkspace(null)
+      return
+    }
+    window.studio.inspectDevWorkspace(activeProject.path).then((result) => {
+      setDevWorkspace(result.ok && result.data ? result.data : null)
+    })
+  }, [activeProject])
 
   const stats = useMemo(() => {
     let passed = 0
@@ -27,6 +41,12 @@ export default function Dashboard(): JSX.Element {
     }
     return { passed, warnings, failed, readyToRelease, resolvedModules }
   }, [moduleCatalog, projects])
+  const activeReport = activeProject ? runValidationCheck(activeProject.manifest, moduleCatalog) : null
+  const localLoop = buildLocalLoopStatus({
+    hasProject: Boolean(activeProject),
+    validationReport: activeReport,
+    devWorkspace
+  })
 
   return (
     <Page
@@ -108,32 +128,18 @@ export default function Dashboard(): JSX.Element {
           </div>
         </div>
 
-        <div className="card">
-          <h3>Local Loop</h3>
-          <p className="dim" style={{ fontSize: 13 }}>
-            Choose modules, generate a dev workspace, run a preview, pass validation, then prepare release assets before GitHub publishing.
-          </p>
-          <div className="btn-row">
-            <button className="btn" onClick={() => nav('/modules')}>
-              Modules
-            </button>
-            <button className="btn" onClick={() => nav('/dev-workspace')}>
-              Dev Workspace
-            </button>
-            <button className="btn" onClick={() => nav('/preview')}>
-              Preview
-            </button>
-            <button className="btn" onClick={() => nav('/codex')}>
-              Codex Tasks
-            </button>
-          </div>
-        </div>
+        <LocalLoopPanel steps={localLoop.steps} nextStep={localLoop.nextStep} onNavigate={nav} />
       </div>
 
       <div className="section-title">Recent Projects</div>
       {projects.length === 0 ? (
         <div className="empty">
-          No projects yet. <a onClick={() => nav('/create')}>Create your first ECHO project</a>
+          <p>No projects yet. Create a project, import an existing workspace, or configure your creator profile.</p>
+          <div className="btn-row" style={{ justifyContent: 'center' }}>
+            <button className="btn primary" onClick={() => nav('/create')}>Create Project</button>
+            <button className="btn" onClick={() => nav('/projects')}>Open Project Library</button>
+            <button className="btn ghost" onClick={() => nav('/settings')}>Configure Settings</button>
+          </div>
         </div>
       ) : (
         projects.slice(0, 5).map((project) => {

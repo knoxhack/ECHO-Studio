@@ -9,21 +9,37 @@ export function NoProject(): JSX.Element {
     <div className="card" style={{ maxWidth: 560 }}>
       <h3>Select a project to work on</h3>
       {projects.length === 0 ? (
-        <p className="dim">
-          You have no projects yet. <a onClick={() => nav('/create')}>Create one -&gt;</a>
-        </p>
-      ) : (
-        projects.map((p) => (
-          <div className="list-row" key={p.path}>
-            <div style={{ flex: 1 }}>
-              <b>{p.manifest.name}</b>{' '}
-              <span className="mono dim">{p.manifest.id}</span>
-            </div>
-            <button className="btn primary" onClick={() => setActiveProject(p.path)}>
-              Select
-            </button>
+        <>
+          <p className="dim">
+            Create a project, review starter templates, or configure your creator profile before opening builder tools.
+          </p>
+          <div className="btn-row">
+            <button className="btn primary" onClick={() => nav('/create')}>Create Project</button>
+            <button className="btn" onClick={() => nav('/templates')}>Browse Templates</button>
+            <button className="btn ghost" onClick={() => nav('/settings')}>Configure Settings</button>
           </div>
-        ))
+        </>
+      ) : (
+        <>
+          <p className="dim">
+            Pick a project, or open the project library for validation, preview, release, and repository actions.
+          </p>
+          {projects.map((p) => (
+            <div className="list-row" key={p.path}>
+              <div style={{ flex: 1 }}>
+                <b>{p.manifest.name}</b>{' '}
+                <span className="mono dim">{p.manifest.id}</span>
+              </div>
+              <button className="btn primary" onClick={() => setActiveProject(p.path)}>
+                Select
+              </button>
+            </div>
+          ))}
+          <div className="btn-row">
+            <button className="btn" onClick={() => nav('/projects')}>Open Project Library</button>
+            <button className="btn ghost" onClick={() => nav('/docs')}>Read Docs</button>
+          </div>
+        </>
       )}
     </div>
   )

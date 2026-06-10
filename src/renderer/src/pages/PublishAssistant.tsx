@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LocalLoopPanel } from '../components/LocalLoopPanel'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { buildLocalLoopStatus } from '@shared/localLoop'
 import type { GitHubPublishingStatus, PackageResult, ReleaseIndexHandoffAsset } from '@shared/publishing'
 import type { DevTaskRun, DevWorkspaceState } from '@shared/devWorkspace'
 import type { EchoModuleRecord } from '@shared/moduleCatalog'
@@ -26,14 +28,6 @@ function providerLabel(status: GitHubPublishingStatus | null): string {
   if (status.activeProvider === 'github-app') return 'GitHub App'
   if (status.activeProvider === 'gh-cli') return 'GitHub CLI'
   return 'Offline'
-}
-
-function diffDetail(missing: string[], extra: string[], ready: string): string {
-  const parts = [
-    missing.length ? `Missing: ${missing.join(', ')}.` : '',
-    extra.length ? `Extra: ${extra.join(', ')}.` : ''
-  ].filter(Boolean)
-  return parts.length ? parts.join(' ') : ready
 }
 
 function moduleBadgeClass(mod: EchoModuleRecord): string {
@@ -347,6 +341,13 @@ export default function PublishAssistant(): JSX.Element {
   const releaseGateDetail = releaseGateRun
     ? firstLine(releaseGateRun.stdout) || firstLine(releaseGateRun.stderr) || `Local release gate ${releaseGateRun.status}.`
     : 'Run Local Gate to check validation, module locks, source maps, and release readiness before packaging.'
+  const localLoop = buildLocalLoopStatus({
+    hasProject: true,
+    validationReport: readinessReport,
+    devWorkspace: workspace,
+    releaseGateReady,
+    releaseAssetsReady: Boolean(pkg?.assetPaths.some((assetPath) => assetPath.endsWith('.echo-addon')) && releaseSidecarsReady)
+  })
   const publishRequirements = [
     {
       key: 'local-gate',
@@ -476,94 +477,7 @@ export default function PublishAssistant(): JSX.Element {
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3>Local Readiness</h3>
-          <StepRow
-            done={Boolean(workspace && (workspace.mode === 'visual' || (workspace.gradleReady && workspace.hasGradleWrapper)))}
-            label="Developer workspace"
-            detail={
-              workspace
-                ? workspace.mode === 'visual'
-                  ? 'Visual mode is selected; code generation is optional.'
-                  : workspace.gradleReady
-                    ? workspace.hasGradleWrapper
-                      ? 'Pinned Gradle launcher and project files are available.'
-                      : 'Gradle project files exist, but the pinned launcher is missing.'
-                    : 'Run Dev Workspace setup before building local runtime artifacts.'
-                : 'Inspecting workspace setup.'
-            }
-          />
-          <StepRow
-            done={Boolean(workspace && (workspace.mode === 'visual' || (workspace.toolchain.javaMeetsRequirement && workspace.toolchain.gradleAvailable)))}
-            label="Local toolchain"
-            detail={
-              workspace
-                ? workspace.mode === 'visual'
-                  ? 'Visual mode does not require Java or Gradle tasks.'
-                  : workspace.toolchain.issues.length > 0
-                    ? workspace.toolchain.issues.join(' ')
-                    : `Java ${workspace.toolchain.javaVersion ?? workspace.toolchain.requiredJavaVersion} and ${workspace.toolchain.gradleCommand} are ready.`
-                : 'Inspecting Java and Gradle availability.'
-            }
-          />
-          <StepRow
-            done={Boolean(workspace?.moduleLock.upToDate)}
-            label="Module lock"
-            detail={
-              workspace
-                ? diffDetail(
-                    workspace.moduleLock.missingFromLock,
-                    workspace.moduleLock.extraInLock,
-                    `${workspace.moduleLock.lockedModuleIds.length} locked module(s).`
-                  )
-                : 'Inspecting resolved ECHO module closure.'
-            }
-          />
-          <StepRow
-            done={Boolean(workspace?.moduleWorkspace.upToDate)}
-            label="Module workspace map"
-            detail={
-              workspace
-                ? workspace.moduleWorkspace.upToDate
-                  ? `${workspace.moduleWorkspace.localModuleCount}/${workspace.moduleWorkspace.moduleCount} module(s) linked to local ECHO-Modules source; ${workspace.moduleWorkspace.gradleDependencyReadyCount ?? 0} compile dependency link(s) ready.`
-                  : diffDetail(
-                      workspace.moduleWorkspace.missingFromMap,
-                      workspace.moduleWorkspace.extraInMap,
-                      'Module workspace map is current.'
-                    )
-                : 'Inspecting local ECHO-Modules source links.'
-            }
-          />
-          <StepRow
-            done={Boolean(workspace?.runtimeLaunchers.ready)}
-            label="Runtime launchers"
-            detail={
-              workspace
-                ? workspace.runtimeLaunchers.ready
-                  ? 'Configured launch paths match the selected runtime targets.'
-                  : 'Set missing ECHO Native or Standalone executable paths, then run setup again.'
-                : 'Inspecting preview launcher configuration.'
-            }
-          />
-          <StepRow
-            done={validationReady}
-            label="Validation preflight"
-            detail={
-              readinessReport
-                ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR} - Warnings ${readinessReport.counts.WARNING}`
-                : 'Run validation before packaging.'
-            }
-          />
-
-          <div className="btn-row" style={{ marginTop: 12 }}>
-            <button className="btn" disabled={readinessLoading} onClick={refreshReadiness}>
-              {readinessLoading ? 'Checking...' : 'Refresh Readiness'}
-            </button>
-            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Dev Workspace</button>
-            <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
-            <button className="btn ghost" onClick={() => nav('/validation')}>Validation</button>
-          </div>
-        </div>
+        <LocalLoopPanel title="Local Readiness" steps={localLoop.steps} nextStep={localLoop.nextStep} onNavigate={nav} />
 
         <div className="card">
           <h3>ECHO Module Closure</h3>

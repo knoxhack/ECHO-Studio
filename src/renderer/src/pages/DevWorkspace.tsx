@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { LocalLoopPanel } from '../components/LocalLoopPanel'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { buildLocalLoopStatus } from '@shared/localLoop'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceMode, type DevWorkspaceState } from '@shared/devWorkspace'
 import { MODULE_READY_TASKS, PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '@shared/previewRuntime'
-import type { Runtime } from '@shared/types'
+import type { Runtime, ValidationReport } from '@shared/types'
 
 const RUNTIME_OPTIONS: Array<{ id: Runtime; label: string }> = [
   { id: 'neoforge', label: 'NeoForge' },
@@ -57,7 +60,9 @@ function projectFilePath(rootPath: string, filePath: string): string {
 
 export default function DevWorkspace(): JSX.Element {
   const { activeProject, config, toast } = useWorkspace()
+  const nav = useNavigate()
   const [state, setState] = useState<DevWorkspaceState | null>(null)
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null)
   const [mode, setMode] = useState<DevWorkspaceMode>('gradle')
   const [runtimes, setRuntimes] = useState<Runtime[]>(['neoforge', 'echo_native'])
   const [force, setForce] = useState(false)
@@ -82,8 +87,9 @@ export default function DevWorkspace(): JSX.Element {
 
   const inspect = useCallback(async () => {
     if (!activeProject) return
-    const [result] = await Promise.all([
+    const [result, validation] = await Promise.all([
       window.studio.inspectDevWorkspace(activeProject.path),
+      window.studio.validateProject(activeProject.path),
       hydrateRunningTask()
     ])
     if (result.ok && result.data) {
@@ -91,6 +97,7 @@ export default function DevWorkspace(): JSX.Element {
       setMode(result.data.lastSetupAt ? result.data.mode : 'gradle')
       if (result.data.runtimeTargets.length > 0) setRuntimes(result.data.runtimeTargets)
     }
+    setValidationReport(validation.ok && validation.data ? validation.data : null)
   }, [activeProject, hydrateRunningTask])
 
   useEffect(() => {
@@ -228,6 +235,30 @@ export default function DevWorkspace(): JSX.Element {
   const blockedModules = state?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
   const moduleGateReason = state ? moduleReadinessDisabledReason(state, 'running local build, preview, or package tasks') : null
   const gradleDependencyIssues = state?.moduleWorkspace.gradleDependencyIssues ?? []
+  const primaryTaskBlocker = state
+    ? !state.moduleLock.upToDate
+      ? 'Refresh Dev Workspace so generated module locks match the current manifest.'
+      : !state.moduleWorkspace.upToDate
+        ? 'Refresh Dev Workspace so local module source map matches the current manifest.'
+        : moduleGateReason
+          ? moduleGateReason
+          : state.mode !== 'visual' && !state.gradleReady
+            ? 'Set up a Gradle workspace before running local build or preview tasks.'
+            : state.mode !== 'visual' && !state.toolchain.javaAvailable
+              ? `Install Java ${state.toolchain.requiredJavaVersion} or add it to PATH.`
+              : state.mode !== 'visual' && !state.toolchain.javaMeetsRequirement
+                ? `Use Java ${state.toolchain.requiredJavaVersion} for this generated workspace.`
+                : state.mode !== 'visual' && !state.toolchain.gradleAvailable
+                  ? 'Run setup to generate the pinned Gradle launcher or install Gradle.'
+                  : workspaceLauncherIssues[0]
+                    ? `Configure ${workspaceLauncherIssues.join(', ')} in Settings, then run setup again.`
+                    : null
+    : 'Inspecting workspace.'
+  const localLoop = buildLocalLoopStatus({
+    hasProject: true,
+    validationReport,
+    devWorkspace: state
+  })
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
@@ -279,6 +310,32 @@ export default function DevWorkspace(): JSX.Element {
         <Metric label="Gradle" value={gradleValue} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Toolchain" value={toolchainValue} tone={toolchainReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Launchers" value={launcherValue} tone={state?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
+      </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <LocalLoopPanel title="What To Do Next" steps={localLoop.steps} nextStep={localLoop.nextStep} onNavigate={nav} />
+        <div className="card">
+          <h3>Local Task Gate</h3>
+          {primaryTaskBlocker ? (
+            <div className="issue WARNING">
+              <span className="lvl">BLOCKED</span>
+              {primaryTaskBlocker}
+            </div>
+          ) : (
+            <div className="issue INFO">
+              <span className="lvl">READY</span>
+              Local build, preview, module, and release tasks can run for the current workspace state.
+            </div>
+          )}
+          <p className="dim" style={{ fontSize: 13 }}>
+            Tool tiles below show task-specific blockers. Fix the top blocker first; it usually unlocks several lanes at once.
+          </p>
+          <div className="btn-row">
+            <button className="btn" onClick={inspect} disabled={busy}>Refresh</button>
+            <button className="btn ghost" onClick={() => nav('/settings')}>Settings</button>
+            <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
+          </div>
+        </div>
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>

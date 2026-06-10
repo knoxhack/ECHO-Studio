@@ -1,42 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LocalLoopPanel } from '../components/LocalLoopPanel'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { editorLabelForProjectFile, editorRouteForProjectFile } from '@shared/content/routes'
+import { buildLocalLoopStatus } from '@shared/localLoop'
 import type { CodexTask } from '@shared/codexTasks'
 import type { DevWorkspaceState } from '@shared/devWorkspace'
 import type { ValidationReport } from '@shared/types'
-
-function diffDetail(missing: string[], extra: string[], ready: string): string {
-  const parts = [
-    missing.length ? `Missing: ${missing.join(', ')}.` : '',
-    extra.length ? `Extra: ${extra.join(', ')}.` : ''
-  ].filter(Boolean)
-  return parts.length ? parts.join(' ') : ready
-}
-
-function StepRow({
-  done,
-  label,
-  detail
-}: {
-  done: boolean
-  label: string
-  detail: string
-}): JSX.Element {
-  return (
-    <div className="list-row" style={{ padding: '9px 10px' }}>
-      <span className={`badge ${done ? 'ready' : 'local'}`}>{done ? 'Ready' : 'Pending'}</span>
-      <div style={{ flex: 1 }}>
-        <b>{label}</b>
-        <div className="dim" style={{ fontSize: 12 }}>
-          {detail}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function Validation(): JSX.Element {
   const { activeProject } = useWorkspace()
@@ -73,7 +45,7 @@ export default function Validation(): JSX.Element {
   if (!report)
     return (
       <Page title="Validation">
-        <div className="empty">{loading ? 'Running checks...' : 'Preparing...'}</div>
+        <div className="empty">{loading ? 'Inspecting validation, module closure, workspace, and release artifacts...' : 'Preparing validation report...'}</div>
       </Page>
     )
 
@@ -85,21 +57,11 @@ export default function Validation(): JSX.Element {
   const reviewableCodexTasks = codexTasks.filter((task) => task.lane !== 'rejected')
   const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:validation-autofix' && task.lane !== 'rejected'))
   const aiFixableCount = report.issues.filter((issue) => issue.aiFixable).length
-  const workspaceSetUp = Boolean(devWorkspace?.lastSetupAt)
-  const workspaceReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.gradleReady && devWorkspace.hasGradleWrapper)))
-  const toolchainReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.toolchain.javaMeetsRequirement && devWorkspace.toolchain.gradleAvailable)))
-  const blockedModules = devWorkspace?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
-  const moduleReady = Boolean(
-    devWorkspace?.moduleLock.upToDate &&
-    devWorkspace.moduleWorkspace.upToDate &&
-    devWorkspace.modulePlan.missingRequired.length === 0 &&
-    devWorkspace.modulePlan.unknown.length === 0 &&
-    blockedModules.length === 0
-  )
-  const previewReady = Boolean(devWorkspace?.runtimeLaunchers.ready)
-  const hasReleaseManifest = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'echo-release.json'))
-  const hasChecksums = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'checksums.sha256'))
-  const artifactReady = Boolean(devWorkspace?.artifacts.length && hasReleaseManifest && hasChecksums)
+  const localLoop = buildLocalLoopStatus({
+    hasProject: true,
+    validationReport: report,
+    devWorkspace
+  })
   const openIssueFile = (file: string): void => {
     nav(editorRouteForProjectFile(file))
   }
@@ -186,86 +148,7 @@ export default function Validation(): JSX.Element {
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3>Local Loop Readiness</h3>
-          <StepRow
-            done={moduleReady}
-            label="ECHO Modules"
-            detail={
-              devWorkspace
-                ? moduleReady
-                  ? `${devWorkspace.modulePlan.closure.length} module(s) resolved with current lock and source map.`
-                  : [
-                      devWorkspace.modulePlan.missingRequired.length ? `Missing closure: ${devWorkspace.modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.` : '',
-                      devWorkspace.modulePlan.unknown.length ? `Unknown: ${devWorkspace.modulePlan.unknown.join(', ')}.` : '',
-                      blockedModules.length ? `Blocked: ${blockedModules.map((mod) => mod.name).join(', ')}.` : '',
-                      !devWorkspace.moduleLock.upToDate ? diffDetail(devWorkspace.moduleLock.missingFromLock, devWorkspace.moduleLock.extraInLock, 'Module lock is current.') : '',
-                      !devWorkspace.moduleWorkspace.upToDate ? diffDetail(devWorkspace.moduleWorkspace.missingFromMap, devWorkspace.moduleWorkspace.extraInMap, 'Module workspace map is current.') : ''
-                    ].filter(Boolean).join(' ')
-                : 'Inspecting module closure.'
-            }
-          />
-          <StepRow
-            done={workspaceReady}
-            label="Dev Workspace"
-            detail={
-              devWorkspace
-                ? workspaceSetUp
-                  ? devWorkspace.mode === 'visual'
-                    ? 'Visual workspace is selected; code setup is optional.'
-                    : devWorkspace.gradleReady
-                      ? devWorkspace.hasGradleWrapper
-                        ? 'Pinned Gradle launcher and generated project files are available.'
-                        : 'Gradle project files exist, but the pinned launcher is missing.'
-                      : 'Run Dev Workspace setup to generate Gradle project files.'
-                  : 'Run setup from Modules or Dev Workspace to create the local build surface.'
-                : 'Inspecting workspace setup.'
-            }
-          />
-          <StepRow
-            done={toolchainReady}
-            label="Toolchain"
-            detail={
-              devWorkspace
-                ? devWorkspace.mode === 'visual'
-                  ? 'Visual mode does not require Java or Gradle tasks.'
-                  : devWorkspace.toolchain.issues.length > 0
-                    ? devWorkspace.toolchain.issues.join(' ')
-                    : `Java ${devWorkspace.toolchain.javaVersion ?? devWorkspace.toolchain.requiredJavaVersion} and ${devWorkspace.toolchain.gradleCommand} are ready.`
-                : 'Inspecting Java and Gradle availability.'
-            }
-          />
-          <StepRow
-            done={previewReady}
-            label="Preview Launchers"
-            detail={
-              devWorkspace
-                ? previewReady
-                  ? 'Selected runtime preview launchers are configured.'
-                  : 'Set missing ECHO Native or Standalone executable paths in Settings, then run setup.'
-                : 'Inspecting preview launcher configuration.'
-            }
-          />
-          <StepRow
-            done={artifactReady}
-            label="Release Artifacts"
-            detail={
-              devWorkspace
-                ? artifactReady
-                  ? `${devWorkspace.artifacts.length} artifact/sidecar file(s), including echo-release.json and checksums.sha256.`
-                  : devWorkspace.artifacts.length > 0
-                    ? 'Built artifacts exist, but release sidecars are missing.'
-                    : 'Run Release to prepare local packages and Release Index sidecars.'
-                : 'Inspecting local artifact outputs.'
-            }
-          />
-          <div className="btn-row" style={{ marginTop: 12 }}>
-            <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
-            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Dev Workspace</button>
-            <button className="btn ghost" onClick={() => nav('/preview')}>Preview</button>
-            <button className="btn ghost" onClick={() => nav('/release')}>Release</button>
-          </div>
-        </div>
+        <LocalLoopPanel title="Local Loop Readiness" steps={localLoop.steps} nextStep={localLoop.nextStep} onNavigate={nav} />
 
         <div className="card">
           <h3>Artifact Health</h3>
