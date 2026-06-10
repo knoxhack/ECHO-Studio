@@ -39,6 +39,9 @@ export interface BundleMember {
 
 export interface ExperienceResult {
   path: string
+  packManifestPath: string
+  packLockPath: string
+  legacyLockPath: string
   loadOrder: string[]
   members: BundleMember[]
   moduleSummary: BundleModuleSummary
@@ -47,6 +50,8 @@ export interface ExperienceResult {
 
 export interface ServerPackResult {
   zipPath: string
+  packManifestFile: string
+  packLockFile: string
   requiredClientAddons: string[]
   moduleSummary: BundleModuleSummary
   warnings: string[]

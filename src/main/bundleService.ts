@@ -3,9 +3,31 @@ import { join } from 'path'
 import { createHash } from 'crypto'
 import AdmZip from 'adm-zip'
 import { readManifest, defaultWorkspace } from './fsService'
-import type { AddonManifest } from '../shared/types'
+import type { AddonManifest, Runtime, TargetExperience } from '../shared/types'
 import { computeLoadOrder, summarizeBundleModules, type BundleMember, type BundleModuleSummary, type ExperienceResult, type ServerPackResult } from '../shared/bundles'
 import { listEchoModules } from './moduleCatalogService'
+
+const ECHO_PACK_MANIFEST_FILE = 'echo-pack.json'
+const ECHO_PACK_LOCK_FILE = 'echo-pack.lock.json'
+const LEGACY_PACKOS_LOCK_FILE = 'packos.lockfile.json'
+
+type EchoPackKind = 'community_experience' | 'server_pack'
+
+interface BuildEchoPackInput {
+  kind: EchoPackKind
+  id: string
+  name: string
+  version: string
+  generatedAt: string
+  namespace?: string
+  members: BundleMember[]
+  manifests: AddonManifest[]
+  loadOrder: string[]
+  moduleSummary: BundleModuleSummary
+  catalogSource: string
+  warnings: string[]
+  requiredClientAddons?: string[]
+}
 
 async function loadMember(path: string): Promise<{ manifest: AddonManifest; member: BundleMember }> {
   const manifest = await readManifest(path)
@@ -19,6 +41,10 @@ async function loadMember(path: string): Promise<{ manifest: AddonManifest; memb
 }
 
 export { computeLoadOrder } from '../shared/bundles'
+
+function sorted<T extends string>(values: Iterable<T>): T[] {
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b))
+}
 
 function moduleWarnings(summary: BundleModuleSummary): string[] {
   const warnings: string[] = []
@@ -47,6 +73,9 @@ function moduleMetadata(summary: BundleModuleSummary, catalogSource: string): Re
       status: mod.status,
       publicApi: mod.publicApi,
       trustLevel: mod.trustLevel ?? 'unknown',
+      blocked: Boolean(mod.blocked),
+      blockReason: mod.blockReason,
+      source: mod.source,
       localSource: mod.localSource
     })),
     issues: {
@@ -57,8 +86,89 @@ function moduleMetadata(summary: BundleModuleSummary, catalogSource: string): Re
   }
 }
 
+function bundleCompatibility(manifests: AddonManifest[]): { targetExperiences: TargetExperience[]; runtimes: Runtime[] } {
+  return {
+    targetExperiences: sorted(manifests.flatMap((manifest) => manifest.target.experiences)),
+    runtimes: sorted(manifests.flatMap((manifest) => manifest.runtime.supports))
+  }
+}
+
+function dependencyRules(manifests: AddonManifest[]): Array<{ id: string; required: string[]; optional: string[] }> {
+  return manifests.map((manifest) => ({
+    id: manifest.id,
+    required: [...manifest.dependencies.required],
+    optional: [...manifest.dependencies.optional]
+  }))
+}
+
+function memberRecords(members: BundleMember[]): Array<{ id: string; name: string; version: string; manifestSha256: string; sourcePath: string }> {
+  return members.map((member) => ({
+    id: member.id,
+    name: member.name,
+    version: member.version,
+    manifestSha256: member.hash,
+    sourcePath: member.path
+  }))
+}
+
+function buildEchoPackManifest(input: BuildEchoPackInput): Record<string, unknown> {
+  return {
+    schemaVersion: 'echo.pack.v1',
+    id: input.id,
+    kind: input.kind,
+    name: input.name,
+    version: input.version,
+    channel: 'local',
+    generatedAt: input.generatedAt,
+    ...(input.namespace ? { namespace: input.namespace } : {}),
+    compatibility: bundleCompatibility(input.manifests),
+    members: memberRecords(input.members),
+    loadOrder: input.loadOrder,
+    dependencyRules: dependencyRules(input.manifests),
+    ...(input.requiredClientAddons ? { requiredClientAddons: input.requiredClientAddons } : {}),
+    moduleClosure: moduleMetadata(input.moduleSummary, input.catalogSource),
+    validation: {
+      state: input.warnings.length > 0 ? 'warning' : 'ready',
+      warnings: input.warnings
+    }
+  }
+}
+
+function buildEchoPackLock(input: BuildEchoPackInput): Record<string, unknown> {
+  return {
+    schemaVersion: 'echo.pack.lock.v1',
+    id: input.id,
+    kind: input.kind,
+    generatedAt: input.generatedAt,
+    catalogSource: input.catalogSource,
+    members: memberRecords(input.members),
+    loadOrder: input.loadOrder,
+    moduleClosure: moduleMetadata(input.moduleSummary, input.catalogSource),
+    validation: {
+      state: input.warnings.length > 0 ? 'warning' : 'ready',
+      warnings: input.warnings
+    }
+  }
+}
+
+function legacyLockfile(generatedAt: string, members: BundleMember[]): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    generatedAt,
+    members: members.map((member) => ({ id: member.id, version: member.version, hash: member.hash }))
+  }
+}
+
+function jsonBuffer(value: unknown): Buffer {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf-8')
+}
+
+async function writeJson(filePath: string, value: unknown): Promise<void> {
+  await fs.writeFile(filePath, jsonBuffer(value))
+}
+
 // Build a Community Experience bundle: a project folder with experience.json +
-// lockfile.json describing members, load order and dependency rules.
+// echo-pack.json describing members, load order, modules and dependency rules.
 export async function createExperience(
   workspaceDir: string,
   namespace: string,
@@ -73,6 +183,8 @@ export async function createExperience(
   const moduleSummary = summarizeBundleModules(manifests, moduleCatalog.catalog)
   const { order, warnings } = computeLoadOrder(manifests)
   warnings.push(...moduleCatalog.warnings, ...moduleWarnings(moduleSummary))
+  const generatedAt = new Date().toISOString()
+  const packId = `${namespace}:${id}`
 
   // Compatibility warnings across members.
   const experiences = new Set(manifests.flatMap((m) => m.target.experiences))
@@ -86,7 +198,7 @@ export async function createExperience(
 
   const experience = {
     schemaVersion: 1,
-    id: `${namespace}:${id}`,
+    id: packId,
     name,
     projectClass: 'community_experience',
     namespace,
@@ -95,20 +207,34 @@ export async function createExperience(
     dependencyRules: manifests.map((m) => ({ id: m.id, requires: m.dependencies.required })),
     moduleClosure: moduleMetadata(moduleSummary, moduleCatalog.source)
   }
-  const lockfile = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    members: members.map((m) => ({ id: m.id, version: m.version, hash: m.hash }))
+  const packInput: BuildEchoPackInput = {
+    kind: 'community_experience',
+    id: packId,
+    name,
+    version: '0.1.0',
+    generatedAt,
+    namespace,
+    members,
+    manifests,
+    loadOrder: order,
+    moduleSummary,
+    catalogSource: moduleCatalog.source,
+    warnings
   }
-  await fs.writeFile(join(dir, 'experience.json'), JSON.stringify(experience, null, 2), 'utf-8')
-  await fs.writeFile(join(dir, 'packos.lockfile.json'), JSON.stringify(lockfile, null, 2), 'utf-8')
+  const packManifestPath = join(dir, ECHO_PACK_MANIFEST_FILE)
+  const packLockPath = join(dir, ECHO_PACK_LOCK_FILE)
+  const legacyLockPath = join(dir, LEGACY_PACKOS_LOCK_FILE)
+  await writeJson(join(dir, 'experience.json'), experience)
+  await writeJson(packManifestPath, buildEchoPackManifest(packInput))
+  await writeJson(packLockPath, buildEchoPackLock(packInput))
+  await writeJson(legacyLockPath, legacyLockfile(generatedAt, members))
   await fs.writeFile(
     join(dir, 'README.md'),
     `# ${name}\n\nA community experience bundling ${members.length} addons.\n\nLoad order:\n${order.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n`,
     'utf-8'
   )
 
-  return { path: dir, loadOrder: order, members, moduleSummary, warnings }
+  return { path: dir, packManifestPath, packLockPath, legacyLockPath, loadOrder: order, members, moduleSummary, warnings }
 }
 
 // Export a server pack zip: server profile + required client addon list +
@@ -124,7 +250,9 @@ export async function exportServerPack(
   const moduleCatalog = await listEchoModules(workspaceDir)
   const moduleSummary = summarizeBundleModules(manifests, moduleCatalog.catalog)
   const warnings: string[] = []
-  warnings.push(...moduleCatalog.warnings, ...moduleWarnings(moduleSummary))
+  const { order, warnings: loadOrderWarnings } = computeLoadOrder(manifests)
+  warnings.push(...loadOrderWarnings, ...moduleCatalog.warnings, ...moduleWarnings(moduleSummary))
+  const generatedAt = new Date().toISOString()
 
   // Client addons are those that register UI/screens/content the client needs.
   const requiredClientAddons = manifests
@@ -146,7 +274,23 @@ export async function exportServerPack(
     moduleClosure: moduleMetadata(moduleSummary, moduleCatalog.source),
     configProfiles: { default: { pvp: false, difficulty: 'normal' } }
   }
-  zip.addFile('server.profile.json', Buffer.from(JSON.stringify(serverProfile, null, 2), 'utf-8'))
+  const packInput: BuildEchoPackInput = {
+    kind: 'server_pack',
+    id: sanitize(name),
+    name,
+    version: '0.1.0',
+    generatedAt,
+    members,
+    manifests,
+    loadOrder: order,
+    moduleSummary,
+    catalogSource: moduleCatalog.source,
+    warnings,
+    requiredClientAddons
+  }
+  zip.addFile('server.profile.json', jsonBuffer(serverProfile))
+  zip.addFile(ECHO_PACK_MANIFEST_FILE, jsonBuffer(buildEchoPackManifest(packInput)))
+  zip.addFile(ECHO_PACK_LOCK_FILE, jsonBuffer(buildEchoPackLock(packInput)))
   for (const l of loaded) {
     const raw = await fs.readFile(join(l.member.path, 'echo.mod.json'), 'utf-8')
     zip.addFile(`addons/${l.manifest.namespace}_${local(l.manifest.id)}/echo.mod.json`, Buffer.from(raw, 'utf-8'))
@@ -158,7 +302,7 @@ export async function exportServerPack(
   const zipPath = join(exportsDir, `${sanitize(name)}-serverpack.zip`)
   zip.writeZip(zipPath)
 
-  return { zipPath, requiredClientAddons, moduleSummary, warnings, members }
+  return { zipPath, packManifestFile: ECHO_PACK_MANIFEST_FILE, packLockFile: ECHO_PACK_LOCK_FILE, requiredClientAddons, moduleSummary, warnings, members }
 }
 
 function local(id: string): string {

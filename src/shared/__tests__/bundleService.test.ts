@@ -1,9 +1,20 @@
-import { describe, it, expect } from 'vitest'
+import { promises as fs } from 'fs'
+import os from 'os'
+import path from 'path'
+import AdmZip from 'adm-zip'
+import { describe, it, expect, vi } from 'vitest'
 import { computeLoadOrder, summarizeBundleModules } from '../bundles'
 import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
+import { createExperience, exportServerPack } from '../../main/bundleService'
 
-function makeManifest(id: string, deps: string[] = []): AddonManifest {
+vi.mock('electron', () => ({
+  app: {
+    getPath: () => os.tmpdir()
+  }
+}))
+
+function makeManifest(id: string, deps: string[] = [], permissions: string[] = []): AddonManifest {
   return {
     schemaVersion: 1,
     id,
@@ -16,12 +27,36 @@ function makeManifest(id: string, deps: string[] = []): AddonManifest {
     namespace: 'test',
     target: { experiences: ['ashfall'], modules: [] },
     runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' },
-    permissions: [],
+    permissions,
     dependencies: { required: deps, optional: [] },
     trust: { level: 'community', signed: false, verified: false },
     support: { tier: 'community' },
     tags: []
   }
+}
+
+async function writeLocalModuleIndex(root: string): Promise<void> {
+  const indexPath = path.join(root, 'ECHO-Modules', 'metadata', 'modules', 'index.json')
+  await fs.mkdir(path.dirname(indexPath), { recursive: true })
+  await fs.writeFile(indexPath, JSON.stringify({
+    schemaVersion: 'echo.modules.index.v1',
+    generatedAt: '2026-06-10T00:00:00.000Z',
+    modules: [
+      {
+        id: 'echocore',
+        name: 'ECHO: Core',
+        channel: 'alpha',
+        provides: ['echo:core']
+      }
+    ]
+  }, null, 2), 'utf8')
+}
+
+async function writeProject(workspace: string, folder: string, manifest: AddonManifest): Promise<string> {
+  const project = path.join(workspace, folder)
+  await fs.mkdir(project, { recursive: true })
+  await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest, null, 2), 'utf8')
+  return project
 }
 
 describe('computeLoadOrder', () => {
@@ -83,5 +118,70 @@ describe('summarizeBundleModules', () => {
     expect(summary.missingRequired).toContain('echo:weather_core')
     expect(summary.unknown).toEqual([])
     expect(summary.blocked).toEqual([])
+  })
+})
+
+describe('bundleService pack metadata', () => {
+  it('writes canonical echo-pack metadata beside legacy Community Experience files', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-bundle-service-'))
+    try {
+      await writeLocalModuleIndex(root)
+      const workspace = path.join(root, 'Workspace')
+      const project = await writeProject(
+        workspace,
+        'teamnova_missions',
+        makeManifest('teamnova:missions', ['echo:core'])
+      )
+
+      const result = await createExperience(workspace, 'teamnova', 'ashfall_bundle', 'Ashfall Bundle', [project])
+      const pack = JSON.parse(await fs.readFile(result.packManifestPath, 'utf8'))
+      const lock = JSON.parse(await fs.readFile(result.packLockPath, 'utf8'))
+      const legacyLock = JSON.parse(await fs.readFile(result.legacyLockPath, 'utf8'))
+
+      expect(path.basename(result.packManifestPath)).toBe('echo-pack.json')
+      expect(path.basename(result.packLockPath)).toBe('echo-pack.lock.json')
+      expect(path.basename(result.legacyLockPath)).toBe('packos.lockfile.json')
+      expect(pack.schemaVersion).toBe('echo.pack.v1')
+      expect(pack.id).toBe('teamnova:ashfall_bundle')
+      expect(pack.kind).toBe('community_experience')
+      expect(pack.compatibility.targetExperiences).toEqual(['ashfall'])
+      expect(pack.moduleClosure.catalogSource).toBe('local-index')
+      expect(pack.members[0].manifestSha256).toMatch(/^[a-f0-9]{64}$/)
+      expect(lock.schemaVersion).toBe('echo.pack.lock.v1')
+      expect(lock.members[0].sourcePath).toBe(project)
+      expect(legacyLock.schemaVersion).toBe(1)
+      await expect(fs.access(path.join(result.path, 'experience.json'))).resolves.toBeUndefined()
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('embeds canonical echo-pack metadata in exported Server Pack zips', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-bundle-service-'))
+    try {
+      await writeLocalModuleIndex(root)
+      const workspace = path.join(root, 'Workspace')
+      const project = await writeProject(
+        workspace,
+        'teamnova_missions',
+        makeManifest('teamnova:missions', ['echo:core'], ['mission.register'])
+      )
+
+      const result = await exportServerPack(workspace, 'Ashfall Server', [project])
+      const zip = new AdmZip(result.zipPath)
+      const pack = JSON.parse(zip.readAsText(result.packManifestFile))
+      const lock = JSON.parse(zip.readAsText(result.packLockFile))
+
+      expect(result.packManifestFile).toBe('echo-pack.json')
+      expect(result.packLockFile).toBe('echo-pack.lock.json')
+      expect(pack.schemaVersion).toBe('echo.pack.v1')
+      expect(pack.kind).toBe('server_pack')
+      expect(pack.requiredClientAddons).toEqual(['teamnova:missions'])
+      expect(pack.moduleClosure.catalogSource).toBe('local-index')
+      expect(lock.schemaVersion).toBe('echo.pack.lock.v1')
+      expect(zip.getEntry('server.profile.json')).toBeTruthy()
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
   })
 })

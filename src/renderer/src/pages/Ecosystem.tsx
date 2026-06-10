@@ -189,6 +189,8 @@ export default function Ecosystem(): JSX.Element {
             <div className="card" style={{ marginTop: 12 }}>
               <h4>Community Experience Created</h4>
               <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>{result.path}</div>
+              <div className="dim" style={{ fontSize: 12 }}>Pack manifest: {result.packManifestPath}</div>
+              <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>Pack lock: {result.packLockPath}</div>
               <div>Members: {result.members.length}</div>
               <div>Module closure: {result.moduleSummary.moduleCount} module(s)</div>
               <div style={{ marginTop: 6 }}>
@@ -218,6 +220,9 @@ export default function Ecosystem(): JSX.Element {
             <div className="card" style={{ marginTop: 12 }}>
               <h4>Server Pack Exported</h4>
               <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>{result.zipPath}</div>
+              <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+                Contains {result.packManifestFile} and {result.packLockFile}
+              </div>
               <div>Members: {result.members.length}</div>
               <div>Required client addons: {result.requiredClientAddons.length}</div>
               <div>Module closure: {result.moduleSummary.moduleCount} module(s)</div>
