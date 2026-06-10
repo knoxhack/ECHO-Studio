@@ -43,3 +43,9 @@ Every release repository must define the variables that correspond to its track:
 
 The `scripts/validate-release-feed.mjs` preflight is mandatory for every release
 job and must run before build, package, or publish steps.
+
+Release workflows that publish installable artifacts must also generate GitHub
+artifact attestations. The workflow must grant `id-token: write` and
+`attestations: write`, write a `release/SHA256SUMS.txt` subject checksum file,
+and run `actions/attest@v4` with `subject-checksums: release/SHA256SUMS.txt`
+before uploading the checksum manifest.

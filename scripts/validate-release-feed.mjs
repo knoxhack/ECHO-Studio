@@ -105,6 +105,7 @@ function usage() {
 Options:
   --builder <path>       package.json or electron-builder yaml to validate. Repeatable.
   --source <path>        source file with updater constants to validate. Repeatable.
+  --workflow <path>      GitHub Actions release workflow to validate. Repeatable.
   --package <path>       package.json to validate package name. Defaults to package.json when present.
   --tag <tag>            release tag to check against the stream prefix.
   --public-only          fail if an internal feed repo/constant appears in source.
@@ -113,7 +114,7 @@ Options:
 }
 
 function parseArgs(argv) {
-  const args = { builders: [], sources: [], packages: [], artifactDirs: [] }
+  const args = { builders: [], sources: [], workflows: [], packages: [], artifactDirs: [] }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     const next = () => {
@@ -134,6 +135,9 @@ function parseArgs(argv) {
         break
       case '--source':
         args.sources.push(next())
+        break
+      case '--workflow':
+        args.workflows.push(next())
         break
       case '--package':
         args.packages.push(next())
@@ -273,6 +277,22 @@ function validateBuilder(policy, filePath) {
   pairs.forEach((pair, index) => validatePublishPair(policy, `${filePath} publish[${index}]`, pair))
 }
 
+function validateWorkflowAttestations(policy, filePath) {
+  const text = readText(path.resolve(filePath))
+  const requiredSnippets = [
+    ['contents write permission', /contents:\s*write/i],
+    ['id-token write permission', /id-token:\s*write/i],
+    ['attestations write permission', /attestations:\s*write/i],
+    ['GitHub artifact attestation action', /uses:\s*actions\/attest@v4/i],
+    ['checksum subject input', /subject-checksums:\s*release\/SHA256SUMS\.txt/i],
+  ]
+  for (const [label, pattern] of requiredSnippets) {
+    if (!pattern.test(text)) {
+      throw new Error(`${filePath} is missing ${label} for ${policy.stream}.`)
+    }
+  }
+}
+
 function validatePackage(policy, filePath) {
   const json = readJson(path.resolve(filePath))
   if (json.name && !policy.packageNames.map(normalize).includes(normalize(json.name))) {
@@ -361,6 +381,7 @@ function main() {
   packages.forEach((filePath) => validatePackage(policy, filePath))
   args.builders.forEach((filePath) => validateBuilder(policy, filePath))
   args.sources.forEach((filePath) => validateSourceConstants(policy, filePath))
+  args.workflows.forEach((filePath) => validateWorkflowAttestations(policy, filePath))
   args.artifactDirs.forEach((dir) => validateArtifacts(policy, dir))
 
   console.log(`Release feed policy OK: ${policy.track}:${policy.stream} -> ${policy.owner}/${policy.repo}`)
