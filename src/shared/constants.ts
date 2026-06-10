@@ -50,6 +50,8 @@ export const BLOCKED_PERMISSIONS: Record<string, string> = {
   'file_system.write_global': 'addon_storage.write',
   'runtime.internal': 'addon_storage.write',
   'launcher.catalog.write': 'addon_storage.write',
+  'validation.policy.modify': 'addon_storage.write',
+  // Legacy PackOS permission name. Kept blocked so imported older manifests are still repaired safely.
   'packos.policy.modify': 'addon_storage.write',
   'official_signature.use': 'addon_storage.write'
 }

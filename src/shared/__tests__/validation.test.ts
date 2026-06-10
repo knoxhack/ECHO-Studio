@@ -49,6 +49,16 @@ describe('runValidationCheck', () => {
     expect(report.issues.some((i) => i.message.includes('Restricted permission'))).toBe(true)
   })
 
+  it('blocks current and legacy validation policy permissions', () => {
+    const current = runValidationCheck(makeManifest({ permissions: ['validation.policy.modify'] }))
+    const legacy = runValidationCheck(makeManifest({ permissions: ['packos.policy.modify'] }))
+
+    expect(current.counts.BLOCKER).toBeGreaterThanOrEqual(1)
+    expect(legacy.counts.BLOCKER).toBeGreaterThanOrEqual(1)
+    expect(autoFixManifest(makeManifest({ permissions: ['validation.policy.modify'] })).permissions).toEqual(['addon_storage.write'])
+    expect(autoFixManifest(makeManifest({ permissions: ['packos.policy.modify'] })).permissions).toEqual(['addon_storage.write'])
+  })
+
   it('flags missing echo:core dependency as ERROR', () => {
     const manifest = makeManifest({ dependencies: { required: [], optional: [] } })
     const report = runValidationCheck(manifest)

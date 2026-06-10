@@ -33,6 +33,12 @@ export default function ManifestBuilder(): JSX.Element {
   }, [activeProject])
 
   const modulePlan = useMemo(() => (m ? resolveProjectModulePlan(m, moduleCatalog) : null), [m, moduleCatalog])
+  const visibleBlockedPermissions = useMemo(
+    () => Object.keys(BLOCKED_PERMISSIONS).filter((permission) =>
+      permission !== 'packos.policy.modify' || m?.permissions.includes(permission)
+    ),
+    [m?.permissions]
+  )
 
   if (!activeProject)
     return (
@@ -271,7 +277,7 @@ export default function ManifestBuilder(): JSX.Element {
             <div className="dim" style={{ fontSize: 12, margin: '12px 0 8px', color: 'var(--bad)' }}>
               Reserved (blocked - for ECHO Developers only):
             </div>
-            {Object.keys(BLOCKED_PERMISSIONS).map((p) => (
+            {visibleBlockedPermissions.map((p) => (
               <label className="checkbox" key={p} style={{ opacity: 0.7 }}>
                 <input
                   type="checkbox"
