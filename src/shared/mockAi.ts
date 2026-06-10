@@ -1,4 +1,4 @@
-// Mocked ECHO Studio Assistant. Produces canned, SDK-safe responses.
+// Mocked ECHO Studio Assistant. Produces canned contract-safe responses.
 // Real model integration can replace generateAiReply later.
 
 export interface AiAction {
@@ -12,7 +12,7 @@ export interface AiReply {
 }
 
 const SAFETY_NOTE =
-  'I only use the public ECHO SDK, keep everything namespaced to your creator namespace, and never bypass PackOS validation.'
+  'I only use public ECHO contracts and approved modules, keep everything namespaced to your creator namespace, and never bypass PackOS validation.'
 
 export function generateAiReply(prompt: string): AiReply {
   const p = prompt.toLowerCase()

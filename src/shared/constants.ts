@@ -54,7 +54,7 @@ export const BLOCKED_PERMISSIONS: Record<string, string> = {
   'official_signature.use': 'addon_storage.write'
 }
 
-// Known public ECHO SDK modules creators can depend on.
+// Known public ECHO modules creators can depend on.
 export const SDK_MODULES = [
   'echo:core',
   'echo:net_core',

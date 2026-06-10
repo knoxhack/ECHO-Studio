@@ -77,7 +77,7 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
         level: 'WARNING',
         category: 'Permissions',
         message: `Unknown permission: ${perm}.`,
-        fix: 'Remove it or use a documented public SDK permission.'
+        fix: 'Remove it or use a documented public ECHO permission.'
       })
     }
   }
@@ -169,7 +169,7 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
       level: 'WARNING',
       category: 'Runtime compatibility',
       message: 'Addon declares ECHO Native support but native readiness is "none".',
-      fix: 'Use the public ECHO SDK lifecycle entrypoints, or lower native support.'
+      fix: 'Use the public ECHO lifecycle entrypoints, or lower native support.'
     })
   }
   if (manifest.runtime.supports.length === 0) {

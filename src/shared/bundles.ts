@@ -24,7 +24,7 @@ export interface ServerPackResult {
 
 // Topologically order members so dependencies load first. Members that depend
 // on another member's id are placed after it; unresolved deps are ignored
-// because they are assumed to be SDK modules.
+// because they are assumed to be ECHO modules or external dependencies.
 export function computeLoadOrder(manifests: AddonManifest[]): { order: string[]; warnings: string[] } {
   const ids = new Set(manifests.map((manifest) => manifest.id))
   const warnings: string[] = []

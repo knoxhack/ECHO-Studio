@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { RUNTIME_LABELS, TARGET_LABELS } from '@shared/constants'
+import { preferredModuleAlias, resolveProjectModulePlan, type ProjectModulePlan } from '@shared/moduleCatalog'
 import { runPackOSCheck } from '@shared/validation'
 import type { AddonProject, PackOSReport } from '@shared/types'
 
@@ -32,7 +33,7 @@ function laneLabel(lane: IndexLane): string {
   return LANES.find((item) => item.id === lane)?.label ?? 'Local Draft'
 }
 
-function searchText(project: AddonProject): string {
+function searchText(project: AddonProject, modulePlan: ProjectModulePlan): string {
   const manifest = project.manifest
   return [
     manifest.name,
@@ -43,29 +44,33 @@ function searchText(project: AddonProject): string {
     manifest.version,
     project.publishStatus,
     manifest.trust.level,
+    ...modulePlan.closure.map((mod) => mod.name),
+    ...modulePlan.closure.map(preferredModuleAlias),
+    ...modulePlan.unknown,
     ...(manifest.tags ?? [])
   ].join(' ').toLowerCase()
 }
 
 export default function CommunityCatalog(): JSX.Element {
-  const { projects, setActiveProject, refresh } = useWorkspace()
+  const { projects, setActiveProject, refresh, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const nav = useNavigate()
   const [query, setQuery] = useState('')
   const [lane, setLane] = useState<IndexLane>('all')
 
   const rows = useMemo(
     () => projects.map((project) => {
-      const report = runPackOSCheck(project.manifest)
-      return { project, report, lane: laneFor(project, report) }
+      const report = runPackOSCheck(project.manifest, moduleCatalog)
+      const modulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
+      return { project, report, modulePlan, lane: laneFor(project, report) }
     }),
-    [projects]
+    [moduleCatalog, projects]
   )
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return rows.filter((row) => {
       if (lane !== 'all' && row.lane !== lane) return false
-      return !needle || searchText(row.project).includes(needle)
+      return !needle || searchText(row.project, row.modulePlan).includes(needle)
     })
   }, [rows, query, lane])
 
@@ -79,11 +84,22 @@ export default function CommunityCatalog(): JSX.Element {
       title="Release Index Catalog"
       subtitle="Local projects grouped by Release Index readiness, review state, trust, targets, and runtime artifacts."
       actions={
-        <button className="btn" onClick={refresh}>
-          Refresh
-        </button>
+        <>
+          <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+            {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in module catalog'}
+          </span>
+          <button className="btn" onClick={refresh}>
+            Refresh
+          </button>
+        </>
       }
     >
+      {moduleCatalogResult?.warnings.length ? (
+        <div className="issue WARNING" style={{ marginBottom: 16 }}>
+          <span className="lvl">WARNING</span>
+          {moduleCatalogResult.warnings.join(' ')}
+        </div>
+      ) : null}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 16 }}>
         {LANES.map((item) => {
           const count = rows.filter((row) => row.lane === item.id).length
@@ -121,9 +137,15 @@ export default function CommunityCatalog(): JSX.Element {
         <div className="empty">No projects match this Release Index filter.</div>
       ) : (
         <div className="grid gap-2">
-          {filtered.map(({ project, report, lane: projectLane }) => {
+          {filtered.map(({ project, report, modulePlan, lane: projectLane }) => {
             const manifest = project.manifest
             const blockers = report.counts.BLOCKER + report.counts.ERROR
+            const blockedModules = modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
+            const moduleIssues = modulePlan.missingRequired.length + modulePlan.unknown.length + blockedModules.length
+            const moduleTone = moduleIssues > 0 ? 'var(--warn)' : 'var(--good)'
+            const moduleValue = modulePlan.closure.length > 0
+              ? `${modulePlan.closure.length} resolved`
+              : `${manifest.target.modules.length + manifest.dependencies.required.length} declared`
             return (
               <div className="card" key={project.path}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -139,8 +161,29 @@ export default function CommunityCatalog(): JSX.Element {
                   <SmallStat label="PackOS" value={report.publishingReady ? `${report.compatibilityScore}% ready` : `${blockers} blocker/error`} tone={report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
                   <SmallStat label="Targets" value={manifest.target.experiences.map((target) => TARGET_LABELS[target]).join(', ') || 'None'} />
                   <SmallStat label="Runtimes" value={manifest.runtime.supports.map((runtime) => RUNTIME_LABELS[runtime]).join(' + ') || 'None'} />
-                  <SmallStat label="Modules" value={`${manifest.target.modules.length + manifest.dependencies.required.length} declared`} />
+                  <SmallStat label="Modules" value={moduleValue} tone={moduleTone} />
                 </div>
+                {(modulePlan.closure.length > 0 || modulePlan.unknown.length > 0) && (
+                  <div className="btn-row" style={{ marginTop: 10 }}>
+                    {modulePlan.closure.slice(0, 6).map((mod) => (
+                      <span key={mod.id} className={`badge ${mod.source === 'local-index' ? 'ready' : 'local'}`} style={{ fontSize: 10 }}>
+                        {mod.name}
+                      </span>
+                    ))}
+                    {modulePlan.closure.length > 6 && <span className="badge">+{modulePlan.closure.length - 6}</span>}
+                    {modulePlan.unknown.map((id) => (
+                      <span key={id} className="badge fixes" style={{ fontSize: 10 }}>{id}</span>
+                    ))}
+                  </div>
+                )}
+                {moduleIssues > 0 && (
+                  <div className="issue WARNING" style={{ marginTop: 10 }}>
+                    <span className="lvl">MODULES</span>
+                    {modulePlan.missingRequired.length > 0 && `Missing closure: ${modulePlan.missingRequired.map((mod) => mod.name).join(', ')}. `}
+                    {modulePlan.unknown.length > 0 && `Unknown: ${modulePlan.unknown.join(', ')}. `}
+                    {blockedModules.length > 0 && `Blocked: ${blockedModules.map((mod) => mod.name).join(', ')}.`}
+                  </div>
+                )}
                 {manifest.tags?.length ? (
                   <div className="btn-row" style={{ marginTop: 10 }}>
                     {manifest.tags.map((tag) => (

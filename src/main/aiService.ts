@@ -1,5 +1,7 @@
 import { getConfig } from './config'
+import { listEchoModules } from './moduleCatalogService'
 import { readManifest } from './fsService'
+import { preferredModuleAlias, resolveProjectModulePlan } from '../shared/moduleCatalog'
 import type { AiChatResult, AiFile } from '../shared/config'
 
 export interface ChatMessage {
@@ -8,10 +10,10 @@ export interface ChatMessage {
 }
 
 const SAFETY_SYSTEM = `You are the ECHO Studio assistant.
-You help creators build ECHO projects on top of the ECHO Platform using ONLY the public ECHO SDK.
+You help creators build ECHO projects on top of the ECHO Platform using ONLY public ECHO contracts and approved ECHO Modules.
 
 Hard rules you must always follow:
-- Use ONLY the public ECHO SDK. Never reference ECHO Core internals, the Native Loader, or private APIs.
+- Use ONLY public ECHO contracts and approved ECHO Modules. Never reference ECHO Core internals, the Native Loader, or private APIs.
 - Never use the reserved "echo:" namespace for creator content; always namespace content to the creator's namespace.
 - Never bypass or disable PackOS validation. Never request restricted permissions
   (file_system.write_global, runtime.internal, launcher.catalog.write, packos.policy.modify, official_signature.use).
@@ -45,7 +47,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
     const id = 'lost_convoy_01'
     return {
       usedModel: false,
-      text: `Here's a mission pack scaffold about that idea. I used your namespace "${ns}" and only public SDK modules (MissionCore, HoloMap, Index).`,
+      text: `Here's a mission pack scaffold about that idea. I used your namespace "${ns}" and only approved ECHO Modules (MissionCore, HoloMap, Index).`,
       files: [
         {
           path: `missions/${id}.json`,
@@ -103,7 +105,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
   }
   return {
     usedModel: false,
-    text: `I'm the ECHO Studio assistant. I can generate missions, recipes, Index entries, HoloMap markers, manifests, and local workspace repair plans, all namespaced to "${ns}" and using only the public ECHO SDK. Add an API key in Settings for full model-powered generation.`
+    text: `I'm the ECHO Studio assistant. I can generate missions, recipes, Index entries, HoloMap markers, manifests, and local workspace repair plans, all namespaced to "${ns}" and using only public ECHO contracts plus approved ECHO Modules. Add an API key in Settings for full model-powered generation.`
   }
 }
 
@@ -139,9 +141,23 @@ export async function chat(
       const m = await readManifest(projectPath)
       if (m) {
         namespace = m.namespace
-        const targetModules = m.target.modules.length ? m.target.modules.join(', ') : 'none'
-        const requiredModules = m.dependencies.required.length ? m.dependencies.required.join(', ') : 'none'
-        manifestNote = `\nActive project: ${m.id} (namespace "${m.namespace}"), target ${m.target.experiences.join(', ')}, target modules ${targetModules}, required modules ${requiredModules}.`
+        const moduleCatalog = await listEchoModules(projectPath)
+        const modulePlan = resolveProjectModulePlan(m, moduleCatalog.catalog)
+        const targetModules = modulePlan.targetModules.length
+          ? modulePlan.targetModules.map(preferredModuleAlias).join(', ')
+          : 'none'
+        const requiredModules = modulePlan.requiredModules.length
+          ? modulePlan.requiredModules.map(preferredModuleAlias).join(', ')
+          : 'none'
+        const resolvedModules = modulePlan.closure.length
+          ? modulePlan.closure.map(preferredModuleAlias).join(', ')
+          : 'none'
+        const moduleWarnings = [
+          modulePlan.missingRequired.length ? `missing closure ${modulePlan.missingRequired.map((mod) => preferredModuleAlias(mod)).join(', ')}` : '',
+          modulePlan.unknown.length ? `unknown ${modulePlan.unknown.join(', ')}` : '',
+          moduleCatalog.warnings.length ? moduleCatalog.warnings.join(' ') : ''
+        ].filter(Boolean).join(' ')
+        manifestNote = `\nActive project: ${m.id} (namespace "${m.namespace}"), target ${m.target.experiences.join(', ')}, target modules ${targetModules}, required modules ${requiredModules}, resolved ECHO module closure ${resolvedModules}. Module catalog: ${moduleCatalog.source}.${moduleWarnings ? ` ${moduleWarnings}` : ''}`
       }
     } catch {
       /* no manifest */
