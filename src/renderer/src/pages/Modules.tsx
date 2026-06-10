@@ -244,6 +244,16 @@ export default function Modules(): JSX.Element {
             </span>
             {catalogResult.indexPath && <span className="mono dim" style={{ fontSize: 11 }}>{catalogResult.indexPath}</span>}
             {catalogResult.generatedAt && <span className="dim" style={{ fontSize: 11 }}>generated {new Date(catalogResult.generatedAt).toLocaleString()}</span>}
+            {catalogResult.moduleRoot && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(catalogResult.moduleRoot!)}>
+                Open Modules Root
+              </button>
+            )}
+            {catalogResult.indexPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(catalogResult.indexPath!)}>
+                Open Index
+              </button>
+            )}
           </div>
           {catalogResult.warnings.length > 0 && (
             <div className="issue WARNING" style={{ marginTop: 10 }}>
