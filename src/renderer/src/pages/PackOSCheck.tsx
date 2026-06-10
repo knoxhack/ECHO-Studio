@@ -59,14 +59,14 @@ export default function PackOSCheck(): JSX.Element {
       actions={
         <>
           <button className="btn" disabled={loading} onClick={run}>
-            {loading ? 'Checking…' : 'Re-run Check'}
+            {loading ? 'Checking...' : 'Re-run Check'}
           </button>
           <button
             className="btn primary"
             disabled={fixing || (report.counts.BLOCKER === 0 && report.counts.ERROR === 0)}
             onClick={fixAll}
           >
-            {fixing ? 'Fixing…' : 'Fix with AI'}
+            {fixing ? 'Fixing...' : 'Fix with AI'}
           </button>
         </>
       }
@@ -95,7 +95,7 @@ export default function PackOSCheck(): JSX.Element {
             {hs.publishing}
           </div>
           <div className="sub">
-            Blockers {report.counts.BLOCKER} · Errors {report.counts.ERROR}
+            Blockers {report.counts.BLOCKER} - Errors {report.counts.ERROR}
           </div>
         </div>
         <div className="card">
