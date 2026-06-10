@@ -264,7 +264,7 @@ function typeBlurb(t: AddonType): string {
 }
 
 function previewTree(ns: string, id: string): string {
-  const cleanTree = `${ns}_${id}/
+  return `${ns}_${id}/
 +-- echo.mod.json
 +-- META-INF/echo-addon-package.json
 +-- packos.validation.json
@@ -280,20 +280,4 @@ function previewTree(ns: string, id: string): string {
 +-- lang/
 +-- sandbox/
 +-- docs/`
-  return cleanTree
-  return `${ns}_${id}/
-├─ echo.mod.json
-├─ packos.validation.json
-├─ README.md
-├─ CHANGELOG.md
-├─ LICENSE
-├─ assets/
-├─ content/
-├─ missions/
-├─ recipes/
-├─ holomap/
-├─ index/
-├─ lang/
-├─ sandbox/
-└─ docs/`
 }

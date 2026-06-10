@@ -33,11 +33,11 @@ export default function SubmitAddon(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="Submit Addon" subtitle="Package, validate and submit your addon for review.">
+      <Page title="Submission Review" subtitle="Package, validate, and prepare your project for review.">
         <NoProject />
       </Page>
     )
-  if (!sub) return <Page title="Submit Addon"><div className="empty">Loading…</div></Page>
+  if (!sub) return <Page title="Submission Review"><div className="empty">Loading...</div></Page>
 
   const up = (patch: Partial<SubmissionState>): void => setSub((s) => (s ? { ...s, ...patch } : s))
   const persist = (next: SubmissionState): void => {
@@ -52,7 +52,7 @@ export default function SubmitAddon(): JSX.Element {
     if (res.ok && res.data) {
       setPkg(res.data)
       persist({ ...sub, lastHash: res.data.hash })
-      toast('Packaged addon')
+      toast('Packaged project')
     } else toast(res.error || 'Package failed')
   }
 
@@ -63,7 +63,7 @@ export default function SubmitAddon(): JSX.Element {
       submittedAt: Date.now(),
       thread: [
         ...sub.thread,
-        { from: 'reviewer', text: 'Submission received. Automated validation in progress…', at: Date.now() }
+        { from: 'reviewer', text: 'Submission received. Automated validation in progress...', at: Date.now() }
       ]
     }
     persist(next)
@@ -77,7 +77,7 @@ export default function SubmitAddon(): JSX.Element {
   const sdkReady = pkg?.sdkValidation.ok ?? false
 
   return (
-    <Page title="Submit Addon" subtitle="Validate, package, add metadata and submit.">
+    <Page title="Submission Review" subtitle="Validate, package, add metadata, and prepare your project for review.">
       <ActiveBar />
       <div className="steps">
         {STEPS.map((s, i) => (
@@ -93,7 +93,7 @@ export default function SubmitAddon(): JSX.Element {
           <div className="card">
             <h3>Final PackOS Check</h3>
             <button className="btn" disabled={busy} onClick={runPackage}>
-              {busy ? 'Running…' : 'Run Check & Package'}
+              {busy ? 'Running...' : 'Run Check & Package'}
             </button>
             {pkg && (
               <div style={{ marginTop: 12 }}>
@@ -101,7 +101,7 @@ export default function SubmitAddon(): JSX.Element {
                   {pkg.report.compatibilityScore}%
                 </div>
                 <div className="sub">
-                  {ready ? 'Ready to submit' : `Blockers ${pkg.report.counts.BLOCKER} · Errors ${pkg.report.counts.ERROR}`}
+                  {ready ? 'Ready to submit' : `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}`}
                 </div>
               </div>
             )}
@@ -126,7 +126,7 @@ export default function SubmitAddon(): JSX.Element {
               </div>
             ) : (
               <button className="btn primary" disabled={busy} onClick={runPackage}>
-                {busy ? 'Packaging…' : 'Build Package'}
+                {busy ? 'Packaging...' : 'Build Package'}
               </button>
             )}
           </div>
@@ -166,7 +166,7 @@ export default function SubmitAddon(): JSX.Element {
           <div className="card">
             <h3>Confirm Permissions</h3>
             <p className="dim" style={{ fontSize: 12 }}>
-              Confirm your addon only requests safe community permissions.
+              Confirm your project only requests safe community permissions.
             </p>
             <label className="checkbox">
               <input

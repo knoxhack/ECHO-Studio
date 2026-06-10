@@ -60,6 +60,7 @@ export default function App(): JSX.Element {
         <div className="content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/projects" element={<MyAddons />} />
             <Route path="/addons" element={<MyAddons />} />
             <Route path="/create" element={<CreateAddon />} />
             <Route path="/templates" element={<Templates />} />

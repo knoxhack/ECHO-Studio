@@ -95,7 +95,7 @@ export default function MyAddons(): JSX.Element {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty">No addons match this filter.</div>
+        <div className="empty">No projects match this filter.</div>
       ) : (
         <div className="grid cols-2">
           {filtered.map(({ project: p, report }) => {

@@ -14,6 +14,7 @@ export const NAV: NavGroup[] = [
     title: 'Studio',
     items: [
       { path: '/', label: 'Home', icon: 'H' },
+      { path: '/projects', label: 'Projects', icon: 'P' },
       { path: '/create', label: 'Create', icon: '+' },
       { path: '/experience', label: 'Experience', icon: 'E' }
     ]
@@ -53,6 +54,7 @@ export const NAV: NavGroup[] = [
 ]
 
 export const ROUTE_LABELS: Record<string, string> = {
+  '/projects': 'Project Library',
   '/addons': 'Project Library',
   '/templates': 'Templates',
   '/manifest': 'Experience',

@@ -153,7 +153,7 @@ export default function PublishAssistant(): JSX.Element {
 
   const packageProject = async (): Promise<void> => {
     if (!activeProject) {
-      setStatus('Select an addon project first.')
+      setStatus('Select a project first.')
       return
     }
     setBusy(true)

@@ -44,7 +44,7 @@ export default function Dashboard(): JSX.Element {
       }
     >
       <div className="grid cols-4">
-        <div className="card hover" onClick={() => nav('/addons')}>
+        <div className="card hover" onClick={() => nav('/projects')}>
           <h3>Projects</h3>
           <div className="metric">{projects.length}</div>
           <div className="sub">active workspaces</div>

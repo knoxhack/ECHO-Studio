@@ -7,10 +7,10 @@ export function NoProject(): JSX.Element {
   const nav = useNavigate()
   return (
     <div className="card" style={{ maxWidth: 560 }}>
-      <h3>Select an addon to work on</h3>
+      <h3>Select a project to work on</h3>
       {projects.length === 0 ? (
         <p className="dim">
-          You have no addons yet. <a onClick={() => nav('/create')}>Create one →</a>
+          You have no projects yet. <a onClick={() => nav('/create')}>Create one -&gt;</a>
         </p>
       ) : (
         projects.map((p) => (
@@ -29,7 +29,7 @@ export function NoProject(): JSX.Element {
   )
 }
 
-// Small inline header showing the active project + a switch button.
+// Small inline header showing the active project plus a switch button.
 export function ActiveBar(): JSX.Element | null {
   const { activeProject, setActiveProject } = useWorkspace()
   if (!activeProject) return null
