@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DevWorkspaceState } from '../devWorkspace'
-import { previewRuntimeDisabledReason } from '../previewRuntime'
+import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '../previewRuntime'
 
 function workspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState {
   return {
@@ -89,6 +89,15 @@ function workspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState {
 }
 
 describe('previewRuntimeDisabledReason', () => {
+  it('defines the shared runtime task set for Preview and Dev Workspace', () => {
+    expect(PREVIEW_RUNTIME_TASKS).toEqual([
+      'gradle:runClient',
+      'gradle:runServer',
+      'preview:native',
+      'preview:standalone'
+    ])
+  })
+
   it('allows runtime launch when workspace, module locks, source map, and launchers are current', () => {
     expect(previewRuntimeDisabledReason('gradle:runClient', workspace())).toBeNull()
     expect(previewRuntimeDisabledReason('preview:native', workspace())).toBeNull()

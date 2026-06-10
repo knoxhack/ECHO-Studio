@@ -3,6 +3,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceMode, type DevWorkspaceState } from '@shared/devWorkspace'
+import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '@shared/previewRuntime'
 import type { Runtime } from '@shared/types'
 
 const RUNTIME_OPTIONS: Array<{ id: Runtime; label: string }> = [
@@ -226,6 +227,7 @@ export default function DevWorkspace(): JSX.Element {
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
+    if (PREVIEW_RUNTIME_TASKS.includes(taskId)) return previewRuntimeDisabledReason(taskId, state, Boolean(activeProject))
     if (taskId.startsWith('modules:') && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
     if (taskId === 'modules:releaseSelected' && !state.modulePlan.closure.some((mod) => mod.moduleDir || mod.descriptorPath)) return 'No selected modules are linked to local ECHO-Modules source.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
@@ -233,13 +235,7 @@ export default function DevWorkspace(): JSX.Element {
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaMeetsRequirement) return `Use Java ${state.toolchain.requiredJavaVersion} for this generated workspace.`
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.gradleAvailable) return 'Run setup to generate the pinned Gradle launcher or install Gradle.'
     if (taskId === 'gradle:moduleWorkspace' && !state.moduleWorkspace.upToDate) return 'Run setup to refresh the module workspace map.'
-    if (taskId === 'gradle:runClient' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
-    if (taskId === 'gradle:runServer' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'gradle:runData' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
-    if (taskId === 'preview:native' && !state.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
-    if (taskId === 'preview:standalone' && !state.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
-    if (taskId === 'preview:native' && !state.runtimeLaunchers.nativeConfigured) return 'Set ECHO Native executable in Settings and run setup.'
-    if (taskId === 'preview:standalone' && !state.runtimeLaunchers.standaloneConfigured) return 'Set Standalone executable in Settings and run setup.'
     return null
   }
 
