@@ -11,6 +11,7 @@ import type {
 } from '../shared/types'
 import { buildManifest, buildProjectFiles } from '../shared/templates'
 import { createOptionsFromTemplate, templateById } from '../shared/templateLibrary'
+import { listEchoModules } from './moduleCatalogService'
 
 // Default workspace where projects live. Stored under userData so it is writable.
 export function defaultWorkspace(): string {
@@ -30,6 +31,11 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function buildWorkspaceManifest(opts: CreateAddonOptions, workspace: string): Promise<AddonManifest> {
+  const catalog = await listEchoModules(workspace)
+  return buildManifest(opts, catalog.catalog)
+}
+
 // Create a new addon project on disk. Returns the created project path.
 export async function createAddon(opts: CreateAddonOptions): Promise<string> {
   const workspace = opts.workspaceDir || defaultWorkspace()
@@ -39,7 +45,7 @@ export async function createAddon(opts: CreateAddonOptions): Promise<string> {
   if (await pathExists(projectDir)) {
     throw new Error(`A project folder already exists: ${folderName}`)
   }
-  const manifest = buildManifest(opts)
+  const manifest = await buildWorkspaceManifest(opts, workspace)
   const files = buildProjectFiles(opts, manifest)
 
   for (const [rel, content] of Object.entries(files)) {
@@ -72,7 +78,7 @@ export async function createFromTemplate(
   const projectDir = join(workspace, folderName)
   if (await pathExists(projectDir)) throw new Error(`A project folder already exists: ${folderName}`)
 
-  const manifest = buildManifest(opts)
+  const manifest = await buildWorkspaceManifest(opts, workspace)
   const files = buildProjectFiles(opts, manifest)
   const extra = tmpl.extraFiles?.({ namespace, addonId, name }) ?? {}
   const all = { ...files, ...extra }

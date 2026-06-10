@@ -1,5 +1,5 @@
 import { SDK_VERSION } from './constants'
-import { getModuleDependencyClosure, preferredModuleAlias } from './moduleCatalog'
+import { ECHO_MODULE_CATALOG, getModuleDependencyClosure, preferredModuleAlias, type EchoModuleRecord } from './moduleCatalog'
 import type { AddonManifest, AddonType, CreateAddonOptions } from './types'
 import type { AddonPackageManifest } from './addonPackageContract'
 
@@ -57,19 +57,23 @@ function defaultsForType(type: AddonType): { permissions: string[]; modules: str
   }
 }
 
-function requiredModuleClosure(required: string[], modules: string[]): string[] {
+function requiredModuleClosure(
+  required: string[],
+  modules: string[],
+  catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG
+): string[] {
   const out: string[] = []
   const add = (id: string): void => {
     if (!out.includes(id)) out.push(id)
   }
   for (const id of required) add(id)
-  for (const mod of getModuleDependencyClosure([...required, ...modules])) add(preferredModuleAlias(mod))
+  for (const mod of getModuleDependencyClosure([...required, ...modules], catalog)) add(preferredModuleAlias(mod))
   return out
 }
 
-export function buildManifest(opts: CreateAddonOptions): AddonManifest {
+export function buildManifest(opts: CreateAddonOptions, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): AddonManifest {
   const d = defaultsForType(opts.type)
-  const required = requiredModuleClosure(d.required, d.modules)
+  const required = requiredModuleClosure(d.required, d.modules, catalog)
   return {
     schemaVersion: 1,
     id: `${opts.namespace}:${opts.addonId}`,

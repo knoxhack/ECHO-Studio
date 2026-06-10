@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createOptionsFromTemplate, templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
 import { buildManifest, buildProjectFiles } from '../templates'
-import { resolveProjectModulePlan } from '../moduleCatalog'
+import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry, resolveProjectModulePlan } from '../moduleCatalog'
 import type { CreateAddonOptions } from '../types'
 
 describe('templateById', () => {
@@ -109,6 +109,49 @@ describe('TEMPLATES', () => {
 
     expect(plan.missingRequired).toEqual([])
     expect(manifest.dependencies.required).toEqual(expect.arrayContaining(['echo:adapter_core', 'echo:core', 'echo:net_core', 'echo:mission_core']))
+  })
+
+  it('scaffolds manifests against an imported local ECHO-Modules catalog', () => {
+    const catalog = mergeModuleCatalog([
+      moduleFromIndexEntry({
+        id: 'echomissioncore',
+        name: 'ECHO: MissionCore',
+        channel: 'beta',
+        requires: ['echocore', 'echonetcore', 'echoweathercore']
+      }),
+      moduleFromIndexEntry({
+        id: 'echoweathercore',
+        name: 'ECHO: WeatherCore',
+        channel: 'beta',
+        requires: ['echocore'],
+        provides: ['weather.events']
+      })
+    ], ECHO_MODULE_CATALOG)
+    const opts: CreateAddonOptions = {
+      workspaceDir: '',
+      type: 'mission_pack',
+      target: 'ashfall',
+      namespace: 'teamnova',
+      addonId: 'signal_route',
+      name: 'Signal Route',
+      description: 'A test mission project.',
+      runtimes: ['neoforge', 'echo_native'],
+      options: {
+        includeExample: true,
+        includeHoloMap: true,
+        includeIndex: true,
+        includeRewards: true,
+        includeLocalization: true,
+        includePreviewProfile: true
+      }
+    }
+
+    const manifest = buildManifest(opts, catalog)
+    const plan = resolveProjectModulePlan(manifest, catalog)
+
+    expect(manifest.dependencies.required).toContain('echo:weather_core')
+    expect(plan.missingRequired).toEqual([])
+    expect(plan.closure.map((mod) => mod.id)).toContain('echoweathercore')
   })
 
   it('keeps every bundled template starter module graph complete', () => {

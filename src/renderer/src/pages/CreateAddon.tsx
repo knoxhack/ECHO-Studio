@@ -1,9 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { buildManifest } from '@shared/templates'
-import { resolveProjectModulePlan } from '@shared/moduleCatalog'
+import {
+  ECHO_MODULE_CATALOG,
+  resolveProjectModulePlan,
+  type EchoModuleCatalogResult,
+  type EchoModuleRecord
+} from '@shared/moduleCatalog'
 import {
   ADDON_TYPE_LABELS,
   RESERVED_NAMESPACE,
@@ -20,6 +25,8 @@ export default function CreateAddon(): JSX.Element {
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
+  const [catalogResult, setCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
 
   const [type, setType] = useState<AddonType>('mission_pack')
   const [target, setTarget] = useState<TargetExperience>('ashfall')
@@ -50,7 +57,40 @@ export default function CreateAddon(): JSX.Element {
     runtimes: runtimes.length ? runtimes : ['neoforge'],
     options: opts
   }), [addonId, description, name, namespace, opts, runtimes, target, type, workspaceDir])
-  const modulePlan = useMemo(() => resolveProjectModulePlan(buildManifest(currentOptions)), [currentOptions])
+  useEffect(() => {
+    let cancelled = false
+    window.studio
+      .listEchoModules(workspaceDir)
+      .then((result) => {
+        if (cancelled) return
+        if (result.ok && result.data) {
+          setCatalog(result.data.catalog)
+          setCatalogResult(result.data)
+        } else {
+          setCatalog(ECHO_MODULE_CATALOG)
+          setCatalogResult({
+            catalog: ECHO_MODULE_CATALOG,
+            source: 'builtin',
+            warnings: [result.error || 'Could not load local module catalog. Using built-in starter catalog.']
+          })
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setCatalog(ECHO_MODULE_CATALOG)
+        setCatalogResult({
+          catalog: ECHO_MODULE_CATALOG,
+          source: 'builtin',
+          warnings: [`Could not load local module catalog: ${err instanceof Error ? err.message : String(err)}`]
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceDir])
+
+  const previewManifest = useMemo(() => buildManifest(currentOptions, catalog), [catalog, currentOptions])
+  const modulePlan = useMemo(() => resolveProjectModulePlan(previewManifest, catalog), [catalog, previewManifest])
   const moduleIssues = modulePlan.missingRequired.length + modulePlan.unknown.length + modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked').length
 
   const toggleRuntime = (r: Runtime): void =>
@@ -187,6 +227,28 @@ export default function CreateAddon(): JSX.Element {
       {step === 4 && (
         <>
           <div className="section-title">Starter module plan</div>
+          {catalogResult && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span className={`badge ${catalogResult.source === 'local-index' ? 'ready' : 'local'}`}>
+                  {catalogResult.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in catalog'}
+                </span>
+                <span className="dim">{catalog.length} module records available for this scaffold.</span>
+                {catalogResult.indexPath && <span className="mono dim" style={{ fontSize: 11 }}>{catalogResult.indexPath}</span>}
+                {catalogResult.indexPath && (
+                  <button className="btn ghost" onClick={() => window.studio.openPath(catalogResult.indexPath!)}>
+                    Open Index
+                  </button>
+                )}
+              </div>
+              {catalogResult.warnings.length > 0 && (
+                <div className="issue WARNING" style={{ marginTop: 10 }}>
+                  <span className="lvl">WARNING</span>
+                  {catalogResult.warnings.join(' ')}
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid cols-2">
             <div className="card">
               <h3>Selected Modules</h3>
