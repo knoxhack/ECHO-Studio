@@ -239,7 +239,7 @@ function releasePackageTask(store: CodexTaskStore, context: ProjectContext): Cod
     title: 'Prepare local release package',
     kind: 'release_package',
     lane: taskLane('release:package-local', ready ? 'suggested' : 'ready', store),
-    summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, and GitHub release draft payload.',
+    summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, Release Index handoff, submission notes, and GitHub release draft payload.',
     reason: ready
       ? 'Release assets exist; rerun this before publishing if project content changed.'
       : 'Release assets are missing or stale for the current local loop.',

@@ -295,6 +295,11 @@ function ActionResult({ result }: { result: CodexTaskActionResult }): JSX.Elemen
                 Open Handoff
               </button>
             )}
+            {packageResult.releaseIndexSubmissionPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(packageResult.releaseIndexSubmissionPath!)}>
+                Open Submission Notes
+              </button>
+            )}
           </div>
           <div className="section-title">Artifacts</div>
           {packageResult.assetPaths.map((artifact) => (

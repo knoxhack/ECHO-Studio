@@ -248,6 +248,81 @@ function buildReleaseIndexHandoff(
   }
 }
 
+function buildReleaseIndexSubmissionNotes(
+  handoff: ReleaseIndexHandoff,
+  report: PackOSReport,
+  handoffRecord: { name: string; sha256: string; bytes: number }
+): string {
+  const entry = handoff.entry as {
+    validation?: string
+    trust?: string
+    compatibility?: string[]
+    dependencies?: Array<{ id: string; kind: string; version?: string }>
+  }
+  const artifactLines = handoff.assets
+    .filter((asset) => asset.role === 'artifact')
+    .map((asset) => `- ${asset.name} (${asset.bytes} bytes, sha256 ${asset.sha256})`)
+  const sidecarLines = handoff.assets
+    .filter((asset) => asset.role === 'sidecar')
+    .map((asset) => `- ${asset.name} (${asset.bytes} bytes, sha256 ${asset.sha256})`)
+  const attestationLines = handoff.attestation.subjects.map((subject) => (
+    `- ${subject.name} from ${subject.sourceRepo}@${subject.releaseTag} (sha256 ${subject.sha256})`
+  ))
+  const dependencies = entry.dependencies?.length
+    ? entry.dependencies.map((dependency) => `${dependency.id} (${dependency.kind} ${dependency.version ?? '*'})`).join(', ')
+    : 'None'
+  const compatibility = entry.compatibility?.length ? entry.compatibility.join(', ') : 'None'
+  return [
+    '# Release Index Submission',
+    '',
+    `Generated: ${handoff.generatedAt}`,
+    '',
+    '## Target',
+    `- Repository: ${handoff.targetRepository}`,
+    `- Entry path: ${handoff.targetCollection}/${handoff.entryFileName}`,
+    `- Source release: ${handoff.sourceRepo}@${handoff.releaseTag}`,
+    `- Commit: ${handoff.commitSha ?? 'Not recorded'}`,
+    '',
+    '## Review State',
+    `- Ingestion status: ${handoff.ingestion.status}`,
+    `- Release validation: ${entry.validation ?? 'unknown'}`,
+    `- Trust target: ${entry.trust ?? 'community'}`,
+    `- PackOS ready: ${report.publishingReady ? 'yes' : 'no'}`,
+    `- PackOS score: ${report.compatibilityScore}% (${report.issues.length} issue(s))`,
+    `- Compatibility: ${compatibility}`,
+    `- Dependencies: ${dependencies}`,
+    '',
+    '## Release Assets',
+    ...artifactLines,
+    '',
+    '## Sidecars',
+    ...sidecarLines,
+    `- ${handoffRecord.name} (${handoffRecord.bytes} bytes, sha256 ${handoffRecord.sha256})`,
+    '- release-index-submission.md (review notes, not part of checksums.sha256)',
+    '',
+    '## Checksums',
+    `- Checksums file: ${handoff.checksums.file}`,
+    `- Checksums file SHA-256: ${handoff.checksums.sha256}`,
+    '- Verify artifact and manifest sidecar digests before approving the index entry.',
+    '- Verify draft asset SHA-256 metadata for release-index-handoff.json and this submission note.',
+    '',
+    '## Attestation',
+    `- Provider: ${handoff.attestation.provider}`,
+    `- Required workflow: ${handoff.attestation.requiredWorkflow}`,
+    `- Digest match required: ${handoff.attestation.requireDigestMatch ? 'yes' : 'no'}`,
+    ...attestationLines,
+    '',
+    '## Ingestion Checklist',
+    '- [ ] Upload every release asset and sidecar to the GitHub release draft.',
+    '- [ ] Validate release-index-handoff.json and echo-release.json against Release Index schemas.',
+    '- [ ] Verify SHA-256 values against checksums.sha256 and draft asset metadata.',
+    '- [ ] Resolve dependency references and apply block overrides before approval.',
+    '- [ ] Verify GitHub artifact attestations before moving trust to official or verified.',
+    `- [ ] Import the approved entry into ${handoff.targetCollection}/${handoff.entryFileName}.`,
+    ''
+  ].join('\n')
+}
+
 // Run the full project check (used before packaging).
 export async function fullProjectReport(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<PackOSReport> {
   const manifest = await readManifest(projectPath)
@@ -293,6 +368,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
   const packageManifestPath = join(exportsDir, 'echo-addon-package.json')
   const releaseManifestPath = join(exportsDir, 'echo-release.json')
   const releaseIndexHandoffPath = join(exportsDir, 'release-index-handoff.json')
+  const releaseIndexSubmissionPath = join(exportsDir, 'release-index-submission.md')
   const releaseDraftPath = join(exportsDir, 'github-release-draft.json')
   const artifactRecords = [await writeZipArtifact(zipPath, zip)]
 
@@ -344,12 +420,17 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
     commitSha
   )
   const releaseIndexHandoffRecord = await writeJsonArtifact(releaseIndexHandoffPath, releaseIndexHandoff)
+  const releaseIndexSubmissionRecord = await writeTextArtifact(
+    releaseIndexSubmissionPath,
+    buildReleaseIndexSubmissionNotes(releaseIndexHandoff, report, releaseIndexHandoffRecord)
+  )
   const draftAssets = [
     ...artifactRecords.map((artifact) => ({ path: artifact.path, name: artifact.name, sha256: artifact.sha256 })),
     { path: checksumsPath, name: 'checksums.sha256', sha256: checksumsRecord.sha256 },
     { path: packageManifestPath, name: 'echo-addon-package.json', sha256: packageManifestRecord.sha256 },
     { path: releaseManifestPath, name: 'echo-release.json', sha256: releaseManifestRecord.sha256 },
-    { path: releaseIndexHandoffPath, name: 'release-index-handoff.json', sha256: releaseIndexHandoffRecord.sha256 }
+    { path: releaseIndexHandoffPath, name: 'release-index-handoff.json', sha256: releaseIndexHandoffRecord.sha256 },
+    { path: releaseIndexSubmissionPath, name: 'release-index-submission.md', sha256: releaseIndexSubmissionRecord.sha256 }
   ]
   await fs.writeFile(releaseDraftPath, JSON.stringify({
     draft: true,
@@ -369,6 +450,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
       '- echo-addon-package.json',
       '- echo-release.json',
       '- release-index-handoff.json',
+      '- release-index-submission.md',
       '',
       'Release Index handoff:',
       '- Import release-index-handoff.json into knoxhack/ECHO-Release-Index after review.',
@@ -400,6 +482,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
     packageManifestPath,
     releaseManifestPath,
     releaseIndexHandoffPath,
+    releaseIndexSubmissionPath,
     releaseDraftPath,
     releaseIndexPreview: releaseManifest,
     releaseIndexHandoff

@@ -43,6 +43,7 @@ export interface PackageResult {
   packageManifestPath?: string
   releaseManifestPath?: string
   releaseIndexHandoffPath?: string
+  releaseIndexSubmissionPath?: string
   releaseDraftPath?: string
   releaseIndexPreview?: unknown
   releaseIndexHandoff?: ReleaseIndexHandoff

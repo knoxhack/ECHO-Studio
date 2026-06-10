@@ -219,9 +219,10 @@ export default function PublishAssistant(): JSX.Element {
       !pkg.packageManifestPath ||
       !pkg.releaseManifestPath ||
       !pkg.releaseIndexHandoffPath ||
+      !pkg.releaseIndexSubmissionPath ||
       !pkg.releaseIndexHandoff?.attestation.subjects.length
     ) {
-      setStatus('Prepare local release assets with Release Index handoff and attestation metadata before creating a GitHub draft.')
+      setStatus('Prepare local release assets with Release Index handoff, submission notes, and attestation metadata before creating a GitHub draft.')
       return
     }
     setBusy(true)
@@ -241,7 +242,7 @@ export default function PublishAssistant(): JSX.Element {
 
   if (!activeProject) {
     return (
-      <Page title="Release Builder" subtitle="Build local release assets, checksums, echo-release.json, and Release Index handoff files.">
+      <Page title="Release Builder" subtitle="Build local release assets, checksums, echo-release.json, Release Index handoff, and submission notes.">
         <NoProject />
       </Page>
     )
@@ -249,7 +250,14 @@ export default function PublishAssistant(): JSX.Element {
 
   const sdkReady = pkg?.sdkValidation.ok ?? false
   const packosReady = readinessReport?.publishingReady ?? false
-  const releaseSidecarsReady = Boolean(pkg?.checksumsPath && pkg.packageManifestPath && pkg.releaseManifestPath && pkg.releaseIndexHandoffPath && pkg.releaseDraftPath)
+  const releaseSidecarsReady = Boolean(
+    pkg?.checksumsPath &&
+    pkg.packageManifestPath &&
+    pkg.releaseManifestPath &&
+    pkg.releaseIndexHandoffPath &&
+    pkg.releaseIndexSubmissionPath &&
+    pkg.releaseDraftPath
+  )
   const handoffReady = Boolean(
     pkg?.releaseIndexHandoff?.schemaVersion === 'echo.release.index.handoff.v1' &&
     pkg.releaseIndexHandoff.targetRepository === 'knoxhack/ECHO-Release-Index' &&
@@ -441,7 +449,7 @@ export default function PublishAssistant(): JSX.Element {
           <h3>Local Release Pipeline</h3>
           <StepRow done={sdkReady} label="SDK package contract" detail={pkg ? (sdkReady ? 'Package manifest passes SDK validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
           <StepRow done={packosReady} label="PackOS project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
-          <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, github-release-draft.json, and release-index-handoff.json." />
+          <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md, and github-release-draft.json." />
           <StepRow
             done={handoffReady}
             label="Release Index handoff"
@@ -481,6 +489,9 @@ export default function PublishAssistant(): JSX.Element {
             </button>
             <button className="btn ghost" onClick={() => pkg?.releaseIndexHandoffPath && window.studio.openPath(pkg.releaseIndexHandoffPath)} disabled={!pkg?.releaseIndexHandoffPath}>
               Open Handoff
+            </button>
+            <button className="btn ghost" onClick={() => pkg?.releaseIndexSubmissionPath && window.studio.openPath(pkg.releaseIndexSubmissionPath)} disabled={!pkg?.releaseIndexSubmissionPath}>
+              Open Submission Notes
             </button>
           </div>
         </div>
