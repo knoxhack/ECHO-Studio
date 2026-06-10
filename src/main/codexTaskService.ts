@@ -198,7 +198,7 @@ async function packosFixTask(store: CodexTaskStore, context: ProjectContext): Pr
     'Apply safe PackOS manifest fixes',
     'Uses Studio safety rules to repair reserved namespace usage, blocked permissions, missing core dependencies, empty runtimes, and missing tags.',
     `${context.report.counts.BLOCKER} blocker(s) and ${context.report.counts.ERROR} error(s) are present before release.`,
-    autoFixManifest(context.manifest)
+    autoFixManifest(context.manifest, context.moduleCatalog)
   )
 }
 

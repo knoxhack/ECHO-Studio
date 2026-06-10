@@ -31,7 +31,7 @@ function manifest(): AddonManifest {
   }
 }
 
-async function withProject(run: (project: string) => Promise<void>): Promise<void> {
+async function withProject(run: (project: string) => Promise<void>, modules: unknown[] = []): Promise<void> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-codex-service-'))
   const previousModulesDir = process.env.ECHO_MODULES_DIR
   try {
@@ -40,7 +40,7 @@ async function withProject(run: (project: string) => Promise<void>): Promise<voi
     await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
       schemaVersion: 1,
       generatedAt: '2026-06-10T00:00:00.000Z',
-      modules: []
+      modules
     }, null, 2), 'utf8')
     process.env.ECHO_MODULES_DIR = modulesRoot
 
@@ -96,6 +96,45 @@ describe('codex task service', () => {
       ]))
       expect(task?.validationAfter?.warnings).toBeLessThan(task?.validationBefore?.warnings ?? 999)
     })
+  })
+
+  it('uses local module catalog dependencies in PackOS manifest autofix tasks', async () => {
+    await withProject(async (project) => {
+      const nextManifest = manifest()
+      nextManifest.dependencies.required = ['echo:core']
+      nextManifest.target.modules = []
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
+
+      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'manifest:packos-autofix')
+      const proposed = JSON.parse(task?.fileChanges[0].after ?? '{}') as AddonManifest
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('manifest_fix')
+      expect(proposed.dependencies.required).toContain('echo:weather_core')
+      expect(proposed.target.modules).toContain('echo:weather_core')
+
+      await applyCodexTask(project, 'manifest:packos-autofix')
+      const applied = JSON.parse(await fs.readFile(path.join(project, 'echo.mod.json'), 'utf8')) as AddonManifest
+
+      expect(applied.dependencies.required).toContain('echo:weather_core')
+      expect(applied.target.modules).toContain('echo:weather_core')
+    }, [
+      {
+        id: 'echomissioncore',
+        name: 'ECHO: MissionCore',
+        channel: 'beta',
+        requires: ['echocore', 'echonetcore', 'echoweathercore']
+      },
+      {
+        id: 'echoweathercore',
+        name: 'ECHO: WeatherCore',
+        channel: 'beta',
+        requires: ['echocore'],
+        provides: ['weather.events']
+      }
+    ])
   })
 
   it('suggests configuring preview launchers when selected runtimes lack executable paths', async () => {
