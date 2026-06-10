@@ -353,7 +353,7 @@ export default function Preview(): JSX.Element {
               Collect Scan Logs
             </button>
             <button className="btn ghost" disabled={!result || result.errors.length === 0} onClick={askAi}>
-              Ask Codex to Explain
+              Ask Assistant to Explain
             </button>
           </div>
         </div>

@@ -41,6 +41,7 @@ export const NAV: NavGroup[] = [
   {
     title: 'Assist',
     items: [
+      { path: '/ai', label: 'Assistant', icon: 'A' },
       { path: '/codex', label: 'Codex Tasks', icon: 'C' }
     ]
   },
