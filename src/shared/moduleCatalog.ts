@@ -490,6 +490,77 @@ export function resolveProjectModulePlan(manifest: AddonManifest, catalog: EchoM
   }
 }
 
+function appendUniqueModuleAlias(list: string[], id: string, catalog: EchoModuleRecord[]): string[] {
+  const normalized = normalizeModuleId(id, catalog)
+  if (list.some((item) => normalizeModuleId(item, catalog) === normalized)) return list
+  return [...list, id]
+}
+
+function removeModuleAliases(list: string[], ids: string[], catalog: EchoModuleRecord[]): string[] {
+  const normalized = new Set(ids.map((id) => normalizeModuleId(id, catalog)))
+  return list.filter((item) => !normalized.has(normalizeModuleId(item, catalog)))
+}
+
+function moduleClosureAliases(modules: EchoModuleRecord[], catalog: EchoModuleRecord[]): string[] {
+  const byId = new Map<string, string>()
+  for (const mod of modules) {
+    for (const closureMod of getModuleDependencyClosure([mod.id], catalog)) {
+      if (!byId.has(closureMod.id)) byId.set(closureMod.id, preferredModuleAlias(closureMod))
+    }
+  }
+  return Array.from(byId.values())
+}
+
+export function addRequiredModuleClosureToManifest(
+  manifest: AddonManifest,
+  modules: EchoModuleRecord[],
+  catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG
+): AddonManifest {
+  const closureAliases = moduleClosureAliases(modules, catalog)
+  return {
+    ...manifest,
+    target: {
+      ...manifest.target,
+      modules: closureAliases.reduce((list, id) => appendUniqueModuleAlias(list, id, catalog), manifest.target.modules)
+    },
+    dependencies: {
+      required: closureAliases.reduce((list, id) => appendUniqueModuleAlias(list, id, catalog), manifest.dependencies.required),
+      optional: removeModuleAliases(manifest.dependencies.optional, closureAliases, catalog)
+    }
+  }
+}
+
+export function addModuleToManifest(
+  manifest: AddonManifest,
+  mod: EchoModuleRecord,
+  kind: 'required' | 'optional',
+  catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG
+): AddonManifest {
+  if (kind === 'required') return addRequiredModuleClosureToManifest(manifest, [mod], catalog)
+
+  const selectedAlias = preferredModuleAlias(mod)
+  const selectedId = normalizeModuleId(selectedAlias, catalog)
+  const closureAliases = moduleClosureAliases([mod], catalog)
+  const requiredAliases = closureAliases.filter((id) => normalizeModuleId(id, catalog) !== selectedId)
+  const required = requiredAliases.reduce((list, id) => appendUniqueModuleAlias(list, id, catalog), manifest.dependencies.required)
+  const selectedAlreadyRequired = required.some((id) => normalizeModuleId(id, catalog) === selectedId)
+  const optionalBase = removeModuleAliases(manifest.dependencies.optional, requiredAliases, catalog)
+
+  return {
+    ...manifest,
+    target: {
+      ...manifest.target,
+      modules: closureAliases.reduce((list, id) => appendUniqueModuleAlias(list, id, catalog), manifest.target.modules)
+    },
+    dependencies: {
+      required,
+      optional: selectedAlreadyRequired
+        ? optionalBase
+        : appendUniqueModuleAlias(optionalBase, selectedAlias, catalog)
+    }
+  }
+}
+
 export function modulesForCapability(
   capability: 'missions' | 'recipes' | 'interface' | 'map' | 'knowledge' | 'developer',
   catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG

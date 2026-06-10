@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   ECHO_MODULE_CATALOG,
+  addModuleToManifest,
+  addRequiredModuleClosureToManifest,
   findEchoModule,
   getModuleDependencyClosure,
   mergeModuleCatalog,
@@ -97,5 +99,56 @@ describe('module catalog', () => {
     const plan = resolveProjectModulePlan(manifest(['echo:weather_core']), catalog)
     expect(plan.enabled.map((mod) => mod.id)).toContain('echoweathercore')
     expect(plan.missingRequired.map((mod) => mod.id)).toEqual(expect.arrayContaining(['echocore', 'echonetcore']))
+  })
+
+  it('adds required modules with their complete dependency closure', () => {
+    const next = addModuleToManifest(manifest([]), findEchoModule('echo:mission_core')!, 'required')
+    const plan = resolveProjectModulePlan(next)
+
+    expect(next.dependencies.required).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core',
+      'echo:mission_core'
+    ]))
+    expect(next.target.modules).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core',
+      'echo:mission_core'
+    ]))
+    expect(plan.missingRequired).toEqual([])
+  })
+
+  it('adds optional modules while requiring their dependency closure', () => {
+    const next = addModuleToManifest(manifest(['echo:core']), findEchoModule('echo:mission_core')!, 'optional')
+    const plan = resolveProjectModulePlan(next)
+
+    expect(next.dependencies.optional).toContain('echo:mission_core')
+    expect(next.dependencies.required).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core'
+    ]))
+    expect(next.dependencies.required).not.toContain('echo:mission_core')
+    expect(plan.missingRequired).toEqual([])
+  })
+
+  it('adds capability groups with transitive dependencies only once', () => {
+    const next = addRequiredModuleClosureToManifest(manifest([]), [
+      findEchoModule('echo:mission_core')!,
+      findEchoModule('echo:index')!
+    ])
+    const plan = resolveProjectModulePlan(next)
+
+    expect(next.dependencies.required.filter((id) => id === 'echo:core')).toHaveLength(1)
+    expect(next.dependencies.required).toEqual(expect.arrayContaining([
+      'echo:adapter_core',
+      'echo:core',
+      'echo:net_core',
+      'echo:mission_core',
+      'echo:index'
+    ]))
+    expect(plan.missingRequired).toEqual([])
   })
 })

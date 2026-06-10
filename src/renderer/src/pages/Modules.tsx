@@ -5,11 +5,11 @@ import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import {
   ECHO_MODULE_CATALOG,
+  addModuleToManifest,
+  addRequiredModuleClosureToManifest,
   findEchoModule,
-  getModuleDependencyClosure,
   modulesForCapability,
   normalizeModuleId,
-  preferredModuleAlias,
   resolveProjectModulePlan,
   type EchoModuleCatalogResult,
   type EchoModuleRecord
@@ -121,41 +121,14 @@ export default function Modules(): JSX.Element {
     }
   }
 
-  const appendUnique = (list: string[], id: string): string[] => {
-    const normalized = normalizeModuleId(id, catalog)
-    if (list.some((item) => normalizeModuleId(item, catalog) === normalized)) return list
-    return [...list, id]
-  }
-
   const addModule = (mod: EchoModuleRecord, kind: 'required' | 'optional'): void => {
-    const alias = preferredModuleAlias(mod)
-    const next: AddonManifest = {
-      ...manifest,
-      target: {
-        ...manifest.target,
-        modules: appendUnique(manifest.target.modules, alias)
-      },
-      dependencies: {
-        ...manifest.dependencies,
-        [kind]: appendUnique(manifest.dependencies[kind], alias)
-      }
-    }
-    void saveManifest(next, `${mod.name} added as ${kind}`)
+    const next = addModuleToManifest(manifest, mod, kind, catalog)
+    const suffix = kind === 'required' ? ' with required dependencies' : ' with required dependencies preserved'
+    void saveManifest(next, `${mod.name} added as ${kind}${suffix}`)
   }
 
   const addClosure = (mod: EchoModuleRecord): void => {
-    const closure = getModuleDependencyClosure([mod.id], catalog).map(preferredModuleAlias)
-    const next: AddonManifest = {
-      ...manifest,
-      target: {
-        ...manifest.target,
-        modules: closure.reduce(appendUnique, manifest.target.modules)
-      },
-      dependencies: {
-        ...manifest.dependencies,
-        required: closure.reduce(appendUnique, manifest.dependencies.required)
-      }
-    }
+    const next = addRequiredModuleClosureToManifest(manifest, [mod], catalog)
     void saveManifest(next, `Added ${mod.name} and required dependencies`)
   }
 
@@ -176,14 +149,12 @@ export default function Modules(): JSX.Element {
   }
 
   const refreshDevWorkspace = async (): Promise<void> => {
-    if (!manifest || !devWorkspace?.lastSetupAt) {
-      nav('/dev-workspace')
-      return
-    }
+    if (!manifest) return
+    const alreadySetUp = Boolean(devWorkspace?.lastSetupAt)
     setWorkspaceBusy(true)
     const result = await window.studio.setupDevWorkspace(activeProject.path, {
-      mode: devWorkspace.mode,
-      runtimes: devWorkspace.runtimeTargets.length > 0 ? devWorkspace.runtimeTargets : manifest.runtime.supports,
+      mode: alreadySetUp ? devWorkspace!.mode : 'gradle',
+      runtimes: alreadySetUp && devWorkspace!.runtimeTargets.length > 0 ? devWorkspace!.runtimeTargets : manifest.runtime.supports,
       force: false,
       runtimeTools: {
         echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
@@ -193,9 +164,9 @@ export default function Modules(): JSX.Element {
     setWorkspaceBusy(false)
     if (result.ok && result.data) {
       setDevWorkspace(result.data.state)
-      toast('Dev workspace module locks refreshed')
+      toast(alreadySetUp ? 'Dev workspace module locks refreshed' : 'Gradle dev workspace ready')
     } else {
-      toast(result.error || 'Dev workspace refresh failed')
+      toast(result.error || (alreadySetUp ? 'Dev workspace refresh failed' : 'Dev workspace setup failed'))
     }
   }
 
@@ -276,8 +247,8 @@ export default function Modules(): JSX.Element {
             </span>
             <span className="badge">{devWorkspace.moduleWorkspace.localModuleCount}/{devWorkspace.moduleWorkspace.moduleCount} local sources</span>
             <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Open Dev Workspace</button>
-            <button className="btn" disabled={workspaceBusy || !devWorkspace.lastSetupAt} onClick={refreshDevWorkspace}>
-              {workspaceBusy ? 'Refreshing...' : 'Refresh Locks & Map'}
+            <button className="btn" disabled={workspaceBusy} onClick={refreshDevWorkspace}>
+              {workspaceBusy ? 'Working...' : devWorkspace.lastSetupAt ? 'Refresh Locks & Map' : 'Set Up Gradle Workspace'}
             </button>
           </div>
           {!workspaceCurrent && devWorkspace.lastSetupAt && (
@@ -318,18 +289,8 @@ export default function Modules(): JSX.Element {
                 style={{ textAlign: 'left', padding: 12 }}
                 onClick={() => {
                   const mods = modulesForCapability(capability, catalog)
-                  const next: AddonManifest = {
-                    ...manifest,
-                    target: {
-                      ...manifest.target,
-                      modules: mods.map(preferredModuleAlias).reduce((list, id) => appendUnique(list, id), manifest.target.modules)
-                    },
-                    dependencies: {
-                      ...manifest.dependencies,
-                      required: mods.map(preferredModuleAlias).reduce((list, id) => appendUnique(list, id), manifest.dependencies.required)
-                    }
-                  }
-                  void saveManifest(next, `${label} modules added`)
+                  const next = addRequiredModuleClosureToManifest(manifest, mods, catalog)
+                  void saveManifest(next, `${label} modules and dependencies added`)
                 }}
               >
                 <h4>{label}</h4>
