@@ -248,7 +248,7 @@ export default function ManifestBuilder(): JSX.Element {
               </label>
             ))}
             <div className="dim" style={{ fontSize: 12, margin: '12px 0 8px', color: 'var(--bad)' }}>
-              Reserved (blocked — for ECHO Developers only):
+              Reserved (blocked - for ECHO Developers only):
             </div>
             {Object.keys(BLOCKED_PERMISSIONS).map((p) => (
               <label className="checkbox" key={p} style={{ opacity: 0.7 }}>

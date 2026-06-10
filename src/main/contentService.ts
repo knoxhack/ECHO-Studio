@@ -13,7 +13,7 @@ function folderFor(projectPath: string, type: ContentType): string {
 
 // Read every JSON file in the content folder. For holomap layers and index the
 // file may contain either a single object or a wrapper { markers: [...] } /
-// { entries: [...] } — we normalise to flat records keyed by `id`.
+// { entries: [...] } - we normalise to flat records keyed by `id`.
 export async function listContent(
   projectPath: string,
   type: ContentType

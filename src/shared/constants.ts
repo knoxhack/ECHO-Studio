@@ -45,7 +45,7 @@ export const ALLOWED_PERMISSIONS = [
   'index.entries'
 ] as const
 
-// Permissions reserved for ECHO Developers — blocked for community addons.
+// Permissions reserved for ECHO Developers - blocked for community addons.
 export const BLOCKED_PERMISSIONS: Record<string, string> = {
   'file_system.write_global': 'addon_storage.write',
   'runtime.internal': 'addon_storage.write',

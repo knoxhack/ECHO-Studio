@@ -3,18 +3,17 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import type { PackageResult } from '@shared/publishing'
-import type { SubmissionState } from '@shared/publishing'
+import { RELEASE_SUBMISSION_TARGETS, type SubmissionState } from '@shared/publishing'
 
 const STEPS = [
-  'PackOS Check',
-  'Package',
-  'Metadata',
+  'Readiness',
+  'Artifacts',
+  'Release Notes',
   'Changelog',
   'Permissions',
-  'Catalog',
-  'Submit'
+  'Index Target',
+  'Handoff'
 ]
-const TARGETS = ['Community Catalog', 'Verified Addon Review', 'Private Unlisted Share', 'Server Pack Submission']
 
 export default function SubmitAddon(): JSX.Element {
   const { activeProject, refresh, toast } = useWorkspace()
@@ -33,11 +32,11 @@ export default function SubmitAddon(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="Submission Review" subtitle="Package, validate, and prepare your project for review.">
+      <Page title="Release Submission" subtitle="Review generated Release Index handoff assets before ingestion.">
         <NoProject />
       </Page>
     )
-  if (!sub) return <Page title="Submission Review"><div className="empty">Loading...</div></Page>
+  if (!sub) return <Page title="Release Submission"><div className="empty">Loading...</div></Page>
 
   const up = (patch: Partial<SubmissionState>): void => setSub((s) => (s ? { ...s, ...patch } : s))
   const persist = (next: SubmissionState): void => {
@@ -52,7 +51,7 @@ export default function SubmitAddon(): JSX.Element {
     if (res.ok && res.data) {
       setPkg(res.data)
       persist({ ...sub, lastHash: res.data.hash })
-      toast('Packaged project')
+      toast('Prepared release handoff')
     } else toast(res.error || 'Package failed')
   }
 
@@ -63,21 +62,23 @@ export default function SubmitAddon(): JSX.Element {
       submittedAt: Date.now(),
       thread: [
         ...sub.thread,
-        { from: 'reviewer', text: 'Submission received. Automated validation in progress...', at: Date.now() }
+        { from: 'creator', text: 'Release Index handoff marked ready for ingestion review.', at: Date.now() }
       ]
     }
     persist(next)
     await window.studio.setPublishStatus(activeProject.path, 'submitted')
     await refresh()
-    toast('Submitted for review')
+    toast('Release handoff marked ready')
     setStep(STEPS.length - 1)
   }
 
   const ready = pkg?.report.publishingReady ?? false
   const sdkReady = pkg?.sdkValidation.ok ?? false
+  const handoffReady = Boolean(pkg?.releaseIndexHandoffPath && pkg.releaseIndexSubmissionPath && pkg.releaseDraftPath)
+  const canSubmit = sdkReady && ready && handoffReady && sub.permissionsConfirmed
 
   return (
-    <Page title="Submission Review" subtitle="Validate, package, add metadata, and prepare your project for review.">
+    <Page title="Release Submission" subtitle="Review the local package, Release Index handoff, submission notes, permissions, and ingestion target.">
       <ActiveBar />
       <div className="steps">
         {STEPS.map((s, i) => (
@@ -91,9 +92,9 @@ export default function SubmitAddon(): JSX.Element {
       <div className="grid cols-2">
         {step === 0 && (
           <div className="card">
-            <h3>Final PackOS Check</h3>
+            <h3>Release Readiness</h3>
             <button className="btn" disabled={busy} onClick={runPackage}>
-              {busy ? 'Running...' : 'Run Check & Package'}
+              {busy ? 'Running...' : 'Prepare Handoff'}
             </button>
             {pkg && (
               <div style={{ marginTop: 12 }}>
@@ -101,7 +102,11 @@ export default function SubmitAddon(): JSX.Element {
                   {pkg.report.compatibilityScore}%
                 </div>
                 <div className="sub">
-                  {ready ? 'Ready to submit' : `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}`}
+                  {ready ? 'PackOS ready for ingestion review' : `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}`}
+                </div>
+                <div className="btn-row" style={{ marginTop: 10 }}>
+                  <span className={`badge ${sdkReady ? 'ready' : 'fixes'}`}>{sdkReady ? 'SDK ready' : 'SDK issues'}</span>
+                  <span className={`badge ${handoffReady ? 'ready' : 'local'}`}>{handoffReady ? 'Handoff ready' : 'Handoff missing'}</span>
                 </div>
               </div>
             )}
@@ -110,23 +115,41 @@ export default function SubmitAddon(): JSX.Element {
 
         {step === 1 && (
           <div className="card">
-            <h3>Package</h3>
+            <h3>Release Artifacts</h3>
             {pkg ? (
               <div style={{ fontSize: 13, lineHeight: 2 }}>
                 <div className="mono" style={{ wordBreak: 'break-all' }}>{pkg.zipPath}</div>
                 <div>Size: {(pkg.bytes / 1024).toFixed(1)} KB</div>
                 <div>SDK Contract: {pkg.sdkValidation.ok ? 'Ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
                 <div>Built Assets: {pkg.assetPaths.length}</div>
+                <div>Release Index: {pkg.releaseIndexHandoff?.entryFileName ?? 'Missing handoff'}</div>
                 <div className="mono faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>
                   sha256: {pkg.hash}
                 </div>
-                <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => window.studio.openPath(pkg.zipPath.replace(/[\\/][^\\/]+$/, ''))}>
-                  Open exports folder
-                </button>
+                <div className="btn-row" style={{ marginTop: 8 }}>
+                  <button className="btn ghost" onClick={() => window.studio.openPath(pkg.zipPath.replace(/[\\/][^\\/]+$/, ''))}>
+                    Open exports folder
+                  </button>
+                  {pkg.releaseIndexHandoffPath && (
+                    <button className="btn ghost" onClick={() => window.studio.openPath(pkg.releaseIndexHandoffPath!)}>
+                      Open Handoff
+                    </button>
+                  )}
+                  {pkg.releaseIndexSubmissionPath && (
+                    <button className="btn ghost" onClick={() => window.studio.openPath(pkg.releaseIndexSubmissionPath!)}>
+                      Open Notes
+                    </button>
+                  )}
+                  {pkg.releaseDraftPath && (
+                    <button className="btn ghost" onClick={() => window.studio.openPath(pkg.releaseDraftPath!)}>
+                      Open Draft JSON
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <button className="btn primary" disabled={busy} onClick={runPackage}>
-                {busy ? 'Packaging...' : 'Build Package'}
+                {busy ? 'Packaging...' : 'Prepare Release Assets'}
               </button>
             )}
           </div>
@@ -134,13 +157,13 @@ export default function SubmitAddon(): JSX.Element {
 
         {step === 2 && (
           <div className="card">
-            <h3>Metadata</h3>
+            <h3>Release Notes</h3>
             <label className="field">
-              <span>Description / summary</span>
+              <span>Reviewer summary</span>
               <textarea value={sub.description} onChange={(e) => up({ description: e.target.value })} onBlur={() => persist(sub)} />
             </label>
             <label className="field">
-              <span>Screenshots (comma-separated paths)</span>
+              <span>Evidence paths (comma-separated)</span>
               <input
                 value={sub.screenshots.join(', ')}
                 onChange={(e) => up({ screenshots: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
@@ -166,7 +189,7 @@ export default function SubmitAddon(): JSX.Element {
           <div className="card">
             <h3>Confirm Permissions</h3>
             <p className="dim" style={{ fontSize: 12 }}>
-              Confirm your project only requests safe community permissions.
+              Confirm your project only requests safe public permissions and does not require private runtime access.
             </p>
             <label className="checkbox">
               <input
@@ -181,11 +204,11 @@ export default function SubmitAddon(): JSX.Element {
 
         {step === 5 && (
           <div className="card">
-            <h3>Select Catalog</h3>
+            <h3>Select Ingestion Target</h3>
             <label className="field">
-              <span>Target catalog</span>
+              <span>Target</span>
               <select value={sub.target} onChange={(e) => persist({ ...sub, target: e.target.value })}>
-                {TARGETS.map((t) => (
+                {RELEASE_SUBMISSION_TARGETS.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </select>
@@ -195,23 +218,27 @@ export default function SubmitAddon(): JSX.Element {
 
         {step === 6 && (
           <div className="card">
-            <h3>Submit</h3>
+            <h3>Release Index Handoff</h3>
             <button
               className="btn primary"
-              disabled={!sdkReady || !ready || !sub.permissionsConfirmed}
+              disabled={!canSubmit}
               onClick={submit}
             >
-              Submit for Review
+              Mark Handoff Ready
             </button>
-            {!sdkReady && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass SDK contract validation first (step 1).</p>}
-            {sdkReady && !ready && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass PackOS first (step 1).</p>}
-            {!sub.permissionsConfirmed && <p className="fix" style={{ color: 'var(--warn)' }}>Confirm permissions (step 5).</p>}
+            {!sdkReady && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass SDK contract validation first.</p>}
+            {sdkReady && !ready && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass PackOS before ingestion.</p>}
+            {!handoffReady && <p className="fix" style={{ color: 'var(--warn)' }}>Prepare release assets so handoff JSON, submission notes, and draft metadata exist.</p>}
+            {!sub.permissionsConfirmed && <p className="fix" style={{ color: 'var(--warn)' }}>Confirm permissions before marking the handoff ready.</p>}
           </div>
         )}
 
         <div className="card">
-          <h3>Status &amp; Review Thread</h3>
+          <h3>Status &amp; Handoff Notes</h3>
           <span className="badge community">{sub.status}</span>
+          <p className="dim" style={{ fontSize: 12 }}>
+            Target: {sub.target}. Package hash: {sub.lastHash ?? 'not prepared'}.
+          </p>
           <div style={{ marginTop: 12 }}>
             {sub.thread.length === 0 && <p className="dim" style={{ fontSize: 12 }}>No messages yet.</p>}
             {sub.thread.map((t, i) => (
@@ -223,22 +250,6 @@ export default function SubmitAddon(): JSX.Element {
               </div>
             ))}
           </div>
-          {sub.status === 'submitted' && (
-            <div className="btn-row" style={{ marginTop: 8 }}>
-              <button
-                className="btn ghost"
-                onClick={() =>
-                  persist({
-                    ...sub,
-                    status: 'changes_requested',
-                    thread: [...sub.thread, { from: 'reviewer', text: 'Please add a support link and fix missing localization keys.', at: Date.now() }]
-                  })
-                }
-              >
-                Simulate Review Response
-              </button>
-            </div>
-          )}
         </div>
       </div>
 

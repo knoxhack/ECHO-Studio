@@ -62,7 +62,7 @@ export default function Missions(): JSX.Element {
         <div className="section-title" style={{ marginTop: 0 }}>Mission Graph</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="badge ready">Start</div>
-          {records.length === 0 && <span className="dim">No missions yet — create one.</span>}
+          {records.length === 0 && <span className="dim">No missions yet - create one.</span>}
           {records.map((r) => {
             const m = r.data as Mission
             return (

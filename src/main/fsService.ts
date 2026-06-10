@@ -132,8 +132,9 @@ export async function importProject(workspaceDir: string, sourcePath: string): P
 }
 
 async function readPublishStatus(projectDir: string): Promise<PublishStatus> {
-  const statusFile = join(projectDir, '.studio', 'status.json')
-  if (await pathExists(statusFile)) {
+  for (const dir of ['.echo-studio', '.studio']) {
+    const statusFile = join(projectDir, dir, 'status.json')
+    if (!(await pathExists(statusFile))) continue
     try {
       const raw = JSON.parse(await fs.readFile(statusFile, 'utf-8'))
       return raw.publishStatus ?? 'draft'
@@ -145,7 +146,7 @@ async function readPublishStatus(projectDir: string): Promise<PublishStatus> {
 }
 
 export async function setPublishStatus(projectPath: string, status: PublishStatus): Promise<void> {
-  const dir = join(projectPath, '.studio')
+  const dir = join(projectPath, '.echo-studio')
   await ensureDir(dir)
   await fs.writeFile(join(dir, 'status.json'), JSON.stringify({ publishStatus: status }, null, 2), 'utf-8')
 }
@@ -198,7 +199,7 @@ export async function readProjectTree(projectPath: string): Promise<FileNode> {
     const entries = await fs.readdir(dir, { withFileTypes: true })
     const children: FileNode[] = []
     for (const e of entries) {
-      if (e.name === '.studio') continue
+      if (e.name === '.studio' || e.name === '.echo-studio') continue
       const full = join(dir, e.name)
       if (e.isDirectory()) children.push(await walk(full))
       else children.push({ name: e.name, path: full, type: 'file' })

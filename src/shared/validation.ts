@@ -11,7 +11,7 @@ import type {
   ValidationIssue
 } from './types'
 
-// PackOS Check — the core safety gate. Pure function over a manifest so it can
+// PackOS Check - the core safety gate. Pure function over a manifest so it can
 // run in either process and be unit-tested easily.
 export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModuleRecord[]): PackOSReport {
   const issues: ValidationIssue[] = []

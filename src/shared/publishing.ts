@@ -19,6 +19,13 @@ export interface SubmissionState {
   submittedAt?: number
 }
 
+export const RELEASE_SUBMISSION_TARGETS = [
+  'Release Index Ingestion',
+  'Verified Release Review',
+  'Private Draft Release',
+  'Server Pack Handoff'
+] as const
+
 export interface ReleaseEntry {
   version: string
   channel: 'alpha' | 'beta' | 'stable'
