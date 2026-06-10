@@ -194,8 +194,7 @@ export default function CommunityCatalog(): JSX.Element {
                 <div className="btn-row" style={{ marginTop: 12 }}>
                   <button className="btn" onClick={() => open(project, '/experience')}>Open</button>
                   <button className="btn" onClick={() => open(project, '/validation')}>Validate</button>
-                  <button className="btn" onClick={() => open(project, '/release')}>Release</button>
-                  <button className="btn ghost" onClick={() => open(project, '/submit')}>Submission Review</button>
+                  <button className="btn" onClick={() => open(project, '/release')}>Release Handoff</button>
                 </div>
               </div>
             )

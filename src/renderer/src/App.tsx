@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate } from 'react-router-dom'
+import { Navigate, Routes, Route, useNavigate } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 import { useWorkspace } from './state/WorkspaceContext'
@@ -28,7 +28,6 @@ import Assets from './pages/Assets'
 import Preview from './pages/Preview'
 import PackOSCheck from './pages/PackOSCheck'
 import Compatibility from './pages/Compatibility'
-import SubmitAddon from './pages/SubmitAddon'
 import CommunityCatalog from './pages/CommunityCatalog'
 import Ecosystem from './pages/Ecosystem'
 import Docs from './pages/Docs'
@@ -87,7 +86,7 @@ export default function App(): JSX.Element {
             <Route path="/validation" element={<PackOSCheck />} />
             <Route path="/packos" element={<PackOSCheck />} />
             <Route path="/compatibility" element={<Compatibility />} />
-            <Route path="/submit" element={<SubmitAddon />} />
+            <Route path="/submit" element={<Navigate to="/release" replace />} />
             <Route path="/release" element={<PublishAssistant />} />
             <Route path="/releases" element={<PublishAssistant />} />
             <Route path="/catalog" element={<CommunityCatalog />} />

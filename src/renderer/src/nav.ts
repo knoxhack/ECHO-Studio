@@ -71,7 +71,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/dialogue': 'Dialogue',
   '/packos': 'Validation',
   '/compatibility': 'Compatibility',
-  '/submit': 'Release Submission',
+  '/submit': 'Release',
   '/publish-assistant': 'Release',
   '/releases': 'Release',
   '/catalog': 'Catalog',
