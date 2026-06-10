@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import type { PackageResult } from '@shared/publishing'
+import type { DevWorkspaceState } from '@shared/devWorkspace'
+import type { PackOSReport } from '@shared/types'
 import { RELEASE_SUBMISSION_TARGETS, type SubmissionState } from '@shared/publishing'
 
 const STEPS = [
@@ -19,16 +21,40 @@ export default function SubmitAddon(): JSX.Element {
   const { activeProject, refresh, toast } = useWorkspace()
   const [sub, setSub] = useState<SubmissionState | null>(null)
   const [pkg, setPkg] = useState<PackageResult | null>(null)
+  const [workspace, setWorkspace] = useState<DevWorkspaceState | null>(null)
+  const [preflight, setPreflight] = useState<PackOSReport | null>(null)
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [readinessLoading, setReadinessLoading] = useState(false)
+
+  const refreshReadiness = useCallback(async () => {
+    if (!activeProject) {
+      setWorkspace(null)
+      setPreflight(null)
+      return
+    }
+    setReadinessLoading(true)
+    const [workspaceResult, checkResult] = await Promise.all([
+      window.studio.inspectDevWorkspace(activeProject.path),
+      window.studio.fullCheck(activeProject.path)
+    ])
+    setReadinessLoading(false)
+    setWorkspace(workspaceResult.ok && workspaceResult.data ? workspaceResult.data : null)
+    setPreflight(checkResult.ok && checkResult.data ? checkResult.data : null)
+  }, [activeProject])
 
   useEffect(() => {
     if (!activeProject) {
       setSub(null)
+      setPkg(null)
       return
     }
     window.studio.getSubmission(activeProject.path).then((r) => r.ok && setSub(r.data!))
   }, [activeProject])
+
+  useEffect(() => {
+    void refreshReadiness()
+  }, [refreshReadiness])
 
   if (!activeProject)
     return (
@@ -50,7 +76,9 @@ export default function SubmitAddon(): JSX.Element {
     setBusy(false)
     if (res.ok && res.data) {
       setPkg(res.data)
+      setPreflight(res.data.report)
       persist({ ...sub, lastHash: res.data.hash })
+      await refreshReadiness()
       toast('Prepared release handoff')
     } else toast(res.error || 'Package failed')
   }
@@ -72,10 +100,40 @@ export default function SubmitAddon(): JSX.Element {
     setStep(STEPS.length - 1)
   }
 
-  const ready = pkg?.report.publishingReady ?? false
+  const readinessReport = pkg?.report ?? preflight
+  const ready = readinessReport?.publishingReady ?? false
   const sdkReady = pkg?.sdkValidation.ok ?? false
-  const handoffReady = Boolean(pkg?.releaseIndexHandoffPath && pkg.releaseIndexSubmissionPath && pkg.releaseDraftPath)
-  const canSubmit = sdkReady && ready && handoffReady && sub.permissionsConfirmed
+  const releaseSidecarsReady = Boolean(
+    pkg?.checksumsPath &&
+    pkg.packageManifestPath &&
+    pkg.releaseManifestPath &&
+    pkg.releaseIndexHandoffPath &&
+    pkg.releaseIndexSubmissionPath &&
+    pkg.releaseDraftPath
+  )
+  const handoffReady = Boolean(
+    releaseSidecarsReady &&
+    pkg?.releaseIndexHandoff?.schemaVersion === 'echo.release.index.handoff.v1' &&
+    pkg.releaseIndexHandoff.targetRepository === 'knoxhack/ECHO-Release-Index' &&
+    pkg.releaseIndexHandoff.targetCollection === 'addons' &&
+    pkg.releaseIndexHandoff.entryFileName
+  )
+  const attestationSubjectCount = pkg?.releaseIndexHandoff?.attestation.subjects.length ?? 0
+  const attestationReady = Boolean(
+    pkg?.releaseIndexHandoff?.attestation.provider === 'github-artifact-attestations' &&
+    pkg.releaseIndexHandoff.attestation.requireDigestMatch &&
+    attestationSubjectCount > 0
+  )
+  const blockedModules = workspace?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
+  const moduleReady = Boolean(
+    workspace &&
+    workspace.moduleLock.upToDate &&
+    workspace.moduleWorkspace.upToDate &&
+    workspace.modulePlan.missingRequired.length === 0 &&
+    workspace.modulePlan.unknown.length === 0 &&
+    blockedModules.length === 0
+  )
+  const canSubmit = sdkReady && ready && moduleReady && handoffReady && attestationReady && sub.permissionsConfirmed
 
   return (
     <Page title="Release Submission" subtitle="Review the local package, Release Index handoff, submission notes, permissions, and ingestion target.">
@@ -99,17 +157,24 @@ export default function SubmitAddon(): JSX.Element {
             {pkg && (
               <div style={{ marginTop: 12 }}>
                 <div className="metric" style={{ color: sdkReady && ready ? 'var(--good)' : 'var(--bad)' }}>
-                  {pkg.report.compatibilityScore}%
+                  {readinessReport?.compatibilityScore ?? pkg.report.compatibilityScore}%
                 </div>
                 <div className="sub">
-                  {ready ? 'PackOS ready for ingestion review' : `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}`}
+                  {ready ? 'PackOS ready for ingestion review' : `Blockers ${readinessReport?.counts.BLOCKER ?? pkg.report.counts.BLOCKER} - Errors ${readinessReport?.counts.ERROR ?? pkg.report.counts.ERROR}`}
                 </div>
                 <div className="btn-row" style={{ marginTop: 10 }}>
-                  <span className={`badge ${sdkReady ? 'ready' : 'fixes'}`}>{sdkReady ? 'SDK ready' : 'SDK issues'}</span>
+                  <span className={`badge ${sdkReady ? 'ready' : 'fixes'}`}>{sdkReady ? 'Package contract ready' : 'Package contract issues'}</span>
+                  <span className={`badge ${moduleReady ? 'ready' : 'local'}`}>{moduleReady ? 'Modules current' : 'Modules need sync'}</span>
                   <span className={`badge ${handoffReady ? 'ready' : 'local'}`}>{handoffReady ? 'Handoff ready' : 'Handoff missing'}</span>
+                  <span className={`badge ${attestationReady ? 'ready' : 'local'}`}>{attestationReady ? 'Attestation planned' : 'Attestation missing'}</span>
                 </div>
               </div>
             )}
+            <div className="btn-row" style={{ marginTop: 12 }}>
+              <button className="btn ghost" disabled={readinessLoading} onClick={refreshReadiness}>
+                {readinessLoading ? 'Checking...' : 'Refresh Readiness'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -120,9 +185,10 @@ export default function SubmitAddon(): JSX.Element {
               <div style={{ fontSize: 13, lineHeight: 2 }}>
                 <div className="mono" style={{ wordBreak: 'break-all' }}>{pkg.zipPath}</div>
                 <div>Size: {(pkg.bytes / 1024).toFixed(1)} KB</div>
-                <div>SDK Contract: {pkg.sdkValidation.ok ? 'Ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
+                <div>Package Contract: {pkg.sdkValidation.ok ? 'Ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
                 <div>Built Assets: {pkg.assetPaths.length}</div>
                 <div>Release Index: {pkg.releaseIndexHandoff?.entryFileName ?? 'Missing handoff'}</div>
+                <div>Attestation subjects: {attestationSubjectCount}</div>
                 <div className="mono faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>
                   sha256: {pkg.hash}
                 </div>
@@ -226,9 +292,12 @@ export default function SubmitAddon(): JSX.Element {
             >
               Mark Handoff Ready
             </button>
-            {!sdkReady && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass SDK contract validation first.</p>}
+            {!sdkReady && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass package contract validation first.</p>}
             {sdkReady && !ready && <p className="fix" style={{ color: 'var(--warn)' }}>Package must pass PackOS before ingestion.</p>}
-            {!handoffReady && <p className="fix" style={{ color: 'var(--warn)' }}>Prepare release assets so handoff JSON, submission notes, and draft metadata exist.</p>}
+            {!moduleReady && <p className="fix" style={{ color: 'var(--warn)' }}>Refresh Dev Workspace so module lock, workspace map, dependencies, and trust state are current.</p>}
+            {!releaseSidecarsReady && <p className="fix" style={{ color: 'var(--warn)' }}>Prepare release assets so checksums, package manifest, release manifest, handoff JSON, submission notes, and draft metadata exist.</p>}
+            {releaseSidecarsReady && !handoffReady && <p className="fix" style={{ color: 'var(--warn)' }}>Release Index handoff metadata is incomplete or targets the wrong collection.</p>}
+            {!attestationReady && <p className="fix" style={{ color: 'var(--warn)' }}>Artifact attestation subjects must be generated before marking the handoff ready.</p>}
             {!sub.permissionsConfirmed && <p className="fix" style={{ color: 'var(--warn)' }}>Confirm permissions before marking the handoff ready.</p>}
           </div>
         )}
@@ -239,6 +308,22 @@ export default function SubmitAddon(): JSX.Element {
           <p className="dim" style={{ fontSize: 12 }}>
             Target: {sub.target}. Package hash: {sub.lastHash ?? 'not prepared'}.
           </p>
+          <div className="grid cols-2" style={{ gap: 8, marginTop: 10 }}>
+            <MiniStatus label="PackOS" ready={ready} detail={readinessReport ? `${readinessReport.counts.BLOCKER} blocker / ${readinessReport.counts.ERROR} error` : 'Not checked'} />
+            <MiniStatus label="Modules" ready={moduleReady} detail={workspace ? `${workspace.modulePlan.closure.length} resolved` : 'Not inspected'} />
+            <MiniStatus label="Sidecars" ready={releaseSidecarsReady} detail={releaseSidecarsReady ? 'Generated' : 'Missing'} />
+            <MiniStatus label="Attestation" ready={attestationReady} detail={attestationSubjectCount ? `${attestationSubjectCount} subject(s)` : 'Missing'} />
+          </div>
+          {workspace && !moduleReady && (
+            <div className="issue WARNING" style={{ marginTop: 12 }}>
+              <span className="lvl">MODULES</span>
+              {!workspace.moduleLock.upToDate && 'Module lock is stale. '}
+              {!workspace.moduleWorkspace.upToDate && 'Module workspace map is stale. '}
+              {workspace.modulePlan.missingRequired.length > 0 && `Missing closure: ${workspace.modulePlan.missingRequired.map((mod) => mod.name).join(', ')}. `}
+              {workspace.modulePlan.unknown.length > 0 && `Unknown: ${workspace.modulePlan.unknown.join(', ')}. `}
+              {blockedModules.length > 0 && `Blocked: ${blockedModules.map((mod) => mod.name).join(', ')}.`}
+            </div>
+          )}
           <div style={{ marginTop: 12 }}>
             {sub.thread.length === 0 && <p className="dim" style={{ fontSize: 12 }}>No messages yet.</p>}
             {sub.thread.map((t, i) => (
@@ -258,5 +343,14 @@ export default function SubmitAddon(): JSX.Element {
         <button className="btn primary" disabled={step === STEPS.length - 1} onClick={() => setStep((s) => s + 1)}>Next</button>
       </div>
     </Page>
+  )
+}
+
+function MiniStatus({ label, ready, detail }: { label: string; ready: boolean; detail: string }): JSX.Element {
+  return (
+    <div className="tile" style={{ minHeight: 68 }}>
+      <h4>{label}</h4>
+      <p style={{ margin: 0, color: ready ? 'var(--good)' : 'var(--warn)' }}>{detail}</p>
+    </div>
   )
 }
