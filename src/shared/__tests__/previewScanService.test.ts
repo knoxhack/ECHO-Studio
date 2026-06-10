@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, it, expect, vi } from 'vitest'
-import { computePreviewScore } from '../sandbox'
+import { computePreviewScore } from '../previewScan'
 import type { AddonManifest, Runtime } from '../types'
 
 vi.mock('electron', () => ({
@@ -86,7 +86,7 @@ describe('runPreviewScan', () => {
   it('warns when a standalone compatibility profile is launched for a project without standalone support', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
-      const { runPreviewScan } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/previewScanService')
 
       const result = await runPreviewScan(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
 
@@ -105,7 +105,7 @@ describe('runPreviewScan', () => {
         name: 'Shared Dep',
         dependencies: { required: [], optional: [] }
       }))
-      const { runPreviewScan } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/previewScanService')
 
       const workspaceResult = await runPreviewScan(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
       const selectedOnlyResult = await runPreviewScan(project, root, 'Ashfall Compatibility', {
@@ -122,7 +122,7 @@ describe('runPreviewScan', () => {
   it('reports enabled preview options in compatibility scan logs', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
-      const { runPreviewScan } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/previewScanService')
 
       const result = await runPreviewScan(project, root, 'Ashfall Compatibility', {
         loadOnlySelected: false,
@@ -157,7 +157,7 @@ describe('runPreviewScan', () => {
         permissions: ['mission.register', 'screen.custom_ui', 'index.entries'],
         runtime: { supports: ['neoforge'], nativeReadiness: 'none', minimumEchoSdk: '1.4.0' }
       }))
-      const { runPreviewScan } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/previewScanService')
 
       const result = await runPreviewScan(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
 

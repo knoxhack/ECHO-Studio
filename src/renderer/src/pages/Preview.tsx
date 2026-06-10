@@ -4,7 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
-import type { PreviewScanResult, PreviewScanOptions } from '@shared/sandbox'
+import type { PreviewScanResult, PreviewScanOptions } from '@shared/previewScan'
 
 const PROFILES = [
   'Ashfall Compatibility',
