@@ -239,7 +239,7 @@ export interface DevTask {
 
 export interface DevTaskRun {
   taskId: DevTaskId
-  status: 'completed' | 'failed' | 'started'
+  status: 'completed' | 'failed' | 'started' | 'stopped'
   command: string
   cwd: string
   pid?: number
@@ -250,6 +250,17 @@ export interface DevTaskRun {
   startedAt: string
   finishedAt?: string
   artifacts: DevArtifact[]
+}
+
+export interface DevTaskStopResult {
+  status: 'stopped' | 'not_running'
+  taskId?: DevTaskId
+  command?: string
+  cwd?: string
+  pid?: number
+  logPath: string
+  finishedAt?: string
+  message: string
 }
 
 export const DEV_TASKS: DevTask[] = [

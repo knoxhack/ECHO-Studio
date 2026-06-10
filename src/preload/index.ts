@@ -26,7 +26,7 @@ import type { CreatorProfile } from '../shared/profile'
 import type { ExperienceResult, ServerPackResult } from '../shared/bundles'
 import type { SandboxResult, SandboxOptions } from '../shared/sandbox'
 import type { GitStatus, GitCommit, GitDiff, GitResult, GitBranch } from '../shared/git'
-import type { DevSetupResult, DevTaskId, DevTaskRun, DevWorkspaceOptions, DevWorkspaceState } from '../shared/devWorkspace'
+import type { DevSetupResult, DevTaskId, DevTaskRun, DevTaskStopResult, DevWorkspaceOptions, DevWorkspaceState } from '../shared/devWorkspace'
 import type { EchoModuleCatalogResult } from '../shared/moduleCatalog'
 import type { CodexTask, CodexTaskActionResult } from '../shared/codexTasks'
 
@@ -118,6 +118,8 @@ const api = {
     invoke<DevSetupResult>('dev:setup', projectPath, options),
   runDevTask: (projectPath: string, taskId: DevTaskId) =>
     invoke<DevTaskRun>('dev:runTask', projectPath, taskId),
+  stopDevTask: (projectPath: string, logPath: string) =>
+    invoke<DevTaskStopResult>('dev:stopTask', projectPath, logPath),
   readDevTaskLog: (projectPath: string, logPath: string) =>
     invoke<string>('dev:readLog', projectPath, logPath),
 

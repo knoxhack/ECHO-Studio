@@ -46,7 +46,7 @@ import { runSandbox } from './sandboxService'
 import type { SandboxOptions } from '../shared/sandbox'
 import { gitStatus, gitInit, gitCommit, gitLog, gitDiff, gitBranch, gitCheckout, gitPush, gitPull, gitRemote, gitAddRemote } from './gitService'
 import { join, basename } from 'path'
-import { inspectDevWorkspace, readDevTaskLog, runDevTask, setupDevWorkspace } from './devWorkspaceService'
+import { inspectDevWorkspace, readDevTaskLog, runDevTask, setupDevWorkspace, stopDevTask } from './devWorkspaceService'
 import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
 import { listEchoModules } from './moduleCatalogService'
 import { applyCodexTask, listCodexTasks, setCodexTaskRejected } from './codexTaskService'
@@ -229,6 +229,9 @@ export function registerIpc(): void {
   )
   handle('dev:runTask', (projectPath: string, taskId: DevTaskId) =>
     runDevTask(projectPath, taskId)
+  )
+  handle('dev:stopTask', (projectPath: string, logPath: string) =>
+    stopDevTask(projectPath, logPath)
   )
   handle('dev:readLog', (projectPath: string, logPath: string) =>
     readDevTaskLog(projectPath, logPath)

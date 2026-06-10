@@ -424,4 +424,45 @@ describe('setupDevWorkspace', () => {
       }
     })
   })
+
+  it('stops a running detached dev task and records it in the task log', async () => {
+    await withProject(async (project) => {
+      await fs.writeFile(
+        path.join(project, 'gradlew.bat'),
+        [
+          '@echo off',
+          'echo fake client started',
+          'ping 127.0.0.1 -n 30 > nul'
+        ].join('\r\n'),
+        'utf8'
+      )
+      const shLauncher = path.join(project, 'gradlew')
+      await fs.writeFile(
+        shLauncher,
+        [
+          '#!/usr/bin/env sh',
+          'echo fake client started',
+          'sleep 30'
+        ].join('\n'),
+        'utf8'
+      )
+      if (process.platform !== 'win32') await fs.chmod(shLauncher, 0o755)
+
+      const { readDevTaskLog, runDevTask, stopDevTask } = await import('../../main/devWorkspaceService')
+      const started = await runDevTask(project, 'gradle:runClient')
+
+      expect(started.status).toBe('started')
+      expect(started.logPath).toBeDefined()
+
+      const stopped = await stopDevTask(project, started.logPath!)
+      const stoppedAgain = await stopDevTask(project, started.logPath!)
+      const log = await readDevTaskLog(project, started.logPath!)
+
+      expect(stopped.status).toBe('stopped')
+      expect(stopped.taskId).toBe('gradle:runClient')
+      expect(stoppedAgain.status).toBe('not_running')
+      expect(log).toContain('Stop requested from ECHO Studio.')
+      expect(log).toContain('[status] stopped')
+    })
+  })
 })

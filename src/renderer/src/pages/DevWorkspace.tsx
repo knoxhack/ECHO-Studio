@@ -24,6 +24,7 @@ export default function DevWorkspace(): JSX.Element {
   const [runtimes, setRuntimes] = useState<Runtime[]>(['neoforge', 'echo_native'])
   const [force, setForce] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [lastRun, setLastRun] = useState<DevTaskRun | null>(null)
   const [liveLog, setLiveLog] = useState('')
   const [setupSummary, setSetupSummary] = useState<{ written: string[]; skipped: string[] } | null>(null)
@@ -113,6 +114,32 @@ export default function DevWorkspace(): JSX.Element {
     }
   }
 
+  const stopTask = async (): Promise<void> => {
+    if (!activeProject || !lastRun?.logPath) return
+    setStopping(true)
+    const result = await window.studio.stopDevTask(activeProject.path, lastRun.logPath)
+    setStopping(false)
+    if (result.ok && result.data) {
+      const stop = result.data
+      setLastRun((current) =>
+        current && current.logPath === stop.logPath
+          ? {
+              ...current,
+              status: stop.status === 'stopped' ? 'stopped' : current.status,
+              finishedAt: stop.finishedAt ?? current.finishedAt,
+              stdout: `${current.stdout}${current.stdout ? '\n' : ''}${stop.message}`
+            }
+          : current
+      )
+      const log = await window.studio.readDevTaskLog(activeProject.path, stop.logPath)
+      if (log.ok && log.data !== undefined) setLiveLog(log.data)
+      toast(stop.message)
+      void inspect()
+    } else {
+      toast(result.error || 'Unable to stop dev task')
+    }
+  }
+
   const readyTone = state?.ready ? 'var(--good)' : 'var(--warn)'
   const gradleValue = state
     ? state.gradleReady
@@ -162,6 +189,12 @@ export default function DevWorkspace(): JSX.Element {
     if (taskId === 'preview:native' && !state.runtimeLaunchers.nativeConfigured) return 'Set ECHO Native executable in Settings and run setup.'
     if (taskId === 'preview:standalone' && !state.runtimeLaunchers.standaloneConfigured) return 'Set Standalone executable in Settings and run setup.'
     return null
+  }
+
+  const taskStatusClass = (status: DevTaskRun['status']): string => {
+    if (status === 'failed') return 'fixes'
+    if (status === 'started' || status === 'stopped') return 'local'
+    return 'ready'
   }
 
   return (
@@ -399,9 +432,14 @@ export default function DevWorkspace(): JSX.Element {
           {lastRun ? (
             <>
               <div className="btn-row" style={{ marginBottom: 10 }}>
-                <span className={`badge ${lastRun.status === 'failed' ? 'fixes' : 'ready'}`}>{lastRun.status}</span>
+                <span className={`badge ${taskStatusClass(lastRun.status)}`}>{lastRun.status}</span>
                 <span className="badge">{lastRun.command}</span>
                 {lastRun.pid && <span className="badge">pid {lastRun.pid}</span>}
+                {lastRun.status === 'started' && lastRun.logPath && (
+                  <button className="btn" disabled={stopping} onClick={stopTask}>
+                    {stopping ? 'Stopping...' : 'Stop Task'}
+                  </button>
+                )}
                 {lastRun.logPath && (
                   <button className="btn ghost" onClick={() => window.studio.openPath(lastRun.logPath!)}>
                     Open Log
