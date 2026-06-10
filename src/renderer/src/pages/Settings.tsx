@@ -179,6 +179,29 @@ export default function Settings(): JSX.Element {
             </select>
           </label>
           <label className="field" style={{ marginTop: 8 }}>
+            <span>ECHO Native executable</span>
+            <input
+              value={config.runtimeTools.echoNativeExecutable}
+              placeholder="C:/ECHO/runtime/echo-native.exe"
+              onChange={(event) =>
+                updateConfig({ runtimeTools: { ...config.runtimeTools, echoNativeExecutable: event.target.value } })
+              }
+            />
+          </label>
+          <label className="field" style={{ marginTop: 8 }}>
+            <span>Standalone executable</span>
+            <input
+              value={config.runtimeTools.standaloneExecutable}
+              placeholder="C:/ECHO/runtime/echo-standalone.exe"
+              onChange={(event) =>
+                updateConfig({ runtimeTools: { ...config.runtimeTools, standaloneExecutable: event.target.value } })
+              }
+            />
+          </label>
+          <p className="dim" style={{ fontSize: 12 }}>
+            Dev Workspace setup writes these paths into gradle.properties for native and standalone preview tasks.
+          </p>
+          <label className="field" style={{ marginTop: 8 }}>
             <span>Theme</span>
             <select value={config.theme} onChange={(event) => updateConfig({ theme: event.target.value })}>
               <option value="dark">Dark</option>

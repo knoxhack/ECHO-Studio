@@ -13,6 +13,10 @@ export interface AppConfig {
   sandbox: {
     defaultProfile: string
   }
+  runtimeTools: {
+    echoNativeExecutable: string
+    standaloneExecutable: string
+  }
   git: {
     enabled: boolean
   }
@@ -28,6 +32,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   sdk: { autoUpdate: true, targetVersion: '1.4.x' },
   sandbox: { defaultProfile: 'Ashfall Sandbox' },
+  runtimeTools: { echoNativeExecutable: '', standaloneExecutable: '' },
   git: { enabled: false },
   theme: 'dark'
 }

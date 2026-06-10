@@ -140,6 +140,10 @@ function runtimeTargets(manifest: AddonManifest, options?: DevWorkspaceOptions):
   return options?.runtimes?.length ? options.runtimes : manifest.runtime.supports
 }
 
+function gradlePropertyValue(value: string | undefined): string {
+  return (value ?? '').replace(/\\/g, '/').replace(/\r?\n/g, ' ').trim()
+}
+
 function lockModule(mod: EchoModuleRecord): DevModuleLock['modules'][number] {
   return {
     id: mod.id,
@@ -254,7 +258,7 @@ async function moduleLockStatus(
   }
 }
 
-function gradleProperties(manifest: AddonManifest, runtimes: Runtime[]): string {
+function gradleProperties(manifest: AddonManifest, runtimes: Runtime[], options?: DevWorkspaceOptions): string {
   return `# ${STUDIO_MARKER}
 mod_id=${localId(manifest)}
 mod_name=${manifest.name}
@@ -269,6 +273,8 @@ neo_version=21.1.200
 enable_neoforge=${String(runtimes.includes('neoforge'))}
 enable_echo_native=${String(runtimes.includes('echo_native'))}
 enable_standalone=${String(runtimes.includes('standalone'))}
+echo_native_executable=${gradlePropertyValue(options?.runtimeTools?.echoNativeExecutable)}
+echo_standalone_executable=${gradlePropertyValue(options?.runtimeTools?.standaloneExecutable)}
 `
 }
 
@@ -294,7 +300,7 @@ rootProject.name = "${localId(manifest)}"
 `
 }
 
-function buildGradle(manifest: AddonManifest): string {
+function buildGradle(): string {
   return `// ${STUDIO_MARKER}
 plugins {
     id "java-library"
@@ -306,6 +312,8 @@ plugins {
 def enableNeoForge = providers.gradleProperty("enable_neoforge").orElse("false").get().toBoolean()
 def enableNative = providers.gradleProperty("enable_echo_native").orElse("false").get().toBoolean()
 def enableStandalone = providers.gradleProperty("enable_standalone").orElse("false").get().toBoolean()
+def echoNativeExecutable = providers.gradleProperty("echo_native_executable").orElse("")
+def echoStandaloneExecutable = providers.gradleProperty("echo_standalone_executable").orElse("")
 
 version = providers.gradleProperty("mod_version").get()
 group = providers.gradleProperty("mod_group_id").get()
@@ -383,21 +391,31 @@ if (enableNeoForge) {
     }
 }
 
-tasks.register("echoNativePreview") {
+tasks.register("echoNativePreview", Exec) {
     group = "echo dev"
     description = "Starts the native preview lane when the ECHO Native runtime is installed."
-    doLast {
+    doFirst {
         if (!enableNative) throw new GradleException("ECHO Native is not enabled for this workspace.")
-        println "Native preview requested for ${manifest.id}. Configure the runtime executable in ECHO Studio Settings."
+        def executablePath = echoNativeExecutable.get().trim()
+        if (!executablePath) throw new GradleException("Set echo_native_executable in gradle.properties or ECHO Studio Settings before starting native preview.")
+        executable = executablePath
+        args "--project", projectDir.absolutePath,
+            "--manifest", file("echo.mod.json").absolutePath,
+            "--modules-lock", file("src/generated/resources/META-INF/echo.modules.lock.json").absolutePath
     }
 }
 
-tasks.register("echoStandalonePreview") {
+tasks.register("echoStandalonePreview", Exec) {
     group = "echo dev"
     description = "Starts the standalone runtime preview lane when the ECHO Standalone runtime is installed."
-    doLast {
+    doFirst {
         if (!enableStandalone) throw new GradleException("Standalone runtime is not enabled for this workspace.")
-        println "Standalone preview requested for ${manifest.id}. Configure the runtime executable in ECHO Studio Settings."
+        def executablePath = echoStandaloneExecutable.get().trim()
+        if (!executablePath) throw new GradleException("Set echo_standalone_executable in gradle.properties or ECHO Studio Settings before starting standalone preview.")
+        executable = executablePath
+        args "--project", projectDir.absolutePath,
+            "--manifest", file("echo.mod.json").absolutePath,
+            "--modules-lock", file("src/generated/resources/META-INF/echo.modules.lock.json").absolutePath
     }
 }
 
@@ -670,8 +688,8 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
 
   if (options.mode === 'gradle' || options.mode === 'full') {
     await writeIfAllowed(join(projectPath, 'settings.gradle'), settingsGradle(manifest), force, written, skipped)
-    await writeIfAllowed(join(projectPath, 'gradle.properties'), gradleProperties(manifest, runtimes), force, written, skipped)
-    await writeIfAllowed(join(projectPath, 'build.gradle'), buildGradle(manifest), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'gradle.properties'), gradleProperties(manifest, runtimes, options), force, written, skipped)
+    await writeIfAllowed(join(projectPath, 'build.gradle'), buildGradle(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'gradlew.bat'), gradlewBat(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'gradlew'), gradlewSh(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'src', 'main', 'resources', 'META-INF', 'echo.mod.json'), JSON.stringify(manifest, null, 2), force, written, skipped)

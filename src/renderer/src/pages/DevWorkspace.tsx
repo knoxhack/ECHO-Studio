@@ -18,7 +18,7 @@ const MODES: Array<{ id: DevWorkspaceMode; label: string; description: string }>
 ]
 
 export default function DevWorkspace(): JSX.Element {
-  const { activeProject, toast } = useWorkspace()
+  const { activeProject, config, toast } = useWorkspace()
   const [state, setState] = useState<DevWorkspaceState | null>(null)
   const [mode, setMode] = useState<DevWorkspaceMode>('gradle')
   const [runtimes, setRuntimes] = useState<Runtime[]>(['neoforge', 'echo_native'])
@@ -78,7 +78,15 @@ export default function DevWorkspace(): JSX.Element {
 
   const setup = async (): Promise<void> => {
     setBusy(true)
-    const result = await window.studio.setupDevWorkspace(activeProject.path, { mode, runtimes, force })
+    const result = await window.studio.setupDevWorkspace(activeProject.path, {
+      mode,
+      runtimes,
+      force,
+      runtimeTools: {
+        echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
+        standaloneExecutable: config.runtimeTools.standaloneExecutable
+      }
+    })
     setBusy(false)
     if (result.ok && result.data) {
       setState(result.data.state)
@@ -113,6 +121,10 @@ export default function DevWorkspace(): JSX.Element {
     : '...'
   const expectedFiles = state?.files.filter((file) => file.expected) ?? []
   const optionalFiles = state?.files.filter((file) => !file.expected) ?? []
+  const missingRuntimeTools = [
+    runtimes.includes('echo_native') && !config.runtimeTools.echoNativeExecutable ? 'ECHO Native executable' : '',
+    runtimes.includes('standalone') && !config.runtimeTools.standaloneExecutable ? 'Standalone executable' : ''
+  ].filter(Boolean)
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
@@ -177,6 +189,13 @@ export default function DevWorkspace(): JSX.Element {
               </label>
             ))}
           </div>
+          {missingRuntimeTools.length > 0 && (
+            <div className="issue INFO" style={{ marginTop: 10 }}>
+              <span className="lvl">INFO</span>
+              Preview launchers need: {missingRuntimeTools.join(', ')}.
+              <div className="fix">Add local runtime executable paths in Settings, then run Set Up Workspace again.</div>
+            </div>
+          )}
           <label className="checkbox" style={{ marginTop: 10 }}>
             <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} />
             Overwrite Studio-generated files

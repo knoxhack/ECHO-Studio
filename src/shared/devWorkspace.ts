@@ -7,6 +7,10 @@ export interface DevWorkspaceOptions {
   mode: DevWorkspaceMode
   runtimes: Runtime[]
   force?: boolean
+  runtimeTools?: {
+    echoNativeExecutable?: string
+    standaloneExecutable?: string
+  }
 }
 
 export interface DevWorkspaceFileStatus {

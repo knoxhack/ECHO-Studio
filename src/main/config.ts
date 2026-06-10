@@ -18,6 +18,7 @@ export async function getConfig(): Promise<AppConfig> {
       ai: { ...DEFAULT_CONFIG.ai, ...raw.ai },
       sdk: { ...DEFAULT_CONFIG.sdk, ...raw.sdk },
       sandbox: { ...DEFAULT_CONFIG.sandbox, ...raw.sandbox },
+      runtimeTools: { ...DEFAULT_CONFIG.runtimeTools, ...raw.runtimeTools },
       git: { ...DEFAULT_CONFIG.git, ...raw.git }
     }
   } catch {
@@ -33,6 +34,7 @@ export async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
     ai: { ...current.ai, ...patch.ai },
     sdk: { ...current.sdk, ...patch.sdk },
     sandbox: { ...current.sandbox, ...patch.sandbox },
+    runtimeTools: { ...current.runtimeTools, ...patch.runtimeTools },
     git: { ...current.git, ...patch.git }
   }
   await fs.writeFile(configPath(), JSON.stringify(next, null, 2), 'utf-8')

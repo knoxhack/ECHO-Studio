@@ -152,6 +152,10 @@ describe('setupDevWorkspace', () => {
       const result = await setupDevWorkspace(project, {
         mode: 'full',
         runtimes: ['neoforge', 'echo_native', 'standalone'],
+        runtimeTools: {
+          echoNativeExecutable: 'C:\\ECHO Runtime\\echo-native.exe',
+          standaloneExecutable: 'C:\\ECHO Runtime\\echo-standalone.exe'
+        },
         force: false
       })
 
@@ -161,6 +165,14 @@ describe('setupDevWorkspace', () => {
       expect(result.state.files.find((file) => file.path === '.echo-studio/release-checklist.md')?.expected).toBe(true)
       await expect(fs.access(path.join(project, 'META-INF', 'echo-addon-package.json'))).resolves.toBeUndefined()
       await expect(fs.access(path.join(project, '.echo-studio', 'release-checklist.md'))).resolves.toBeUndefined()
+
+      const gradleProperties = await fs.readFile(path.join(project, 'gradle.properties'), 'utf8')
+      const buildGradle = await fs.readFile(path.join(project, 'build.gradle'), 'utf8')
+      expect(gradleProperties).toContain('echo_native_executable=C:/ECHO Runtime/echo-native.exe')
+      expect(gradleProperties).toContain('echo_standalone_executable=C:/ECHO Runtime/echo-standalone.exe')
+      expect(buildGradle).toContain('tasks.register("echoNativePreview", Exec)')
+      expect(buildGradle).toContain('tasks.register("echoStandalonePreview", Exec)')
+      expect(buildGradle).toContain('--modules-lock')
     })
   })
 
