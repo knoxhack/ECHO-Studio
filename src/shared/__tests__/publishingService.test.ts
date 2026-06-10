@@ -368,6 +368,28 @@ describe('GitHub App broker publishing', () => {
     }
   })
 
+  it('rejects release drafts whose selected repository differs from the handoff source repo', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root)
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'different-addon')).rejects.toThrow(/sourceRepo .* selected GitHub repository/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose selected tag differs from the handoff release tag', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root)
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon', 'v0.2.0')).rejects.toThrow(/releaseTag .* selected release tag/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('rejects release drafts without artifact attestation metadata', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {

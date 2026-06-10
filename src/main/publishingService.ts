@@ -498,6 +498,12 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
   const assets = (draft.assets ?? []).map((asset) => normalizeDraftAsset(asset, draftDir))
   if (!assets.length) throw new Error('Release draft has no assets.')
   const metadata = validateReleaseDraftMetadata(draft, assets)
+  if (metadata.releaseIndexHandoff.sourceRepo !== fullName) {
+    throw new Error(`Release Index handoff sourceRepo ${metadata.releaseIndexHandoff.sourceRepo} does not match selected GitHub repository ${fullName}.`)
+  }
+  if (metadata.releaseIndexHandoff.releaseTag !== tag) {
+    throw new Error(`Release Index handoff releaseTag ${metadata.releaseIndexHandoff.releaseTag} does not match selected release tag ${tag}.`)
+  }
   for (const asset of assets) {
     await fs.access(asset.path)
     await readVerifiedDraftAsset(asset)

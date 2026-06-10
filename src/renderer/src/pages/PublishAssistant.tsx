@@ -274,6 +274,13 @@ export default function PublishAssistant(): JSX.Element {
     pkg.releaseIndexHandoff.attestation.requireDigestMatch &&
     attestationSubjectCount > 0
   )
+  const selectedRepository = `${owner.trim()}/${repo.trim()}`
+  const handoffTargetReady = Boolean(
+    pkg?.releaseIndexHandoff?.sourceRepo &&
+    pkg.releaseIndexHandoff.releaseTag &&
+    pkg.releaseIndexHandoff.sourceRepo === selectedRepository &&
+    pkg.releaseIndexHandoff.releaseTag === tag.trim()
+  )
   const authReady = Boolean(authStatus?.githubAppSessionReady || authStatus?.ghCliAuthenticated)
   const publishRequirements = [
     {
@@ -320,7 +327,17 @@ export default function PublishAssistant(): JSX.Element {
       key: 'repository',
       ready: Boolean(owner.trim() && repo.trim() && tag.trim()),
       label: 'Repository target',
-      detail: owner.trim() && repo.trim() && tag.trim() ? `${owner}/${repo} at ${tag}.` : 'Enter owner, repository, and release tag.'
+      detail: owner.trim() && repo.trim() && tag.trim() ? `${selectedRepository} at ${tag}.` : 'Enter owner, repository, and release tag.'
+    },
+    {
+      key: 'handoff-target',
+      ready: handoffTargetReady,
+      label: 'Handoff target match',
+      detail: pkg?.releaseIndexHandoff
+        ? handoffTargetReady
+          ? `Matches ${pkg.releaseIndexHandoff.sourceRepo}@${pkg.releaseIndexHandoff.releaseTag}.`
+          : `Generated handoff targets ${pkg.releaseIndexHandoff.sourceRepo}@${pkg.releaseIndexHandoff.releaseTag}; selected ${selectedRepository}@${tag.trim() || '(missing)'}.`
+        : 'Prepare Assets to generate the handoff source repository and release tag.'
     },
     {
       key: 'auth',
@@ -342,6 +359,7 @@ export default function PublishAssistant(): JSX.Element {
     owner.trim() &&
     repo.trim() &&
     tag.trim() &&
+    handoffTargetReady &&
     authReady
   )
   const draftDisabledReason = busy
