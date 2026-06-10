@@ -108,8 +108,6 @@ const api = {
 
   runPreviewScan: (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
     invoke<PreviewScanResult>('preview:scan', projectPath, workspaceDir, profile, options),
-  runSandbox: (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
-    invoke<PreviewScanResult>('sandbox:run', projectPath, workspaceDir, profile, options),
 
   listEchoModules: (projectPath?: string) =>
     invoke<EchoModuleCatalogResult>('modules:list', projectPath),

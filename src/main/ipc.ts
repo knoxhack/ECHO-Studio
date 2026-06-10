@@ -220,9 +220,6 @@ export function registerIpc(): void {
   handle('preview:scan', (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
     runPreviewScan(projectPath, workspaceDir, profile, options)
   )
-  handle('sandbox:run', (projectPath: string, workspaceDir: string, profile: string, options: PreviewScanOptions) =>
-    runPreviewScan(projectPath, workspaceDir, profile, options)
-  )
 
   handle('modules:list', (projectPath?: string) => listEchoModules(projectPath))
 

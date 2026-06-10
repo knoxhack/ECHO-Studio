@@ -48,8 +48,3 @@ export function previewScanAssistantPrompt(errors: string[]): string {
     'Can you explain what went wrong and how to fix it?'
   ].join('\n')
 }
-
-export type SandboxLog = PreviewScanLog
-export type SandboxResult = PreviewScanResult
-export type SandboxOptions = PreviewScanOptions
-export const computeSandboxScore = computePreviewScore

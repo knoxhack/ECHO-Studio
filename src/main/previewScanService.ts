@@ -178,5 +178,4 @@ export async function runPreviewScan(
   }
 }
 
-export const runSandbox = runPreviewScan
-export { computePreviewScore, computeSandboxScore } from '../shared/previewScan'
+export { computePreviewScore } from '../shared/previewScan'

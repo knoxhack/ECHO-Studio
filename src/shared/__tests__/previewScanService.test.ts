@@ -152,9 +152,9 @@ describe('runPreviewScan', () => {
   it('accepts legacy sandbox profile names as compatibility aliases', async () => {
     await withWorkspace(async (root) => {
       const project = await writeProject(root, 'weather', manifest())
-      const { runSandbox } = await import('../../main/sandboxService')
+      const { runPreviewScan } = await import('../../main/previewScanService')
 
-      const result = await runSandbox(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
+      const result = await runPreviewScan(project, root, 'Ashfall Sandbox', DEFAULT_OPTIONS)
 
       expect(result.errors).toHaveLength(0)
       expect(result.logs.some((log) => log.message.includes('Runtime compatible: neoforge'))).toBe(true)

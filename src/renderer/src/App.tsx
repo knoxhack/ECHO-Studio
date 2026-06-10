@@ -84,7 +84,6 @@ export default function App(): JSX.Element {
             <Route path="/dialogue" element={<DialogueBuilder />} />
             <Route path="/assets" element={<Assets />} />
             <Route path="/preview" element={<Preview />} />
-            <Route path="/sandbox" element={<Preview />} />
             <Route path="/validation" element={<PackOSCheck />} />
             <Route path="/packos" element={<PackOSCheck />} />
             <Route path="/compatibility" element={<Compatibility />} />
