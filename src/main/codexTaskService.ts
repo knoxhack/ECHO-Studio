@@ -280,6 +280,15 @@ function localId(id: string): string {
   return id.includes(':') ? id.split(':')[1] : id
 }
 
+function projectNamespace(manifest: AddonManifest): string {
+  return manifest.namespace || localId(manifest.id)
+}
+
+function isProjectOwnedId(manifest: AddonManifest, id: string): boolean {
+  const namespace = projectNamespace(manifest)
+  return Boolean(namespace && id.startsWith(`${namespace}:`))
+}
+
 function relativeProjectPath(projectPath: string, filePath: string): string {
   return relative(projectPath, filePath).replace(/\\/g, '/')
 }
@@ -329,12 +338,18 @@ function missionIndexEntry(manifest: AddonManifest, mission: Mission): IndexEntr
   }
 }
 
-function recipeIndexEntry(manifest: AddonManifest, recipe: Recipe): IndexEntry | null {
-  if (!recipe.indexEntry) return null
-  const title = titleFromId(recipe.output.item)
+function defaultRecipeIndexEntryId(manifest: AddonManifest, recipe: Recipe): string {
+  const outputItem = recipe.output?.item || recipe.id || 'recipe_output'
+  return `${projectNamespace(manifest)}:${localId(outputItem)}_entry`
+}
+
+function recipeIndexEntry(manifest: AddonManifest, recipe: Recipe, entryId = recipe.indexEntry): IndexEntry | null {
+  const outputItem = recipe.output?.item
+  if (!entryId || !outputItem) return null
+  const title = titleFromId(outputItem)
   const recipeTitle = titleFromId(recipe.id)
   return {
-    id: recipe.indexEntry,
+    id: entryId,
     title,
     type: 'item',
     category: 'recipes',
@@ -449,6 +464,7 @@ async function holomapMarkersTask(projectPath: string, store: CodexTaskStore, co
 async function indexEntriesTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
   const existingIds = new Set(context.content.index.map((record) => record.id))
   const proposals = new Map<string, IndexEntry>()
+  const linkedRecipes = new Map<string, ContentRecord<Recipe>>()
 
   for (const record of context.content.mission) {
     const mission = record.data as Mission
@@ -460,16 +476,41 @@ async function indexEntriesTask(projectPath: string, store: CodexTaskStore, cont
 
   for (const record of context.content.recipe) {
     const recipe = record.data as Recipe
-    const entry = recipeIndexEntry(context.manifest, recipe)
-    if (entry && !existingIds.has(recipe.output.item) && !existingIds.has(entry.id)) {
+    const outputItem = recipe.output?.item
+    if (!outputItem || existingIds.has(outputItem)) continue
+
+    const explicitIndex = recipe.indexEntry?.trim()
+    const entryId = explicitIndex || (isProjectOwnedId(context.manifest, outputItem) ? defaultRecipeIndexEntryId(context.manifest, recipe) : '')
+    const entry = recipeIndexEntry(context.manifest, recipe, entryId)
+    if (entry && !existingIds.has(entry.id)) {
       proposals.set(entry.id, mergeIndexProposal(proposals.get(entry.id), entry))
+    }
+    if (entry && !explicitIndex) {
+      linkedRecipes.set(record.path, {
+        ...record,
+        data: {
+          ...recipe,
+          indexEntry: entry.id
+        }
+      })
     }
   }
 
-  if (proposals.size === 0) return null
+  if (proposals.size === 0 && linkedRecipes.size === 0) return null
 
   const entries = [...proposals.values()].sort((a, b) => a.id.localeCompare(b.id))
-  const fileChanges = await Promise.all(entries.map(async (entry) => {
+  const recipeChanges = await Promise.all([...linkedRecipes.values()].map(async (record) => {
+    const before = await fs.readFile(record.path, 'utf8').catch(() => jsonDocument(record.data))
+    const after = jsonDocument(record.data)
+    const path = relativeProjectPath(projectPath, record.path)
+    return {
+      path,
+      before,
+      after,
+      diff: buildUnifiedTextDiff(path, before, after)
+    }
+  }))
+  const indexChanges = await Promise.all(entries.map(async (entry) => {
     const path = `index/${idToFileName(entry.id)}`
     const absolutePath = join(projectPath, path)
     const before = await fs.readFile(absolutePath, 'utf8').catch(() => '')
@@ -481,6 +522,7 @@ async function indexEntriesTask(projectPath: string, store: CodexTaskStore, cont
       diff: buildUnifiedTextDiff(path, before, after)
     }
   }))
+  const fileChanges = [...recipeChanges, ...indexChanges]
 
   const nextIndexRecords: ContentRecord<IndexEntry>[] = entries.map((entry) => {
     const fileName = idToFileName(entry.id)
@@ -491,24 +533,36 @@ async function indexEntriesTask(projectPath: string, store: CodexTaskStore, cont
       data: entry
     }
   })
+  const nextRecipeRecords = context.content.recipe.map((record) => linkedRecipes.get(record.path) ?? record)
   const afterReport = reportFromContext(context, {
     content: {
       ...context.content,
+      recipe: nextRecipeRecords,
       index: [...context.content.index, ...nextIndexRecords]
     }
   })
+  const generatedCount = entries.length
+  const linkedCount = linkedRecipes.size
+  const changedIds = [
+    ...[...linkedRecipes.values()].map((record) => (record.data as Recipe).indexEntry).filter(Boolean),
+    ...entries.map((entry) => entry.id)
+  ]
   return {
     id: 'content:index-entries',
-    title: 'Generate missing Index entries',
+    title: 'Generate missing recipe and mission Index links',
     kind: 'index_entry_fix',
     lane: taskLane('content:index-entries', 'waiting_review', store),
-    summary: 'Creates Index entries referenced by missions and recipe outputs so cross-content links resolve in Studio and PackOS validation.',
-    reason: `${entries.length} Index entr${entries.length === 1 ? 'y is' : 'ies are'} missing: ${entries.map((entry) => entry.id).join(', ')}.`,
-    route: '/index',
+    summary: 'Creates Index entries referenced by missions and recipe outputs, and links project-owned recipe outputs to generated Index entries when needed.',
+    reason: [
+      generatedCount ? `${generatedCount} Index entr${generatedCount === 1 ? 'y is' : 'ies are'} missing` : '',
+      linkedCount ? `${linkedCount} recipe${linkedCount === 1 ? ' needs' : 's need'} an Index link` : '',
+      changedIds.length ? `(${[...new Set(changedIds)].join(', ')})` : ''
+    ].filter(Boolean).join(' '),
+    route: linkedCount ? '/recipes' : '/index',
     affectedFiles: fileChanges.map((change) => change.path),
     fileChanges,
     canApply: true,
-    applyLabel: entries.length === 1 ? 'Write Index entry' : 'Write Index entries',
+    applyLabel: fileChanges.length === 1 ? 'Write Index fix' : 'Write Index fixes',
     rejectable: true,
     validationBefore: validationSnapshot(context.report),
     validationAfter: validationSnapshot(afterReport)
@@ -658,7 +712,7 @@ function assertAllowedFileChange(projectPath: string, taskId: string, changePath
   const allowed =
     (taskId === 'content:mission-localization' && normalized === 'lang/en_us.json') ||
     (taskId === 'content:mission-rewards' && /^missions\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
-    (taskId === 'content:index-entries' && /^index\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
+    (taskId === 'content:index-entries' && /^(index|recipes)\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
     (taskId === 'content:holomap-markers' && normalized === 'holomap/mission_markers.json')
   if (!allowed) throw new Error(`Task ${taskId} cannot write ${changePath}.`)
   const target = resolve(projectPath, normalized)

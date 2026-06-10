@@ -198,6 +198,55 @@ describe('runProjectCheck', () => {
     expect(issue?.fix).toContain('Generate a HoloMap mission marker layer')
   })
 
+  it('marks project-owned recipe outputs without Index links as AI-fixable', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {
+        recipe: [
+          {
+            id: 'teamnova:weather_core',
+            data: {
+              id: 'teamnova:weather_core',
+              type: 'crafting',
+              inputs: [],
+              output: { item: 'teamnova:weather_core', count: 1 }
+            }
+          }
+        ]
+      },
+      langKeys: [],
+      assetFiles: []
+    })
+    const issue = report.issues.find((item) => item.message.includes('has no linked Index entry'))
+
+    expect(issue?.aiFixable).toBe(true)
+    expect(issue?.file).toBe('recipes/weather_core.json')
+    expect(issue?.fix).toContain('Add a recipe Index link')
+  })
+
+  it('does not request Index links for external recipe outputs', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {
+        recipe: [
+          {
+            id: 'teamnova:stick_bundle',
+            data: {
+              id: 'teamnova:stick_bundle',
+              type: 'crafting',
+              inputs: [],
+              output: { item: 'minecraft:stick', count: 4 }
+            }
+          }
+        ]
+      },
+      langKeys: [],
+      assetFiles: []
+    })
+
+    expect(report.issues.some((item) => item.message.includes('has no linked Index entry'))).toBe(false)
+  })
+
   it('detects recipe cycle', () => {
     const report = runProjectCheck({
       manifest: makeManifest(),

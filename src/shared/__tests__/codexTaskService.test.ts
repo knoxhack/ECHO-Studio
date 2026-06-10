@@ -174,6 +174,56 @@ describe('codex task service', () => {
     })
   })
 
+  it('proposes and applies recipe Index links for project-owned outputs', async () => {
+    await withProject(async (project) => {
+      await fs.mkdir(path.join(project, 'recipes'), { recursive: true })
+      await fs.writeFile(path.join(project, 'recipes', 'weather_core.json'), JSON.stringify({
+        id: 'teamnova:weather_core',
+        type: 'crafting',
+        inputs: [],
+        output: { item: 'teamnova:weather_core', count: 1 }
+      }, null, 2), 'utf8')
+
+      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'content:index-entries')
+      const recipeChange = task?.fileChanges.find((change) => change.path === 'recipes/weather_core.json')
+      const indexChange = task?.fileChanges.find((change) => change.path === 'index/weather_core_entry.json')
+      const proposedRecipe = JSON.parse(recipeChange?.after ?? '{}')
+      const proposedEntry = JSON.parse(indexChange?.after ?? '{}')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('index_entry_fix')
+      expect(task?.route).toBe('/recipes')
+      expect(task?.fileChanges.map((change) => change.path)).toEqual([
+        'recipes/weather_core.json',
+        'index/weather_core_entry.json'
+      ])
+      expect(proposedRecipe.indexEntry).toBe('teamnova:weather_core_entry')
+      expect(proposedEntry).toMatchObject({
+        id: 'teamnova:weather_core_entry',
+        type: 'item',
+        category: 'recipes',
+        relatedRecipes: ['teamnova:weather_core']
+      })
+      expect(task?.validationAfter?.suggestions).toBeLessThan(task?.validationBefore?.suggestions ?? 999)
+
+      const result = await applyCodexTask(project, 'content:index-entries')
+      const recipe = JSON.parse(await fs.readFile(path.join(project, 'recipes', 'weather_core.json'), 'utf8'))
+      const entry = JSON.parse(await fs.readFile(path.join(project, 'index', 'weather_core_entry.json'), 'utf8'))
+      const afterTasks = await listCodexTasks(project)
+
+      expect(result.filesChanged).toEqual([
+        'recipes/weather_core.json',
+        'index/weather_core_entry.json'
+      ])
+      expect(recipe.indexEntry).toBe('teamnova:weather_core_entry')
+      expect(entry.relatedRecipes).toEqual(['teamnova:weather_core'])
+      expect(afterTasks.some((item) => item.id === 'content:index-entries')).toBe(false)
+    })
+  })
+
   it('proposes and applies missing HoloMap mission markers', async () => {
     await withProject(async (project) => {
       const missionPath = path.join(project, 'missions', 'first_contact.json')

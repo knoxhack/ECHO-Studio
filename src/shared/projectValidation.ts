@@ -89,13 +89,33 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
 
   // --- Recipes --------------------------------------------------------------
   for (const r of recipes) {
-    for (const inp of r.inputs) {
+    for (const inp of r.inputs ?? []) {
       if (looksLikeId(inp.item) && !itemIds.has(inp.item) && !allIds.has(inp.item)) {
         extra.push({ level: 'WARNING', category: 'Recipes', message: `Recipe ${r.id} uses input item ${inp.item} that has no definition.`, file: `recipes/${local(r.id)}.json` })
       }
     }
-    if (!indexIds.has(r.output.item) && r.indexEntry && !indexIds.has(r.indexEntry)) {
-      extra.push({ level: 'SUGGESTION', category: 'Index', message: `Recipe ${r.id} output ${r.output.item} has no Index entry.`, fix: 'Generate an Index entry for the output.', aiFixable: true })
+    const outputItem = r.output?.item
+    const linkedIndex = r.indexEntry?.trim()
+    if (outputItem && !indexIds.has(outputItem)) {
+      if (linkedIndex && !indexIds.has(linkedIndex)) {
+        extra.push({
+          level: 'SUGGESTION',
+          category: 'Index',
+          message: `Recipe ${r.id} references missing Index entry ${linkedIndex}.`,
+          fix: 'Generate the linked Index entry for the recipe output.',
+          file: `recipes/${local(r.id)}.json`,
+          aiFixable: true
+        })
+      } else if (!linkedIndex && isProjectOwnedId(input.manifest, outputItem)) {
+        extra.push({
+          level: 'SUGGESTION',
+          category: 'Index',
+          message: `Recipe ${r.id} output ${outputItem} has no linked Index entry.`,
+          fix: 'Add a recipe Index link and generate the output Index entry.',
+          file: `recipes/${local(r.id)}.json`,
+          aiFixable: true
+        })
+      }
     }
   }
 
@@ -274,6 +294,13 @@ function flat(id: string): string {
 function looksLikeId(s: string): boolean {
   return s.includes(':')
 }
+function projectNamespace(manifest: AddonManifest): string {
+  return manifest.namespace || local(manifest.id)
+}
+function isProjectOwnedId(manifest: AddonManifest, id: string): boolean {
+  const namespace = projectNamespace(manifest)
+  return Boolean(namespace && id.startsWith(`${namespace}:`))
+}
 function markerExists(layers: HoloMapLayer[], id: string): boolean {
   return layers.some((l) => l.markers.some((m) => m.id === id))
 }
@@ -282,7 +309,7 @@ function detectRecipeCycle(recipes: Recipe[]): string | null {
   // Edge: recipe output item -> recipes that consume it.
   const byInput = new Map<string, Recipe[]>()
   for (const r of recipes) {
-    for (const inp of r.inputs) {
+    for (const inp of r.inputs ?? []) {
       const list = byInput.get(inp.item) ?? []
       list.push(r)
       byInput.set(inp.item, list)
@@ -298,7 +325,10 @@ function detectRecipeCycle(recipes: Recipe[]): string | null {
       return
     }
     visiting.add(r.id)
-    for (const next of byInput.get(r.output.item) ?? []) visit(next)
+    const outputItem = r.output?.item
+    if (outputItem) {
+      for (const next of byInput.get(outputItem) ?? []) visit(next)
+    }
     visiting.delete(r.id)
     done.add(r.id)
   }
