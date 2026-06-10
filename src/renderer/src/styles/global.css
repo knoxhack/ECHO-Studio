@@ -327,6 +327,14 @@ button {
 .badge.unsigned { color: var(--text-faint); }
 .badge.ready { color: var(--good); border-color: #1c5a45; }
 .badge.fixes { color: var(--bad); border-color: #6b2230; }
+.badge-button {
+  background: transparent;
+  cursor: pointer;
+}
+.badge-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 /* ---------- Forms ---------- */
 label.field {

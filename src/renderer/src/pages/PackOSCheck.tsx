@@ -4,6 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { autoFixManifest } from '@shared/validation'
+import { editorLabelForProjectFile, editorRouteForProjectFile } from '@shared/content/routes'
 import type { CodexTask } from '@shared/codexTasks'
 import type { PackOSReport } from '@shared/types'
 
@@ -61,6 +62,9 @@ export default function PackOSCheck(): JSX.Element {
   const reviewableCodexTasks = codexTasks.filter((task) => task.lane !== 'rejected')
   const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:packos-autofix' && task.lane !== 'rejected'))
   const aiFixableCount = report.issues.filter((issue) => issue.aiFixable).length
+  const openIssueFile = (file: string): void => {
+    nav(editorRouteForProjectFile(file))
+  }
   return (
     <Page
       title="Validation"
@@ -188,8 +192,8 @@ export default function PackOSCheck(): JSX.Element {
                 </button>
               )}
               {issue.file && (
-                <button className="btn ghost" onClick={() => nav('/content')}>
-                  Open in Content Builder
+                <button className="btn ghost" onClick={() => openIssueFile(issue.file!)}>
+                  Open {editorLabelForProjectFile(issue.file)}
                 </button>
               )}
             </div>

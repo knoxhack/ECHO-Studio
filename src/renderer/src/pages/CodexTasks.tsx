@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { findLabel } from '../nav'
+import { editorTargetForProjectFile } from '@shared/content/routes'
 import type { CodexTask, CodexTaskActionResult, CodexTaskLane } from '@shared/codexTasks'
 
 const LANES: Array<{ id: CodexTaskLane; label: string }> = [
@@ -48,6 +50,7 @@ export default function CodexTasks(): JSX.Element {
     () => tasks.find((task) => task.id === selectedId) ?? tasks[0],
     [selectedId, tasks]
   )
+  const selectedRouteLabel = selected ? findLabel(selected.route) || 'Area' : 'Area'
 
   if (!activeProject) {
     return (
@@ -167,7 +170,19 @@ export default function CodexTasks(): JSX.Element {
               <div className="section-title">Affected Surface</div>
               <div className="btn-row">
                 {selected.affectedFiles.length ? (
-                  selected.affectedFiles.map((file) => <span key={file} className="badge">{file}</span>)
+                  selected.affectedFiles.map((file) => {
+                    const target = editorTargetForProjectFile(file)
+                    return (
+                      <button
+                        key={file}
+                        className="badge badge-button"
+                        title={`Open ${target.label}`}
+                        onClick={() => nav(target.route)}
+                      >
+                        {file}
+                      </button>
+                    )
+                  })
                 ) : (
                   <span className="dim">No direct file change.</span>
                 )}
@@ -188,7 +203,7 @@ export default function CodexTasks(): JSX.Element {
               )}
 
               <div className="btn-row" style={{ marginTop: 14 }}>
-                <button className="btn" onClick={() => nav(selected.route)}>Open Area</button>
+                <button className="btn" onClick={() => nav(selected.route)}>Open {selectedRouteLabel}</button>
                 {selected.canApply && selected.lane !== 'rejected' && (
                   <button className="btn primary" disabled={busy} onClick={() => applyTask(selected)}>
                     {selected.applyLabel ?? 'Apply'}
