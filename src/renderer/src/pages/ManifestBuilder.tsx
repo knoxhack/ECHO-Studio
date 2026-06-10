@@ -104,7 +104,7 @@ export default function ManifestBuilder(): JSX.Element {
   return (
     <Page
       title="Experience"
-      subtitle="Edit the project contract through guided fields. Raw manifest editing lives in Advanced."
+      subtitle="Edit the project contract through guided fields, or use the JSON tab for direct manifest review."
       actions={
         <>
           <button

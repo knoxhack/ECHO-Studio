@@ -269,7 +269,7 @@ export default function Missions(): JSX.Element {
               ) : (
                 <div className="issue SUGGESTION">
                   <span className="lvl">INFO</span>
-                  Mission looks valid. Run PackOS Check for cross-content validation.
+                  Mission looks valid. Run Validation for cross-content checks.
                 </div>
               )}
             </div>

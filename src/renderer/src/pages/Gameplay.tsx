@@ -42,7 +42,7 @@ export default function Gameplay(): JSX.Element {
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Gameplay Readiness</h3>
         <p className="dim" style={{ fontSize: 13 }}>
-          Studio keeps gameplay authoring visual first. Script Studio, raw JSON, and file editing stay in Advanced until you need them.
+          Studio keeps gameplay authoring visual first. Script Studio, raw JSON, and file editing stay in Content until you need them.
         </p>
         <div className="btn-row">
           <button className="btn" onClick={() => nav('/modules')}>Review Modules</button>
