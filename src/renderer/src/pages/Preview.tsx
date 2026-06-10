@@ -5,6 +5,7 @@ import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceState } from '@shared/devWorkspace'
 import { previewScanAssistantPrompt, type PreviewScanResult, type PreviewScanOptions } from '@shared/previewScan'
+import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '@shared/previewRuntime'
 
 const PROFILES = [
   'Ashfall Compatibility',
@@ -12,13 +13,6 @@ const PROFILES = [
   'Arcana Compatibility',
   'Generic Runtime Compatibility',
   'Server Compatibility'
-]
-
-const RUNTIME_TASKS: DevTaskId[] = [
-  'gradle:runClient',
-  'gradle:runServer',
-  'preview:native',
-  'preview:standalone'
 ]
 
 export default function Preview(): JSX.Element {
@@ -44,7 +38,7 @@ export default function Preview(): JSX.Element {
     if (!activeProject) return
     const result = await window.studio.listRunningDevTasks(activeProject.path)
     if (!result.ok || !result.data) return
-    const runtimeTasks = result.data.filter((task) => RUNTIME_TASKS.includes(task.taskId))
+    const runtimeTasks = result.data.filter((task) => PREVIEW_RUNTIME_TASKS.includes(task.taskId))
     setRuntimeRun((current) => {
       if (runtimeTasks.length > 0) {
         return runtimeTasks.find((task) => task.logPath === current?.logPath) ?? runtimeTasks[0]
@@ -107,7 +101,7 @@ export default function Preview(): JSX.Element {
 
   const launchRuntime = async (taskId: DevTaskId): Promise<void> => {
     if (!activeProject) return
-    const disabledReason = runtimeDisabledReason(taskId)
+    const disabledReason = previewRuntimeDisabledReason(taskId, devWorkspace, Boolean(activeProject))
     if (disabledReason) {
       setError(disabledReason)
       return
@@ -151,22 +145,6 @@ export default function Preview(): JSX.Element {
     } else {
       setError(res.error || 'Unable to stop runtime task.')
     }
-  }
-
-  const runtimeDisabledReason = (taskId: DevTaskId): string | null => {
-    if (!activeProject) return 'Select a project first.'
-    if (!devWorkspace) return 'Inspecting workspace.'
-    if (!devWorkspace.gradleReady) return 'Set up a Gradle workspace first.'
-    if (!devWorkspace.toolchain.javaAvailable) return `Install Java ${devWorkspace.toolchain.requiredJavaVersion} or add it to PATH.`
-    if (!devWorkspace.toolchain.javaMeetsRequirement) return `Use Java ${devWorkspace.toolchain.requiredJavaVersion} for this generated workspace.`
-    if (!devWorkspace.toolchain.gradleAvailable) return 'Run Dev Workspace setup to generate the pinned Gradle launcher or install Gradle.'
-    if (taskId === 'gradle:runClient' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
-    if (taskId === 'gradle:runServer' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
-    if (taskId === 'preview:native' && !devWorkspace.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
-    if (taskId === 'preview:standalone' && !devWorkspace.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
-    if (taskId === 'preview:native' && !devWorkspace.runtimeLaunchers.nativeConfigured) return 'Set ECHO Native executable in Settings and run setup.'
-    if (taskId === 'preview:standalone' && !devWorkspace.runtimeLaunchers.standaloneConfigured) return 'Set Standalone executable in Settings and run setup.'
-    return null
   }
 
   const scoreColor = (score: number): string => {
@@ -246,10 +224,10 @@ export default function Preview(): JSX.Element {
         <div className="card">
           <h3>Runtime Launchers</h3>
           <div className="grid cols-2" style={{ gap: 8 }}>
-            {RUNTIME_TASKS.map((taskId) => {
+            {PREVIEW_RUNTIME_TASKS.map((taskId) => {
               const task = DEV_TASKS.find((item) => item.id === taskId)
               if (!task) return null
-              const disabledReason = runtimeDisabledReason(task.id)
+              const disabledReason = previewRuntimeDisabledReason(task.id, devWorkspace, Boolean(activeProject))
               return (
                 <button
                   key={task.id}
