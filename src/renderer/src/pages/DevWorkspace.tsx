@@ -147,7 +147,8 @@ export default function DevWorkspace(): JSX.Element {
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
-    if (taskId === 'modules:validate' && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
+    if (taskId.startsWith('modules:') && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
+    if (taskId === 'modules:releaseSelected' && !state.modulePlan.closure.some((mod) => mod.moduleDir || mod.descriptorPath)) return 'No selected modules are linked to local ECHO-Modules source.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaAvailable) return `Install Java ${state.toolchain.requiredJavaVersion} or add it to PATH.`
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaMeetsRequirement) return `Use Java ${state.toolchain.requiredJavaVersion} for this generated workspace.`

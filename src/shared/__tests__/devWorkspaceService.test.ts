@@ -369,4 +369,59 @@ describe('setupDevWorkspace', () => {
       }
     })
   })
+
+  it('generates release artifacts for selected local ECHO modules as a dev task', async () => {
+    const previous = process.env.ECHO_MODULES_DIR
+    await withProject(async (project) => {
+      const modulesRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-modules-root-'))
+      try {
+        process.env.ECHO_MODULES_DIR = modulesRoot
+        const descriptorPath = path.join(modulesRoot, 'addons', 'echocore', 'src', 'main', 'resources', 'META-INF', 'echo.mod.json')
+        await fs.mkdir(path.dirname(descriptorPath), { recursive: true })
+        await fs.mkdir(path.join(modulesRoot, 'metadata', 'modules'), { recursive: true })
+        await fs.mkdir(path.join(modulesRoot, 'scripts'), { recursive: true })
+        await fs.writeFile(descriptorPath, JSON.stringify({ id: 'echocore', version: '1.0.0' }, null, 2), 'utf8')
+        await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: '2026-06-09T00:00:00.000Z',
+          modules: [
+            {
+              id: 'echocore',
+              name: 'ECHO: Core',
+              version: '1.0.0',
+              kind: 'library',
+              role: 'foundation',
+              channel: 'stable',
+              standalone: true,
+              descriptorPath: 'addons/echocore/src/main/resources/META-INF/echo.mod.json',
+              moduleDir: 'addons/echocore',
+              requires: [],
+              optional: [],
+              provides: ['core.services'],
+              apiStability: 'stable'
+            }
+          ]
+        }, null, 2), 'utf8')
+        await fs.writeFile(
+          path.join(modulesRoot, 'scripts', 'generate-module-release.mjs'),
+          'console.log(process.argv.slice(2).join(" "))\n',
+          'utf8'
+        )
+
+        const { runDevTask } = await import('../../main/devWorkspaceService')
+        const result = await runDevTask(project, 'modules:releaseSelected')
+
+        expect(result.status).toBe('completed')
+        expect(result.cwd).toBe(modulesRoot)
+        expect(result.command).toContain('scripts/generate-module-release.mjs')
+        expect(result.command).toContain('--package-from-source')
+        expect(result.command).toContain('--module echocore')
+        expect(result.stdout).toContain('--module echocore')
+      } finally {
+        if (previous === undefined) delete process.env.ECHO_MODULES_DIR
+        else process.env.ECHO_MODULES_DIR = previous
+        await fs.rm(modulesRoot, { recursive: true, force: true })
+      }
+    })
+  })
 })

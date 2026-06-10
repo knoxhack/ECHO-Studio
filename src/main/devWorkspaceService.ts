@@ -1045,19 +1045,72 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<{ ex
   })
 }
 
+function isEchoModulesTask(taskId: DevTaskId): boolean {
+  return taskId.startsWith('modules:')
+}
+
+function selectedLocalModuleIds(plan: ProjectModulePlan): string[] {
+  return sortedUnique(
+    plan.closure
+      .filter((mod) => mod.moduleDir || mod.descriptorPath)
+      .map((mod) => mod.id)
+  )
+}
+
+function assertSafeModuleTaskId(moduleId: string): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(moduleId)) throw new Error(`Unsafe ECHO module id for task command: ${moduleId}`)
+  return moduleId
+}
+
+async function echoModulesTaskCommand(projectPath: string, taskId: DevTaskId): Promise<{ command: string; cwd: string }> {
+  const catalog = await listEchoModules(projectPath)
+  if (!catalog.moduleRoot) throw new Error('Local ECHO-Modules metadata/modules/index.json was not found.')
+
+  const script = (name: string): string => join(catalog.moduleRoot!, 'scripts', name)
+  const requireScript = async (name: string): Promise<void> => {
+    if (!await exists(script(name))) throw new Error(`Local ECHO-Modules scripts/${name} was not found.`)
+  }
+
+  if (taskId === 'modules:validate') {
+    await requireScript('validate-module-graph.mjs')
+    return { command: 'node scripts/validate-module-graph.mjs', cwd: catalog.moduleRoot }
+  }
+  if (taskId === 'modules:docsAudit') {
+    await requireScript('docs-audit.mjs')
+    return { command: 'node scripts/docs-audit.mjs', cwd: catalog.moduleRoot }
+  }
+  if (taskId === 'modules:verifyRelease') {
+    await requireScript('verify-module-release.mjs')
+    return { command: 'node scripts/verify-module-release.mjs --release-dir dist/echo-module-release', cwd: catalog.moduleRoot }
+  }
+
+  if (taskId === 'modules:releaseSelected' || taskId === 'modules:releaseAll') {
+    await requireScript('generate-module-release.mjs')
+    const args = ['node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source']
+    if (taskId === 'modules:releaseSelected') {
+      const manifest = await readManifest(projectPath)
+      if (!manifest) throw new Error('Missing echo.mod.json')
+      const selected = selectedLocalModuleIds(resolveProjectModulePlan(manifest, catalog.catalog))
+      if (selected.length === 0) {
+        throw new Error('No selected modules are linked to local ECHO-Modules source.')
+      }
+      for (const moduleId of selected) args.push(`--module ${assertSafeModuleTaskId(moduleId)}`)
+    }
+    return { command: args.join(' '), cwd: catalog.moduleRoot }
+  }
+
+  throw new Error(`Unsupported ECHO-Modules task: ${taskId}`)
+}
+
 export async function runDevTask(projectPath: string, taskId: DevTaskId): Promise<DevTaskRun> {
   const task = DEV_TASKS.find((item) => item.id === taskId)
   if (!task) throw new Error(`Unknown dev task: ${taskId}`)
   const startedAt = new Date().toISOString()
 
-  if (task.id === 'modules:validate') {
-    const catalog = await listEchoModules(projectPath)
-    if (!catalog.moduleRoot) throw new Error('Local ECHO-Modules metadata/modules/index.json was not found.')
-    const scriptPath = join(catalog.moduleRoot, 'scripts', 'validate-module-graph.mjs')
-    if (!await exists(scriptPath)) throw new Error('Local ECHO-Modules scripts/validate-module-graph.mjs was not found.')
-    const command = task.command
+  if (isEchoModulesTask(task.id)) {
+    const { command, cwd } = await echoModulesTaskCommand(projectPath, task.id)
     const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
-    const result = await runShell(command, catalog.moduleRoot, 180000)
+    const result = await runShell(command, cwd, 180000)
     const status = result.exitCode === 0 ? 'completed' : 'failed'
     const finishedAt = new Date().toISOString()
     await appendTaskLog(logPath, 'stdout', result.stdout)
@@ -1067,7 +1120,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       taskId,
       status,
       command,
-      cwd: catalog.moduleRoot,
+      cwd,
       logPath,
       exitCode: result.exitCode,
       stdout: result.stdout,

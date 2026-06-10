@@ -220,6 +220,10 @@ export type DevTaskId =
   | 'gradle:runServer'
   | 'gradle:runData'
   | 'modules:validate'
+  | 'modules:releaseSelected'
+  | 'modules:releaseAll'
+  | 'modules:verifyRelease'
+  | 'modules:docsAudit'
   | 'preview:native'
   | 'preview:standalone'
   | 'package:local'
@@ -312,6 +316,34 @@ export const DEV_TASKS: DevTask[] = [
     label: 'Validate ECHO Modules',
     description: 'Run the local ECHO-Modules graph validator for the selected module catalog.',
     command: 'node scripts/validate-module-graph.mjs',
+    kind: 'test'
+  },
+  {
+    id: 'modules:releaseSelected',
+    label: 'Generate Selected Module Release',
+    description: 'Generate source-packaged release visibility artifacts for the selected local module closure.',
+    command: 'node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source',
+    kind: 'package'
+  },
+  {
+    id: 'modules:releaseAll',
+    label: 'Generate All Module Releases',
+    description: 'Generate source-packaged release visibility artifacts for every discoverable local ECHO module.',
+    command: 'node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source',
+    kind: 'package'
+  },
+  {
+    id: 'modules:verifyRelease',
+    label: 'Verify Module Release',
+    description: 'Verify dist/echo-module-release manifests, packages, jars, embedded metadata, and checksums.',
+    command: 'node scripts/verify-module-release.mjs --release-dir dist/echo-module-release',
+    kind: 'test'
+  },
+  {
+    id: 'modules:docsAudit',
+    label: 'Audit Module Docs',
+    description: 'Run the local ECHO-Modules documentation audit.',
+    command: 'node scripts/docs-audit.mjs',
     kind: 'test'
   },
   {
