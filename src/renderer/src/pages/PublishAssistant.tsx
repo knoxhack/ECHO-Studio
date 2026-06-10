@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import type { GitHubPublishingStatus, PackageResult, ReleaseIndexHandoffAsset } from '@shared/publishing'
+import type { DevWorkspaceState } from '@shared/devWorkspace'
+import type { EchoModuleRecord } from '@shared/moduleCatalog'
+import type { PackOSReport } from '@shared/types'
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path
@@ -22,6 +26,21 @@ function providerLabel(status: GitHubPublishingStatus | null): string {
   if (status.activeProvider === 'github-app') return 'GitHub App'
   if (status.activeProvider === 'gh-cli') return 'GitHub CLI'
   return 'Offline'
+}
+
+function diffDetail(missing: string[], extra: string[], ready: string): string {
+  const parts = [
+    missing.length ? `Missing: ${missing.join(', ')}.` : '',
+    extra.length ? `Extra: ${extra.join(', ')}.` : ''
+  ].filter(Boolean)
+  return parts.length ? parts.join(' ') : ready
+}
+
+function moduleBadgeClass(mod: EchoModuleRecord): string {
+  if (mod.blocked || mod.trustLevel === 'blocked') return 'fixes'
+  if (mod.trustLevel === 'official' || mod.trustLevel === 'trusted') return 'ready'
+  if (mod.trustLevel === 'sandboxed' || mod.status === 'internal' || mod.status === 'deprecated') return 'local'
+  return 'badge'
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
@@ -59,6 +78,7 @@ function StepRow({
 
 export default function PublishAssistant(): JSX.Element {
   const { activeProject, toast } = useWorkspace()
+  const nav = useNavigate()
   const [owner, setOwner] = useState('knoxhack')
   const [repo, setRepo] = useState('')
   const [tag, setTag] = useState('v0.1.0')
@@ -68,21 +88,46 @@ export default function PublishAssistant(): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [releaseUrl, setReleaseUrl] = useState('')
   const [authStatus, setAuthStatus] = useState<GitHubPublishingStatus | null>(null)
+  const [workspace, setWorkspace] = useState<DevWorkspaceState | null>(null)
+  const [preflight, setPreflight] = useState<PackOSReport | null>(null)
+  const [readinessLoading, setReadinessLoading] = useState(false)
 
   const refreshAuth = useCallback(async () => {
     const result = await window.studio.getGitHubPublishingStatus()
     if (result.ok && result.data) setAuthStatus(result.data)
   }, [])
 
+  const refreshReadiness = useCallback(async () => {
+    if (!activeProject) {
+      setWorkspace(null)
+      setPreflight(null)
+      return
+    }
+    setReadinessLoading(true)
+    const [workspaceResult, checkResult] = await Promise.all([
+      window.studio.inspectDevWorkspace(activeProject.path),
+      window.studio.fullCheck(activeProject.path)
+    ])
+    setReadinessLoading(false)
+    setWorkspace(workspaceResult.ok && workspaceResult.data ? workspaceResult.data : null)
+    setPreflight(checkResult.ok && checkResult.data ? checkResult.data : null)
+  }, [activeProject])
+
   useEffect(() => {
     void refreshAuth()
   }, [refreshAuth])
+
+  useEffect(() => {
+    void refreshReadiness()
+  }, [refreshReadiness])
 
   useEffect(() => {
     if (!activeProject) {
       setPkg(null)
       setStatus(null)
       setReleaseUrl('')
+      setWorkspace(null)
+      setPreflight(null)
       return
     }
     const manifest = activeProject.manifest
@@ -94,6 +139,17 @@ export default function PublishAssistant(): JSX.Element {
 
   const handoffAssets = useMemo<ReleaseIndexHandoffAsset[]>(() => pkg?.releaseIndexHandoff?.assets ?? [], [pkg])
   const assetCount = handoffAssets.length || pkg?.assetPaths.length || 0
+  const readinessReport = pkg?.report ?? preflight
+  const moduleClosure = workspace?.modulePlan.closure ?? []
+  const blockedModules = moduleClosure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
+  const moduleReady = Boolean(
+    workspace &&
+    workspace.moduleLock.upToDate &&
+    workspace.moduleWorkspace.upToDate &&
+    workspace.modulePlan.missingRequired.length === 0 &&
+    workspace.modulePlan.unknown.length === 0 &&
+    blockedModules.length === 0
+  )
 
   const packageProject = async (): Promise<void> => {
     if (!activeProject) {
@@ -107,6 +163,7 @@ export default function PublishAssistant(): JSX.Element {
       if (!result.ok || !result.data) throw new Error(result.error ?? 'Package build failed.')
       const next = result.data
       setPkg(next)
+      setPreflight(next.report)
       setStatus(`Prepared ${fileName(next.zipPath)}.`)
       if (next.releaseIndexHandoff?.sourceRepo) {
         const [nextOwner, nextRepo] = next.releaseIndexHandoff.sourceRepo.split('/')
@@ -114,6 +171,8 @@ export default function PublishAssistant(): JSX.Element {
         if (nextRepo) setRepo(nextRepo)
       }
       if (next.releaseIndexHandoff?.releaseTag) setTag(next.releaseIndexHandoff.releaseTag)
+      const workspaceResult = await window.studio.inspectDevWorkspace(activeProject.path)
+      if (workspaceResult.ok && workspaceResult.data) setWorkspace(workspaceResult.data)
       toast('Release assets prepared')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Package build failed.')
@@ -182,7 +241,7 @@ export default function PublishAssistant(): JSX.Element {
   }
 
   const sdkReady = pkg?.sdkValidation.ok ?? false
-  const packosReady = pkg?.report.publishingReady ?? false
+  const packosReady = readinessReport?.publishingReady ?? false
   const packageReady = Boolean(pkg?.checksumsPath && pkg.releaseManifestPath && pkg.releaseDraftPath)
   const publishReady = Boolean(pkg?.releaseDraftPath && owner.trim() && repo.trim() && tag.trim())
 
@@ -205,17 +264,153 @@ export default function PublishAssistant(): JSX.Element {
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="SDK Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
-        <Metric label="PackOS" value={pkg ? `${pkg.report.compatibilityScore}%` : 'Pending'} tone={packosReady ? 'var(--good)' : pkg ? 'var(--warn)' : 'var(--text-faint)'} />
-        <Metric label="Assets" value={String(assetCount)} tone={assetCount ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="PackOS" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={packosReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
+        <Metric label="ECHO Modules" value={moduleReady ? 'Current' : workspace ? 'Needs Sync' : 'Checking'} tone={moduleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Publish Auth" value={providerLabel(authStatus)} tone={authStatus?.activeProvider === 'none' ? 'var(--warn)' : 'var(--good)'} />
+      </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Local Readiness</h3>
+          <StepRow
+            done={Boolean(workspace && (workspace.mode === 'visual' || (workspace.gradleReady && workspace.hasGradleWrapper)))}
+            label="Developer workspace"
+            detail={
+              workspace
+                ? workspace.mode === 'visual'
+                  ? 'Visual mode is selected; code generation is optional.'
+                  : workspace.gradleReady
+                    ? workspace.hasGradleWrapper
+                      ? 'Pinned Gradle launcher and project files are available.'
+                      : 'Gradle project files exist, but the pinned launcher is missing.'
+                    : 'Run Dev Workspace setup before building local runtime artifacts.'
+                : 'Inspecting workspace setup.'
+            }
+          />
+          <StepRow
+            done={Boolean(workspace?.moduleLock.upToDate)}
+            label="Module lock"
+            detail={
+              workspace
+                ? diffDetail(
+                    workspace.moduleLock.missingFromLock,
+                    workspace.moduleLock.extraInLock,
+                    `${workspace.moduleLock.lockedModuleIds.length} locked module(s).`
+                  )
+                : 'Inspecting selected ECHO module closure.'
+            }
+          />
+          <StepRow
+            done={Boolean(workspace?.moduleWorkspace.upToDate)}
+            label="Module workspace map"
+            detail={
+              workspace
+                ? workspace.moduleWorkspace.upToDate
+                  ? `${workspace.moduleWorkspace.localModuleCount}/${workspace.moduleWorkspace.moduleCount} module(s) linked to local ECHO-Modules source.`
+                  : diffDetail(
+                      workspace.moduleWorkspace.missingFromMap,
+                      workspace.moduleWorkspace.extraInMap,
+                      'Module workspace map is current.'
+                    )
+                : 'Inspecting local ECHO-Modules source links.'
+            }
+          />
+          <StepRow
+            done={Boolean(workspace?.runtimeLaunchers.ready)}
+            label="Runtime launchers"
+            detail={
+              workspace
+                ? workspace.runtimeLaunchers.ready
+                  ? 'Configured launch paths match the selected runtime targets.'
+                  : 'Set missing ECHO Native or Standalone executable paths, then run setup again.'
+                : 'Inspecting preview launcher configuration.'
+            }
+          />
+          <StepRow
+            done={packosReady}
+            label="Validation preflight"
+            detail={
+              readinessReport
+                ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR} - Warnings ${readinessReport.counts.WARNING}`
+                : 'Run validation before packaging.'
+            }
+          />
+
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn" disabled={readinessLoading} onClick={refreshReadiness}>
+              {readinessLoading ? 'Checking...' : 'Refresh Readiness'}
+            </button>
+            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Dev Workspace</button>
+            <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
+            <button className="btn ghost" onClick={() => nav('/validation')}>Validation</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>ECHO Module Closure</h3>
+          {workspace?.moduleCatalog.indexPath && (
+            <div className="mono dim" style={{ fontSize: 11, marginBottom: 10, wordBreak: 'break-all' }}>
+              {workspace.moduleCatalog.indexPath}
+            </div>
+          )}
+          <div className="btn-row" style={{ marginBottom: 12 }}>
+            <span className={`badge ${workspace?.moduleCatalog.localAvailable ? 'ready' : 'local'}`}>
+              {workspace?.moduleCatalog.localAvailable ? 'Local ECHO-Modules' : 'Built-in Catalog'}
+            </span>
+            <span className={`badge ${moduleReady ? 'ready' : 'local'}`}>
+              {moduleClosure.length} module(s)
+            </span>
+            {workspace?.moduleWorkspace.localModuleCount !== undefined && (
+              <span className="badge">
+                {workspace.moduleWorkspace.localModuleCount} local source link(s)
+              </span>
+            )}
+          </div>
+
+          {workspace?.moduleCatalog.warnings.length ? (
+            <div className="issue WARNING" style={{ marginBottom: 12 }}>
+              <span className="lvl">WARNING</span>
+              {workspace.moduleCatalog.warnings.join(' ')}
+            </div>
+          ) : null}
+          {blockedModules.length > 0 && (
+            <div className="issue BLOCKER" style={{ marginBottom: 12 }}>
+              <span className="lvl">BLOCKER</span>
+              Blocked modules cannot be included in public release assets.
+              <div className="fix">{blockedModules.map((mod) => mod.name).join(', ')}</div>
+            </div>
+          )}
+          {workspace?.modulePlan.missingRequired.length ? (
+            <div className="issue WARNING" style={{ marginBottom: 12 }}>
+              <span className="lvl">WARNING</span>
+              Missing required modules: {workspace.modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.
+            </div>
+          ) : null}
+          {workspace?.modulePlan.unknown.length ? (
+            <div className="issue WARNING" style={{ marginBottom: 12 }}>
+              <span className="lvl">WARNING</span>
+              Unknown module dependencies: {workspace.modulePlan.unknown.join(', ')}.
+            </div>
+          ) : null}
+
+          <div className="btn-row">
+            {moduleClosure.map((mod) => (
+              <span className={`badge ${moduleBadgeClass(mod)}`} key={mod.id}>
+                {mod.name} - {mod.trustLevel ?? mod.status}
+              </span>
+            ))}
+            {moduleClosure.length === 0 && <span className="dim">No ECHO modules declared.</span>}
+          </div>
+        </div>
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Local Release Pipeline</h3>
           <StepRow done={sdkReady} label="SDK package contract" detail={pkg ? (sdkReady ? 'Package manifest passes SDK validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
-          <StepRow done={packosReady} label="PackOS project validation" detail={pkg ? `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}` : 'Run project validation as part of the package build.'} />
+          <StepRow done={packosReady} label="PackOS project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
           <StepRow done={packageReady} label="Release sidecars" detail="Write checksums.sha256, echo-release.json, github-release-draft.json, and release-index-handoff.json." />
+          <StepRow done={assetCount > 0} label="Release artifacts" detail={assetCount ? `${assetCount} generated artifact and sidecar file(s).` : 'Prepare assets to generate runtime packages and sidecars.'} />
           <StepRow done={Boolean(releaseUrl)} label="Optional GitHub draft" detail={releaseUrl || 'Upload prepared local assets after reviewing them.'} />
 
           {status && (

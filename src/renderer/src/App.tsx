@@ -29,7 +29,6 @@ import TestSandbox from './pages/TestSandbox'
 import PackOSCheck from './pages/PackOSCheck'
 import Compatibility from './pages/Compatibility'
 import SubmitAddon from './pages/SubmitAddon'
-import Releases from './pages/Releases'
 import CommunityCatalog from './pages/CommunityCatalog'
 import Ecosystem from './pages/Ecosystem'
 import Docs from './pages/Docs'
@@ -90,7 +89,7 @@ export default function App(): JSX.Element {
             <Route path="/compatibility" element={<Compatibility />} />
             <Route path="/submit" element={<SubmitAddon />} />
             <Route path="/release" element={<PublishAssistant />} />
-            <Route path="/releases" element={<Releases />} />
+            <Route path="/releases" element={<PublishAssistant />} />
             <Route path="/catalog" element={<CommunityCatalog />} />
             <Route path="/ecosystem" element={<Ecosystem />} />
             <Route path="/docs" element={<Docs />} />
