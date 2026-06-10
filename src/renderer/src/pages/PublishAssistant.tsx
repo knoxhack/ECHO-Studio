@@ -1,6 +1,61 @@
-import { useEffect, useState } from 'react'
-import type { GitHubPublishingStatus, PackageResult } from '@shared/publishing'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Page } from '../components/Page'
+import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
+import type { GitHubPublishingStatus, PackageResult, ReleaseIndexHandoffAsset } from '@shared/publishing'
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path
+}
+
+function parentPath(path: string): string {
+  return path.replace(/[\\/][^\\/]+$/, '')
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function providerLabel(status: GitHubPublishingStatus | null): string {
+  if (!status) return 'Checking'
+  if (status.activeProvider === 'github-app') return 'GitHub App'
+  if (status.activeProvider === 'gh-cli') return 'GitHub CLI'
+  return 'Offline'
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
+  return (
+    <div className="card">
+      <h3>{label}</h3>
+      <div className="metric" style={{ fontSize: 20, color: tone ?? 'var(--accent)' }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function StepRow({
+  done,
+  label,
+  detail
+}: {
+  done: boolean
+  label: string
+  detail: string
+}): JSX.Element {
+  return (
+    <div className="list-row" style={{ padding: '9px 10px' }}>
+      <span className={`badge ${done ? 'ready' : 'local'}`}>{done ? 'Ready' : 'Pending'}</span>
+      <div style={{ flex: 1 }}>
+        <b>{label}</b>
+        <div className="dim" style={{ fontSize: 12 }}>
+          {detail}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function PublishAssistant(): JSX.Element {
   const { activeProject, toast } = useWorkspace()
@@ -14,23 +69,51 @@ export default function PublishAssistant(): JSX.Element {
   const [releaseUrl, setReleaseUrl] = useState('')
   const [authStatus, setAuthStatus] = useState<GitHubPublishingStatus | null>(null)
 
-  useEffect(() => {
-    void window.studio.getGitHubPublishingStatus().then((result) => {
-      if (result.ok && result.data) setAuthStatus(result.data)
-    })
+  const refreshAuth = useCallback(async () => {
+    const result = await window.studio.getGitHubPublishingStatus()
+    if (result.ok && result.data) setAuthStatus(result.data)
   }, [])
 
-  const packageProject = async () => {
+  useEffect(() => {
+    void refreshAuth()
+  }, [refreshAuth])
+
+  useEffect(() => {
+    if (!activeProject) {
+      setPkg(null)
+      setStatus(null)
+      setReleaseUrl('')
+      return
+    }
+    const manifest = activeProject.manifest
+    const localId = manifest.id.includes(':') ? manifest.id.split(':')[1] : manifest.id
+    setOwner(manifest.publisher.id || manifest.namespace || 'knoxhack')
+    setRepo(`${localId}-addon`)
+    setTag(`v${manifest.version}`)
+  }, [activeProject])
+
+  const handoffAssets = useMemo<ReleaseIndexHandoffAsset[]>(() => pkg?.releaseIndexHandoff?.assets ?? [], [pkg])
+  const assetCount = handoffAssets.length || pkg?.assetPaths.length || 0
+
+  const packageProject = async (): Promise<void> => {
     if (!activeProject) {
       setStatus('Select an addon project first.')
       return
     }
     setBusy(true)
+    setReleaseUrl('')
     try {
       const result = await window.studio.packageAddon(activeProject.path)
       if (!result.ok || !result.data) throw new Error(result.error ?? 'Package build failed.')
-      setPkg(result.data)
-      setStatus(`Prepared ${result.data.zipPath}`)
+      const next = result.data
+      setPkg(next)
+      setStatus(`Prepared ${fileName(next.zipPath)}.`)
+      if (next.releaseIndexHandoff?.sourceRepo) {
+        const [nextOwner, nextRepo] = next.releaseIndexHandoff.sourceRepo.split('/')
+        if (nextOwner) setOwner(nextOwner)
+        if (nextRepo) setRepo(nextRepo)
+      }
+      if (next.releaseIndexHandoff?.releaseTag) setTag(next.releaseIndexHandoff.releaseTag)
       toast('Release assets prepared')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Package build failed.')
@@ -39,13 +122,14 @@ export default function PublishAssistant(): JSX.Element {
     }
   }
 
-  const connectRepo = async () => {
+  const connectRepo = async (): Promise<void> => {
     setBusy(true)
     try {
       const result = await window.studio.connectGitHubRepo(owner, repo)
       if (!result.ok || !result.data) throw new Error(result.error ?? 'Repository connection failed.')
       setStatus(result.data.message)
       if (result.data.exists) toast(`Connected ${owner}/${repo}`)
+      await refreshAuth()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Repository connection failed.')
     } finally {
@@ -53,7 +137,7 @@ export default function PublishAssistant(): JSX.Element {
     }
   }
 
-  const startAppLogin = async () => {
+  const startAppLogin = async (): Promise<void> => {
     setBusy(true)
     try {
       const result = await window.studio.startGitHubAppLogin()
@@ -61,8 +145,7 @@ export default function PublishAssistant(): JSX.Element {
       const url = result.data.authorizeUrl || result.data.installUrl
       if (url) await window.studio.openExternal(url)
       setStatus(result.data.message)
-      const refreshed = await window.studio.getGitHubPublishingStatus()
-      if (refreshed.ok && refreshed.data) setAuthStatus(refreshed.data)
+      await refreshAuth()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'GitHub App login failed.')
     } finally {
@@ -70,7 +153,7 @@ export default function PublishAssistant(): JSX.Element {
     }
   }
 
-  const createDraft = async () => {
+  const createDraft = async (): Promise<void> => {
     if (!pkg?.releaseDraftPath) {
       setStatus('Prepare local release assets before creating a GitHub draft.')
       return
@@ -82,6 +165,7 @@ export default function PublishAssistant(): JSX.Element {
       setReleaseUrl(result.data.url ?? '')
       setStatus(`Created release draft ${result.data.tag}.`)
       toast('GitHub release draft created')
+      await refreshAuth()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'GitHub release draft failed.')
     } finally {
@@ -89,164 +173,189 @@ export default function PublishAssistant(): JSX.Element {
     }
   }
 
-  return (
-    <div className="page">
-      <h1 className="page-title">Release Builder</h1>
-      <p className="page-subtitle">
-        Build local release assets, generate checksums and echo-release.json, then optionally connect GitHub for a draft release.
-      </p>
+  if (!activeProject) {
+    return (
+      <Page title="Release Builder" subtitle="Build local release assets, checksums, echo-release.json, and Release Index handoff files.">
+        <NoProject />
+      </Page>
+    )
+  }
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="card-title">Repository Publishing</h2>
-        {authStatus && (
-          <div className="flex gap-2" style={{ marginTop: 8, flexWrap: 'wrap' }}>
-            <span className={`badge ${authStatus.ghCliAuthenticated ? 'ready' : 'local'}`}>
-              {authStatus.ghCliAuthenticated ? 'GitHub CLI Ready' : 'GitHub CLI Offline'}
-            </span>
-            <span className={`badge ${authStatus.githubAppConfigured ? 'ready' : 'local'}`}>
-              {authStatus.githubAppConfigured ? 'GitHub App Configured' : 'GitHub App Not Configured'}
-            </span>
-            <span className={`badge ${authStatus.githubAppBrokerConfigured ? 'ready' : 'local'}`}>
-              {authStatus.githubAppBrokerConfigured ? 'App Broker Configured' : 'App Broker Offline'}
-            </span>
-            <span className={`badge ${authStatus.githubAppSessionReady ? 'ready' : 'local'}`}>
-              {authStatus.githubAppSessionReady ? 'App Session Ready' : 'App Session Needed'}
-            </span>
-            {authStatus.githubAppConfigured && (
-              <button className="btn secondary" onClick={startAppLogin} disabled={busy}>
+  const sdkReady = pkg?.sdkValidation.ok ?? false
+  const packosReady = pkg?.report.publishingReady ?? false
+  const packageReady = Boolean(pkg?.checksumsPath && pkg.releaseManifestPath && pkg.releaseDraftPath)
+  const publishReady = Boolean(pkg?.releaseDraftPath && owner.trim() && repo.trim() && tag.trim())
+
+  return (
+    <Page
+      title="Release Builder"
+      subtitle="Local-first release preparation: package assets, verify checksums, preview Release Index ingestion, then optionally publish a GitHub draft."
+      actions={
+        <>
+          <button className="btn" disabled={busy} onClick={refreshAuth}>
+            Refresh Auth
+          </button>
+          <button className="btn primary" disabled={busy} onClick={packageProject}>
+            {busy ? 'Working...' : 'Prepare Assets'}
+          </button>
+        </>
+      }
+    >
+      <ActiveBar />
+
+      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <Metric label="SDK Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
+        <Metric label="PackOS" value={pkg ? `${pkg.report.compatibilityScore}%` : 'Pending'} tone={packosReady ? 'var(--good)' : pkg ? 'var(--warn)' : 'var(--text-faint)'} />
+        <Metric label="Assets" value={String(assetCount)} tone={assetCount ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Publish Auth" value={providerLabel(authStatus)} tone={authStatus?.activeProvider === 'none' ? 'var(--warn)' : 'var(--good)'} />
+      </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Local Release Pipeline</h3>
+          <StepRow done={sdkReady} label="SDK package contract" detail={pkg ? (sdkReady ? 'Package manifest passes SDK validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
+          <StepRow done={packosReady} label="PackOS project validation" detail={pkg ? `Blockers ${pkg.report.counts.BLOCKER} - Errors ${pkg.report.counts.ERROR}` : 'Run project validation as part of the package build.'} />
+          <StepRow done={packageReady} label="Release sidecars" detail="Write checksums.sha256, echo-release.json, github-release-draft.json, and release-index-handoff.json." />
+          <StepRow done={Boolean(releaseUrl)} label="Optional GitHub draft" detail={releaseUrl || 'Upload prepared local assets after reviewing them.'} />
+
+          {status && (
+            <div className="issue INFO" style={{ marginTop: 12 }}>
+              <span className="lvl">INFO</span>
+              {status}
+            </div>
+          )}
+
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={packageProject} disabled={busy}>
+              Prepare Assets
+            </button>
+            <button className="btn ghost" onClick={() => pkg?.zipPath && window.studio.openPath(parentPath(pkg.zipPath))} disabled={!pkg?.zipPath}>
+              Open Release Folder
+            </button>
+            <button className="btn ghost" onClick={() => pkg?.releaseDraftPath && window.studio.openPath(pkg.releaseDraftPath)} disabled={!pkg?.releaseDraftPath}>
+              Open Draft JSON
+            </button>
+            <button className="btn ghost" onClick={() => pkg?.releaseManifestPath && window.studio.openPath(pkg.releaseManifestPath)} disabled={!pkg?.releaseManifestPath}>
+              Open echo-release.json
+            </button>
+            <button className="btn ghost" onClick={() => pkg?.releaseIndexHandoffPath && window.studio.openPath(pkg.releaseIndexHandoffPath)} disabled={!pkg?.releaseIndexHandoffPath}>
+              Open Handoff
+            </button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Repository Publishing</h3>
+          {authStatus && (
+            <div className="btn-row" style={{ marginBottom: 12 }}>
+              <span className={`badge ${authStatus.ghCliAuthenticated ? 'ready' : 'local'}`}>{authStatus.ghCliAuthenticated ? 'GitHub CLI Ready' : 'GitHub CLI Offline'}</span>
+              <span className={`badge ${authStatus.githubAppConfigured ? 'ready' : 'local'}`}>{authStatus.githubAppConfigured ? 'GitHub App Configured' : 'GitHub App Not Configured'}</span>
+              <span className={`badge ${authStatus.githubAppBrokerConfigured ? 'ready' : 'local'}`}>{authStatus.githubAppBrokerConfigured ? 'App Broker Configured' : 'App Broker Offline'}</span>
+              <span className={`badge ${authStatus.githubAppSessionReady ? 'ready' : 'local'}`}>{authStatus.githubAppSessionReady ? 'App Session Ready' : 'App Session Needed'}</span>
+            </div>
+          )}
+          {authStatus?.message && (
+            <p className="dim" style={{ fontSize: 12 }}>
+              {authStatus.message}
+            </p>
+          )}
+          <div className="grid cols-2" style={{ gap: 10 }}>
+            <label className="field">
+              <span>Owner</span>
+              <input value={owner} onChange={(event) => setOwner(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Repository</span>
+              <input value={repo} onChange={(event) => setRepo(event.target.value)} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Release tag</span>
+            <input value={tag} onChange={(event) => setTag(event.target.value)} />
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={draft} onChange={(event) => setDraft(event.target.checked)} />
+            Create as GitHub draft
+          </label>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            {authStatus?.githubAppConfigured && (
+              <button className="btn" onClick={startAppLogin} disabled={busy}>
                 Start App Login
               </button>
             )}
+            <button className="btn" onClick={connectRepo} disabled={busy || !owner.trim() || !repo.trim()}>
+              Connect Repo
+            </button>
+            <button className="btn primary" onClick={createDraft} disabled={busy || !publishReady}>
+              Create Draft
+            </button>
+            {releaseUrl && (
+              <button className="btn ghost" onClick={() => window.studio.openExternal(releaseUrl)}>
+                Open GitHub Release
+              </button>
+            )}
           </div>
-        )}
-        <div className="grid gap-2" style={{ marginTop: 8, gridTemplateColumns: '1fr 1fr', maxWidth: 480 }}>
-          <input className="input" placeholder="Owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
-          <input className="input" placeholder="Repo" value={repo} onChange={(e) => setRepo(e.target.value)} />
-        </div>
-        <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
-          <input className="input" placeholder="Tag (e.g. v0.1.0)" value={tag} onChange={(e) => setTag(e.target.value)} />
-          <label className="badge">
-            <input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} style={{ marginRight: 6 }} />
-            Draft
-          </label>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="card-title">Local Release Pipeline</h2>
-        <div className="grid gap-2" style={{ marginTop: 8 }}>
-          <div className="list-item">
-            <span className={`badge ${pkg?.sdkValidation.ok ? 'ready' : 'local'}`}>1</span>
-            Validate SDK package contract.
+      {pkg && (
+        <div className="grid cols-2" style={{ marginBottom: 16 }}>
+          <div className="card">
+            <h3>Prepared Files</h3>
+            <div className="list-row">
+              <span className="badge ready">Package</span>
+              <span className="mono" style={{ flex: 1, wordBreak: 'break-all' }}>{fileName(pkg.zipPath)}</span>
+              <span className="dim" style={{ fontSize: 11 }}>{formatBytes(pkg.bytes)}</span>
+            </div>
+            {handoffAssets.length > 0 ? (
+              handoffAssets.map((asset) => (
+                <div className="list-row" key={`${asset.role}-${asset.name}`} style={{ padding: '8px 10px' }}>
+                  <span className={`badge ${asset.role === 'artifact' ? 'ready' : 'local'}`}>{asset.role}</span>
+                  <span className="mono" style={{ flex: 1, wordBreak: 'break-all' }}>{asset.name}</span>
+                  <span className="dim" style={{ fontSize: 11 }}>{formatBytes(asset.bytes)}</span>
+                </div>
+              ))
+            ) : (
+              pkg.assetPaths.map((assetPath) => (
+                <div className="list-row" key={assetPath} style={{ padding: '8px 10px' }}>
+                  <span className="badge ready">artifact</span>
+                  <span className="mono" style={{ flex: 1, wordBreak: 'break-all' }}>{fileName(assetPath)}</span>
+                </div>
+              ))
+            )}
           </div>
-          <div className="list-item">
-            <span className={`badge ${pkg?.report.publishingReady ? 'ready' : 'local'}`}>2</span>
-            Run PackOS project validation.
-          </div>
-          <div className="list-item">
-            <span className={`badge ${pkg?.checksumsPath ? 'ready' : 'local'}`}>3</span>
-            Write artifacts, checksums, package manifest, release manifest, and draft JSON.
-          </div>
-          <div className="list-item">
-            <span className={`badge ${authStatus?.activeProvider !== 'none' ? 'ready' : 'local'}`}>4</span>
-            Optional: connect repository with GitHub CLI or a GitHub App broker session.
-          </div>
-          <div className="list-item">
-            <span className={`badge ${releaseUrl ? 'ready' : 'local'}`}>5</span>
-            Optional: create GitHub Release draft and upload prepared assets.
-          </div>
-        </div>
-        {status && (
-          <div className="badge" style={{ marginTop: 12, display: 'inline-block' }}>
-            {status}
-          </div>
-        )}
-        <div className="flex gap-2" style={{ marginTop: 12 }}>
-          <button className="btn primary" onClick={packageProject} disabled={busy || !activeProject}>
-            Prepare Assets
-          </button>
-          <button className="btn secondary" onClick={connectRepo} disabled={busy || !owner.trim() || !repo.trim()}>
-            Connect Repo
-          </button>
-          <button className="btn primary" onClick={createDraft} disabled={busy || !pkg?.releaseDraftPath || !owner.trim() || !repo.trim()}>
-            Create Draft
-          </button>
-          <button className="btn secondary" onClick={() => pkg?.releaseDraftPath && window.studio.openPath(pkg.releaseDraftPath)} disabled={!pkg?.releaseDraftPath}>
-            Open Draft JSON
-          </button>
-          <button className="btn secondary" onClick={() => pkg?.releaseManifestPath && window.studio.openPath(pkg.releaseManifestPath)} disabled={!pkg?.releaseManifestPath}>
-            Open echo-release.json
-          </button>
-          <button className="btn secondary" onClick={() => pkg?.releaseIndexHandoffPath && window.studio.openPath(pkg.releaseIndexHandoffPath)} disabled={!pkg?.releaseIndexHandoffPath}>
-            Open Handoff
-          </button>
-          <button className="btn secondary" onClick={() => pkg?.checksumsPath && window.studio.openPath(pkg.checksumsPath)} disabled={!pkg?.checksumsPath}>
-            Open Checksums
-          </button>
-        </div>
-        {pkg && (
-          <div className="grid gap-2" style={{ marginTop: 12 }}>
-            <div className="badge">Package: {pkg.zipPath}</div>
-            <div className="badge">SDK Contract: {pkg.sdkValidation.ok ? 'ready' : `${pkg.sdkValidation.issues.length} issue(s)`}</div>
-            <div className="badge">Built Assets: {pkg.assetPaths.length}</div>
-            <div className="badge">Checksums: {pkg.checksumsPath ?? 'not written'}</div>
-            <div className="badge">Package Manifest: {pkg.packageManifestPath ?? 'not written'}</div>
-            <div className="badge">Release Manifest: {pkg.releaseManifestPath ?? 'not written'}</div>
-            <div className="badge">Release Index Handoff: {pkg.releaseIndexHandoffPath ?? 'not written'}</div>
-            <div className="badge">Draft JSON: {pkg.releaseDraftPath ?? 'not written'}</div>
-          </div>
-        )}
-        {pkg?.releaseIndexHandoff && (
-          <div className="card" style={{ marginTop: 12, background: 'var(--bg-2)' }}>
+
+          <div className="card">
             <h3>Release Index Handoff</h3>
-            <p className="dim" style={{ fontSize: 12 }}>
-              This handoff captures the target index entry, uploaded assets, checksum file, and GitHub attestation subjects needed for ingestion review.
-            </p>
-            <div className="btn-row" style={{ marginBottom: 10 }}>
-              <span className="badge">{pkg.releaseIndexHandoff.targetRepository}</span>
-              <span className="badge">{pkg.releaseIndexHandoff.targetCollection}</span>
-              <span className="badge">{pkg.releaseIndexHandoff.attestation.subjects.length} attestation subject(s)</span>
-            </div>
-            <div className="code" style={{ maxHeight: 280 }}>
-              {JSON.stringify(pkg.releaseIndexHandoff, null, 2)}
-            </div>
+            {pkg.releaseIndexHandoff ? (
+              <>
+                <div className="btn-row" style={{ marginBottom: 10 }}>
+                  <span className="badge">{pkg.releaseIndexHandoff.targetRepository}</span>
+                  <span className="badge">{pkg.releaseIndexHandoff.targetCollection}</span>
+                  <span className="badge">{pkg.releaseIndexHandoff.entryFileName}</span>
+                  <span className="badge">{pkg.releaseIndexHandoff.attestation.subjects.length} attestation subject(s)</span>
+                </div>
+                <div className="code" style={{ maxHeight: 320 }}>
+                  {JSON.stringify(pkg.releaseIndexHandoff, null, 2)}
+                </div>
+              </>
+            ) : (
+              <p className="dim" style={{ margin: 0 }}>
+                No Release Index handoff was generated.
+              </p>
+            )}
           </div>
-        )}
-        {pkg?.releaseIndexPreview !== undefined && (
-          <div className="card" style={{ marginTop: 12, background: 'var(--bg-2)' }}>
-            <h3>Release Index Preview</h3>
-            <p className="dim" style={{ fontSize: 12 }}>
-              This is the exact local entry Studio writes to echo-release.json before GitHub publishing or Release Index ingestion.
-            </p>
-            <div className="code" style={{ maxHeight: 280 }}>
-              {JSON.stringify(pkg.releaseIndexPreview, null, 2) ?? 'null'}
-            </div>
-          </div>
-        )}
-        {releaseUrl && (
-          <div style={{ marginTop: 12 }}>
-            <a className="btn ghost" href={releaseUrl} target="_blank" rel="noreferrer">
-              Open GitHub Release
-            </a>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="card-title">Docs Links</h2>
-        <ul className="list" style={{ marginTop: 8 }}>
-          <li className="list-item">
-            <a href="https://echo-platform.dev/docs/publishing" target="_blank" rel="noreferrer">
-              Publishing Guide
-            </a>
-          </li>
-          <li className="list-item">
-            <a href="https://echo-platform.dev/docs/packos" target="_blank" rel="noreferrer">
-              PackOS Validation Rules
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
+      {pkg?.releaseIndexPreview !== undefined && (
+        <div className="card">
+          <h3>Release Index Preview</h3>
+          <div className="code" style={{ maxHeight: 360 }}>
+            {JSON.stringify(pkg.releaseIndexPreview, null, 2) ?? 'null'}
+          </div>
+        </div>
+      )}
+    </Page>
   )
 }
