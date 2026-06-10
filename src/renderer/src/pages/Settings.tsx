@@ -30,7 +30,7 @@ type RuntimeToolKey = 'echoNativeExecutable' | 'standaloneExecutable'
 type PreviewRuntime = Extract<Runtime, 'echo_native' | 'standalone'>
 
 export default function Settings(): JSX.Element {
-  const { workspaceDir, chooseWorkspace, refresh, profile, config, updateProfile, updateConfig, toast } =
+  const { workspaceDir, chooseWorkspace, refresh, profile, config, moduleCatalog, moduleCatalogResult, updateProfile, updateConfig, toast } =
     useWorkspace()
   const [nsTouched, setNsTouched] = useState(false)
   const [urlTouched, setUrlTouched] = useState(false)
@@ -176,6 +176,28 @@ export default function Settings(): JSX.Element {
               }
             />
           </label>
+          <div className="btn-row" style={{ marginBottom: 8 }}>
+            <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+              {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in catalog'}
+            </span>
+            <span className="badge">{moduleCatalog.length} records</span>
+            {moduleCatalogResult?.generatedAt && (
+              <span className="dim" style={{ fontSize: 11 }}>
+                generated {new Date(moduleCatalogResult.generatedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+          {moduleCatalogResult?.indexPath && (
+            <div className="mono dim" style={{ fontSize: 11, marginBottom: 8, wordBreak: 'break-all' }}>
+              {moduleCatalogResult.indexPath}
+            </div>
+          )}
+          {moduleCatalogResult?.warnings.length ? (
+            <div className="issue WARNING" style={{ marginBottom: 10 }}>
+              <span className="lvl">WARNING</span>
+              {moduleCatalogResult.warnings.join(' ')}
+            </div>
+          ) : null}
           <div className="btn-row">
             <button className="btn" onClick={chooseModuleRoot}>
               Browse Checkout
