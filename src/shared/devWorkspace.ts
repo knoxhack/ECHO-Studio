@@ -93,6 +93,16 @@ export interface DevModuleLockStatus {
   generatedAt?: string
 }
 
+export interface DevModuleCatalogStatus {
+  schemaVersion: 'echo.studio.modules.catalog.status.v1'
+  source: 'builtin' | 'local-index'
+  localAvailable: boolean
+  indexPath?: string
+  moduleRoot?: string
+  generatedAt?: string
+  warnings: string[]
+}
+
 export interface DevRuntimeLauncherStatus {
   schemaVersion: 'echo.studio.runtime.launchers.status.v1'
   gradlePropertiesPath: string
@@ -116,6 +126,7 @@ export interface DevWorkspaceState {
   runtimeTargets: Runtime[]
   files: DevWorkspaceFileStatus[]
   modulePlan: ProjectModulePlan
+  moduleCatalog: DevModuleCatalogStatus
   moduleLock: DevModuleLockStatus
   runtimeLaunchers: DevRuntimeLauncherStatus
   artifacts: DevArtifact[]
@@ -136,6 +147,7 @@ export type DevTaskId =
   | 'gradle:runClient'
   | 'gradle:runServer'
   | 'gradle:runData'
+  | 'modules:validate'
   | 'preview:native'
   | 'preview:standalone'
   | 'package:local'
@@ -215,6 +227,13 @@ export const DEV_TASKS: DevTask[] = [
     description: 'Run the Gradle data generation task when available.',
     command: 'runData',
     kind: 'build'
+  },
+  {
+    id: 'modules:validate',
+    label: 'Validate ECHO Modules',
+    description: 'Run the local ECHO-Modules graph validator for the selected module catalog.',
+    command: 'node scripts/validate-module-graph.mjs',
+    kind: 'test'
   },
   {
     id: 'preview:native',

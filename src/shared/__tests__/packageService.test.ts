@@ -52,6 +52,12 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
       optionalAvailable: [],
       closure: []
     },
+    moduleCatalog: {
+      schemaVersion: 'echo.studio.modules.catalog.status.v1',
+      source: 'builtin',
+      localAvailable: false,
+      warnings: []
+    },
     moduleLock: {
       schemaVersion: 'echo.studio.modules.lock.status.v1',
       studioLockPath: '.echo-studio/modules.lock.json',

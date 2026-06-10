@@ -137,6 +137,7 @@ export default function DevWorkspace(): JSX.Element {
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
+    if (taskId === 'modules:validate' && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
     if (taskId === 'gradle:runClient' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'gradle:runServer' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
@@ -243,12 +244,31 @@ export default function DevWorkspace(): JSX.Element {
                 <span className={`badge ${state.moduleLock.upToDate ? 'ready' : 'fixes'}`}>
                   {state.moduleLock.upToDate ? 'Lock Current' : 'Lock Stale'}
                 </span>
+                <span className={`badge ${state.moduleCatalog.localAvailable ? 'ready' : 'local'}`}>
+                  {state.moduleCatalog.localAvailable ? 'Local ECHO-Modules' : 'Built-in Catalog'}
+                </span>
                 {state.moduleLock.generatedAt && (
                   <span className="dim" style={{ fontSize: 11 }}>
                     generated {new Date(state.moduleLock.generatedAt).toLocaleString()}
                   </span>
                 )}
+                {state.moduleCatalog.moduleRoot && (
+                  <button className="btn ghost" onClick={() => window.studio.openPath(state.moduleCatalog.moduleRoot!)}>
+                    Open Modules
+                  </button>
+                )}
               </div>
+              {state.moduleCatalog.indexPath && (
+                <div className="mono dim" style={{ fontSize: 11, marginBottom: 10 }}>
+                  {state.moduleCatalog.indexPath}
+                </div>
+              )}
+              {state.moduleCatalog.warnings.length > 0 && (
+                <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                  <span className="lvl">WARNING</span>
+                  {state.moduleCatalog.warnings.join(' ')}
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {state.modulePlan.closure.map((mod) => (
                   <span key={mod.id} className="badge">{mod.name}</span>

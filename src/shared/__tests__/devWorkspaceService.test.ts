@@ -63,6 +63,7 @@ describe('setupDevWorkspace', () => {
         standaloneExpected: false,
         ready: true
       })
+      expect(result.state.moduleCatalog.schemaVersion).toBe('echo.studio.modules.catalog.status.v1')
       expect(result.state.files.find((file) => file.path === 'build.gradle')?.expected).toBe(false)
       expect(result.state.files.find((file) => file.path === '.echo-studio/modules.lock.json')?.expected).toBe(true)
       expect(result.state.files.find((file) => file.path === 'src/generated/resources/META-INF/neoforge.mods.toml')?.expected).toBe(false)
@@ -90,6 +91,10 @@ describe('setupDevWorkspace', () => {
         nativeExpected: false,
         standaloneExpected: false,
         ready: true
+      })
+      expect(result.state.moduleCatalog).toMatchObject({
+        schemaVersion: 'echo.studio.modules.catalog.status.v1',
+        localAvailable: expect.any(Boolean)
       })
       expect(result.state.files.find((file) => file.path === 'META-INF/echo-addon-package.json')?.expected).toBe(false)
       await expect(fs.access(path.join(project, 'build.gradle'))).resolves.toBeUndefined()
@@ -242,6 +247,40 @@ describe('setupDevWorkspace', () => {
       expect(state.artifacts.find((artifact) => artifact.name.endsWith('.echo-addon'))?.kind).toBe('echo-addon')
       expect(state.artifacts.find((artifact) => artifact.name === 'echo-release.json')?.kind).toBe('manifest')
       expect(state.artifacts.find((artifact) => artifact.name === 'checksums.sha256')?.kind).toBe('checksum')
+    })
+  })
+
+  it('runs the local ECHO-Modules graph validator as a dev task', async () => {
+    const previous = process.env.ECHO_MODULES_DIR
+    await withProject(async (project) => {
+      const modulesRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-modules-root-'))
+      try {
+        process.env.ECHO_MODULES_DIR = modulesRoot
+        await fs.mkdir(path.join(modulesRoot, 'metadata', 'modules'), { recursive: true })
+        await fs.mkdir(path.join(modulesRoot, 'scripts'), { recursive: true })
+        await fs.writeFile(path.join(modulesRoot, 'metadata', 'modules', 'index.json'), JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: '2026-06-09T00:00:00.000Z',
+          modules: []
+        }, null, 2), 'utf8')
+        await fs.writeFile(
+          path.join(modulesRoot, 'scripts', 'validate-module-graph.mjs'),
+          'console.log("module graph ok")\n',
+          'utf8'
+        )
+
+        const { runDevTask } = await import('../../main/devWorkspaceService')
+        const result = await runDevTask(project, 'modules:validate')
+
+        expect(result.status).toBe('completed')
+        expect(result.command).toBe('node scripts/validate-module-graph.mjs')
+        expect(result.cwd).toBe(modulesRoot)
+        expect(result.stdout).toContain('module graph ok')
+      } finally {
+        if (previous === undefined) delete process.env.ECHO_MODULES_DIR
+        else process.env.ECHO_MODULES_DIR = previous
+        await fs.rm(modulesRoot, { recursive: true, force: true })
+      }
     })
   })
 })

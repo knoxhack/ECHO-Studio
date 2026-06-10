@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevModuleLockStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { DEV_TASKS, type DevArtifact, type DevModuleCatalogStatus, type DevModuleLock, type DevModuleLockStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { AddonManifest, Runtime } from '../shared/types'
@@ -189,6 +189,18 @@ function buildModuleLock(manifest: AddonManifest, catalogResult: EchoModuleCatal
     modules: plan.closure.map(lockModule),
     missingRequired: plan.missingRequired.map((mod) => mod.id),
     unknown: plan.unknown
+  }
+}
+
+function moduleCatalogStatus(catalogResult: EchoModuleCatalogResult): DevModuleCatalogStatus {
+  return {
+    schemaVersion: 'echo.studio.modules.catalog.status.v1',
+    source: catalogResult.source,
+    localAvailable: catalogResult.source === 'local-index' && Boolean(catalogResult.moduleRoot),
+    warnings: catalogResult.warnings,
+    ...(catalogResult.indexPath ? { indexPath: catalogResult.indexPath } : {}),
+    ...(catalogResult.moduleRoot ? { moduleRoot: catalogResult.moduleRoot } : {}),
+    ...(catalogResult.generatedAt ? { generatedAt: catalogResult.generatedAt } : {})
   }
 }
 
@@ -710,6 +722,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     runtimeTargets: runtimes,
     files,
     modulePlan,
+    moduleCatalog: moduleCatalogStatus(moduleCatalog),
     moduleLock: lockStatus,
     runtimeLaunchers,
     artifacts: await collectArtifacts(projectPath),
@@ -809,6 +822,34 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
   const task = DEV_TASKS.find((item) => item.id === taskId)
   if (!task) throw new Error(`Unknown dev task: ${taskId}`)
   const startedAt = new Date().toISOString()
+
+  if (task.id === 'modules:validate') {
+    const catalog = await listEchoModules(projectPath)
+    if (!catalog.moduleRoot) throw new Error('Local ECHO-Modules metadata/modules/index.json was not found.')
+    const scriptPath = join(catalog.moduleRoot, 'scripts', 'validate-module-graph.mjs')
+    if (!await exists(scriptPath)) throw new Error('Local ECHO-Modules scripts/validate-module-graph.mjs was not found.')
+    const command = task.command
+    const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
+    const result = await runShell(command, catalog.moduleRoot, 180000)
+    const status = result.exitCode === 0 ? 'completed' : 'failed'
+    const finishedAt = new Date().toISOString()
+    await appendTaskLog(logPath, 'stdout', result.stdout)
+    await appendTaskLog(logPath, 'stderr', result.stderr)
+    await finishTaskLog(logPath, status, finishedAt, result.exitCode)
+    return {
+      taskId,
+      status,
+      command,
+      cwd: catalog.moduleRoot,
+      logPath,
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      startedAt,
+      finishedAt,
+      artifacts: await collectArtifacts(projectPath)
+    }
+  }
 
   if (task.id === 'package:local') {
     const command = 'ECHO Studio packageAddon'
