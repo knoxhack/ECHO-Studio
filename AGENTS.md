@@ -15,7 +15,7 @@ Electron desktop app (React + Vite + TypeScript via electron-vite), focused on p
 
 - `src/main/` - Electron main process, filesystem service, packaging, publishing, and IPC handlers.
 - `src/preload/` - contextBridge API exposed as `window.studio`.
-- `src/shared/` - domain types, constants, PackOS validation, templates, AI types, sandbox types, git types, and release contracts imported by both main and renderer.
+- `src/shared/` - domain types, constants, validation, templates, AI types, sandbox types, git types, and release contracts imported by both main and renderer.
 - `src/renderer/src/pages/` - one component per sidebar screen.
 
 ## Commands
@@ -37,4 +37,4 @@ Electron desktop app (React + Vite + TypeScript via electron-vite), focused on p
 
 ## Core Safety Rule
 
-Creators build on top of ECHO, never modify ECHO itself. The `echo:` namespace and internal permissions such as `file_system.write_global` and `launcher.catalog.write` are blocked by PackOS validation in `src/shared/validation.ts`.
+Creators build on top of ECHO, never modify ECHO itself. The `echo:` namespace and internal permissions such as `file_system.write_global` and `launcher.catalog.write` are blocked by ECHO Studio validation in `src/shared/validation.ts`.
