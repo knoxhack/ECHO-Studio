@@ -42,8 +42,57 @@ export interface PackageResult {
   checksumsPath?: string
   packageManifestPath?: string
   releaseManifestPath?: string
+  releaseIndexHandoffPath?: string
   releaseDraftPath?: string
   releaseIndexPreview?: unknown
+  releaseIndexHandoff?: ReleaseIndexHandoff
+}
+
+export interface ReleaseIndexHandoffAsset {
+  name: string
+  path?: string
+  sha256: string
+  bytes: number
+  role: 'artifact' | 'sidecar'
+}
+
+export interface ReleaseIndexAttestationSubject {
+  name: string
+  sha256: string
+  bytes: number
+  sourceRepo: string
+  releaseTag: string
+  commitSha?: string
+}
+
+export interface ReleaseIndexHandoff {
+  schemaVersion: 'echo.release.index.handoff.v1'
+  generatedAt: string
+  targetRepository: 'knoxhack/ECHO-Release-Index'
+  targetCollection: 'addons'
+  entryFileName: string
+  entry: unknown
+  sourceRepo: string
+  releaseTag: string
+  commitSha?: string
+  assets: ReleaseIndexHandoffAsset[]
+  checksums: {
+    file: 'checksums.sha256'
+    sha256: string
+  }
+  attestation: {
+    mode: 'required-for-official-or-verified'
+    provider: 'github-artifact-attestations'
+    requiredWorkflow: string
+    requireDigestMatch: true
+    subjects: ReleaseIndexAttestationSubject[]
+  }
+  ingestion: {
+    status: 'pending-review'
+    requireSchemaValidation: true
+    requirePackOSReady: boolean
+    notes: string[]
+  }
 }
 
 export type GitHubAuthProvider = 'github-app' | 'gh-cli' | 'none'

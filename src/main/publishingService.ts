@@ -26,6 +26,8 @@ type ReleaseDraftFile = {
   name?: string
   body?: string
   assets?: DraftAsset[]
+  releaseIndexHandoff?: unknown
+  attestation?: unknown
 }
 
 type BrokerRepoResponse = {
@@ -321,6 +323,8 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
       draft: forceDraft || draft.draft !== false,
       prerelease: Boolean(draft.prerelease),
       releaseDraft: draft,
+      releaseIndexHandoff: draft.releaseIndexHandoff,
+      attestation: draft.attestation,
       assets: brokerAssets,
     })
     return {

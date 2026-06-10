@@ -177,6 +177,9 @@ export default function PublishAssistant(): JSX.Element {
           <button className="btn secondary" onClick={() => pkg?.releaseManifestPath && window.studio.openPath(pkg.releaseManifestPath)} disabled={!pkg?.releaseManifestPath}>
             Open echo-release.json
           </button>
+          <button className="btn secondary" onClick={() => pkg?.releaseIndexHandoffPath && window.studio.openPath(pkg.releaseIndexHandoffPath)} disabled={!pkg?.releaseIndexHandoffPath}>
+            Open Handoff
+          </button>
           <button className="btn secondary" onClick={() => pkg?.checksumsPath && window.studio.openPath(pkg.checksumsPath)} disabled={!pkg?.checksumsPath}>
             Open Checksums
           </button>
@@ -189,7 +192,24 @@ export default function PublishAssistant(): JSX.Element {
             <div className="badge">Checksums: {pkg.checksumsPath ?? 'not written'}</div>
             <div className="badge">Package Manifest: {pkg.packageManifestPath ?? 'not written'}</div>
             <div className="badge">Release Manifest: {pkg.releaseManifestPath ?? 'not written'}</div>
+            <div className="badge">Release Index Handoff: {pkg.releaseIndexHandoffPath ?? 'not written'}</div>
             <div className="badge">Draft JSON: {pkg.releaseDraftPath ?? 'not written'}</div>
+          </div>
+        )}
+        {pkg?.releaseIndexHandoff && (
+          <div className="card" style={{ marginTop: 12, background: 'var(--bg-2)' }}>
+            <h3>Release Index Handoff</h3>
+            <p className="dim" style={{ fontSize: 12 }}>
+              This handoff captures the target index entry, uploaded assets, checksum file, and GitHub attestation subjects needed for ingestion review.
+            </p>
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <span className="badge">{pkg.releaseIndexHandoff.targetRepository}</span>
+              <span className="badge">{pkg.releaseIndexHandoff.targetCollection}</span>
+              <span className="badge">{pkg.releaseIndexHandoff.attestation.subjects.length} attestation subject(s)</span>
+            </div>
+            <div className="code" style={{ maxHeight: 280 }}>
+              {JSON.stringify(pkg.releaseIndexHandoff, null, 2)}
+            </div>
           </div>
         )}
         {pkg?.releaseIndexPreview !== undefined && (

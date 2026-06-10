@@ -11,7 +11,7 @@ import { runProjectCheck } from '../shared/projectValidation'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { validateAddonPackageManifest } from '../shared/addonPackageContract'
 import type { PackOSReport } from '../shared/types'
-import type { PackageResult } from '../shared/publishing'
+import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
 import { listEchoModules } from './moduleCatalogService'
 
@@ -168,6 +168,75 @@ function buildReleaseManifest(
   }
 }
 
+function buildHandoffAsset(
+  artifact: { path?: string; name: string; sha256: string; bytes: number },
+  role: ReleaseIndexHandoffAsset['role']
+): ReleaseIndexHandoffAsset {
+  return {
+    path: artifact.path,
+    name: artifact.name,
+    sha256: artifact.sha256,
+    bytes: artifact.bytes,
+    role
+  }
+}
+
+function buildReleaseIndexHandoff(
+  releaseManifest: ReturnType<typeof buildReleaseManifest>,
+  packageManifest: AddonPackageManifest,
+  releaseAssets: Array<{ path: string; name: string; sha256: string; bytes: number }>,
+  sidecars: Array<{ path: string; name: string; sha256: string; bytes: number }>,
+  checksumsRecord: { name: string; sha256: string },
+  report: PackOSReport,
+  commitSha?: string
+): ReleaseIndexHandoff {
+  const sourceRepo = releaseManifest.sourceRepo
+  const releaseTag = releaseManifest.releaseTag
+  return {
+    schemaVersion: 'echo.release.index.handoff.v1',
+    generatedAt: new Date().toISOString(),
+    targetRepository: 'knoxhack/ECHO-Release-Index',
+    targetCollection: 'addons',
+    entryFileName: `${packageManifest.id}.json`,
+    entry: releaseManifest,
+    sourceRepo,
+    releaseTag,
+    ...(commitSha ? { commitSha } : {}),
+    assets: [
+      ...releaseAssets.map((artifact) => buildHandoffAsset(artifact, 'artifact')),
+      ...sidecars.map((artifact) => buildHandoffAsset(artifact, 'sidecar'))
+    ],
+    checksums: {
+      file: 'checksums.sha256',
+      sha256: checksumsRecord.sha256
+    },
+    attestation: {
+      mode: 'required-for-official-or-verified',
+      provider: 'github-artifact-attestations',
+      requiredWorkflow: '.github/workflows/release.yml',
+      requireDigestMatch: true,
+      subjects: releaseAssets.map((artifact) => ({
+        name: artifact.name,
+        sha256: artifact.sha256,
+        bytes: artifact.bytes,
+        sourceRepo,
+        releaseTag,
+        ...(commitSha ? { commitSha } : {})
+      }))
+    },
+    ingestion: {
+      status: 'pending-review',
+      requireSchemaValidation: true,
+      requirePackOSReady: report.publishingReady,
+      notes: [
+        'Release Index ingestion must verify all SHA-256 digests before approval.',
+        'Official or verified promotion requires GitHub artifact attestation verification for each artifact subject.',
+        'Community releases may remain warning-state until publisher trust and runtime artifacts are verified.'
+      ]
+    }
+  }
+}
+
 // Run the full project check (used before packaging).
 export async function fullProjectReport(projectPath: string): Promise<PackOSReport> {
   const manifest = await readManifest(projectPath)
@@ -204,6 +273,7 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
   const checksumsPath = join(exportsDir, 'checksums.sha256')
   const packageManifestPath = join(exportsDir, 'echo-addon-package.json')
   const releaseManifestPath = join(exportsDir, 'echo-release.json')
+  const releaseIndexHandoffPath = join(exportsDir, 'release-index-handoff.json')
   const releaseDraftPath = join(exportsDir, 'github-release-draft.json')
   const artifactRecords = [await writeZipArtifact(zipPath, zip)]
 
@@ -254,6 +324,23 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
     checksumsPath,
     [...artifactRecords, packageManifestRecord, releaseManifestRecord].map((artifact) => `${artifact.sha256}  ${artifact.name}`).sort().join('\n') + '\n'
   )
+  const releaseIndexHandoff = buildReleaseIndexHandoff(
+    releaseManifest,
+    packageManifest,
+    artifactRecords,
+    [checksumsRecord, packageManifestRecord, releaseManifestRecord],
+    checksumsRecord,
+    report,
+    commitSha
+  )
+  const releaseIndexHandoffRecord = await writeJsonArtifact(releaseIndexHandoffPath, releaseIndexHandoff)
+  const draftAssets = [
+    ...artifactRecords.map((artifact) => ({ path: artifact.path, name: artifact.name, sha256: artifact.sha256 })),
+    { path: checksumsPath, name: 'checksums.sha256', sha256: checksumsRecord.sha256 },
+    { path: packageManifestPath, name: 'echo-addon-package.json', sha256: packageManifestRecord.sha256 },
+    { path: releaseManifestPath, name: 'echo-release.json', sha256: releaseManifestRecord.sha256 },
+    { path: releaseIndexHandoffPath, name: 'release-index-handoff.json', sha256: releaseIndexHandoffRecord.sha256 }
+  ]
   await fs.writeFile(releaseDraftPath, JSON.stringify({
     draft: true,
     prerelease: true,
@@ -270,14 +357,15 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
       ...artifactRecords.map((artifact) => `- ${artifact.name}`),
       '- checksums.sha256',
       '- echo-addon-package.json',
-      '- echo-release.json'
+      '- echo-release.json',
+      '- release-index-handoff.json',
+      '',
+      'Release Index handoff:',
+      '- Import release-index-handoff.json into knoxhack/ECHO-Release-Index after review.',
+      '- Verify all SHA-256 digests against checksums.sha256 before approval.',
+      '- Official or verified promotion requires GitHub artifact attestation verification for each artifact subject.'
     ].join('\n'),
-    assets: [
-      ...artifactRecords.map((artifact) => ({ path: artifact.path, name: artifact.name, sha256: artifact.sha256 })),
-      { path: checksumsPath, name: 'checksums.sha256', sha256: checksumsRecord.sha256 },
-      { path: packageManifestPath, name: 'echo-addon-package.json', sha256: packageManifestRecord.sha256 },
-      { path: releaseManifestPath, name: 'echo-release.json', sha256: releaseManifestRecord.sha256 }
-    ],
+    assets: draftAssets,
     releaseIndex: {
       id: localId(manifest.id),
       kind: 'addon',
@@ -286,7 +374,9 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
       artifacts: releaseManifest.artifacts,
       publisher: manifest.publisher.id,
       validation: report.publishingReady ? 'warning' : 'rejected'
-    }
+    },
+    releaseIndexHandoff,
+    attestation: releaseIndexHandoff.attestation
   }, null, 2), 'utf-8')
 
   return {
@@ -299,7 +389,9 @@ export async function packageAddon(projectPath: string): Promise<PackageResult> 
     checksumsPath,
     packageManifestPath,
     releaseManifestPath,
+    releaseIndexHandoffPath,
     releaseDraftPath,
-    releaseIndexPreview: releaseManifest
+    releaseIndexPreview: releaseManifest,
+    releaseIndexHandoff
   }
 }

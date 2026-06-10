@@ -82,9 +82,40 @@ describe('packageAddon', () => {
         size: expect.any(Number)
       })
       expect(releaseManifest.assets.map((asset: { name: string }) => asset.name).sort()).toEqual(assetNames)
+      const handoff = JSON.parse(await fs.readFile(result.releaseIndexHandoffPath ?? '', 'utf8'))
+      expect(handoff).toMatchObject({
+        schemaVersion: 'echo.release.index.handoff.v1',
+        targetRepository: 'knoxhack/ECHO-Release-Index',
+        targetCollection: 'addons',
+        entryFileName: 'weather_pack.json',
+        sourceRepo: 'teamnova/weather_pack-addon',
+        releaseTag: 'v1.0.0',
+        commitSha: '1234567890abcdef1234567890abcdef12345678',
+        checksums: {
+          file: 'checksums.sha256',
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/i)
+        },
+        attestation: {
+          mode: 'required-for-official-or-verified',
+          provider: 'github-artifact-attestations',
+          requireDigestMatch: true
+        },
+        ingestion: {
+          status: 'pending-review',
+          requireSchemaValidation: true
+        }
+      })
+      expect(handoff.assets.map((asset: { name: string }) => asset.name)).toEqual(expect.arrayContaining([
+        'weather_pack-1.0.0.echo-addon',
+        'checksums.sha256',
+        'echo-addon-package.json',
+        'echo-release.json'
+      ]))
+      expect(handoff.attestation.subjects.map((subject: { name: string }) => subject.name).sort()).toEqual(assetNames)
       const draft = JSON.parse(await fs.readFile(result.releaseDraftPath ?? '', 'utf8'))
-      expect(draft.assets).toHaveLength(7)
+      expect(draft.assets).toHaveLength(8)
       expect(draft.assets.map((asset: { name: string }) => asset.name)).toContain('echo-release.json')
+      expect(draft.assets.map((asset: { name: string }) => asset.name)).toContain('release-index-handoff.json')
       expect(draft.assets.every((asset: { sha256?: string }) => /^[a-f0-9]{64}$/i.test(asset.sha256 ?? ''))).toBe(true)
       expect(draft.assets.find((asset: { name: string }) => asset.name === 'checksums.sha256')?.sha256).toMatch(/^[a-f0-9]{64}$/i)
       expect(draft.releaseIndex).toMatchObject({
@@ -93,6 +124,9 @@ describe('packageAddon', () => {
           native: { file: 'weather_pack-1.0.0.echo-addon' }
         }
       })
+      expect(draft.releaseIndexHandoff.entryFileName).toBe('weather_pack.json')
+      expect(draft.attestation.subjects).toHaveLength(assetNames.length)
+      expect(result.releaseIndexHandoff?.entryFileName).toBe('weather_pack.json')
     } finally {
       if (previousCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
       else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousCommitSha
