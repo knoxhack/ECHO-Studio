@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
@@ -12,6 +13,7 @@ import {
   type EchoModuleCatalogResult,
   type EchoModuleRecord
 } from '@shared/moduleCatalog'
+import type { DevWorkspaceState } from '@shared/devWorkspace'
 import type { AddonManifest } from '@shared/types'
 
 const FILTERS = ['All', 'Enabled', 'Foundation', 'UI', 'World', 'Tech', 'Developer'] as const
@@ -27,10 +29,13 @@ const CAPABILITIES = [
 ] as const
 
 export default function Modules(): JSX.Element {
-  const { activeProject, refresh, toast } = useWorkspace()
+  const { activeProject, config, refresh, toast } = useWorkspace()
+  const nav = useNavigate()
   const [manifest, setManifest] = useState<AddonManifest | null>(null)
   const [catalog, setCatalog] = useState<EchoModuleRecord[]>(ECHO_MODULE_CATALOG)
   const [catalogResult, setCatalogResult] = useState<EchoModuleCatalogResult | null>(null)
+  const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
+  const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [filter, setFilter] = useState<Filter>('All')
   const [selectedId, setSelectedId] = useState('echomissioncore')
 
@@ -53,9 +58,16 @@ export default function Modules(): JSX.Element {
       })
   }
 
+  const loadDevWorkspace = (projectPath: string): void => {
+    window.studio.inspectDevWorkspace(projectPath).then((result) => {
+      setDevWorkspace(result.ok && result.data ? result.data : null)
+    })
+  }
+
   useEffect(() => {
     if (!activeProject) {
       setManifest(null)
+      setDevWorkspace(null)
       loadCatalog()
       return
     }
@@ -63,6 +75,7 @@ export default function Modules(): JSX.Element {
       if (result.ok && result.data) setManifest(result.data)
     })
     loadCatalog(activeProject.path)
+    loadDevWorkspace(activeProject.path)
   }, [activeProject])
 
   const plan = useMemo(() => manifest ? resolveProjectModulePlan(manifest, catalog) : null, [manifest, catalog])
@@ -101,6 +114,7 @@ export default function Modules(): JSX.Element {
       setManifest(next)
       await refresh()
       toast(message)
+      loadDevWorkspace(activeProject.path)
     } else {
       toast(result.error || 'Manifest update failed')
     }
@@ -159,12 +173,39 @@ export default function Modules(): JSX.Element {
     void saveManifest(next, `${mod.name} removed`)
   }
 
+  const refreshDevWorkspace = async (): Promise<void> => {
+    if (!manifest || !devWorkspace?.lastSetupAt) {
+      nav('/dev-workspace')
+      return
+    }
+    setWorkspaceBusy(true)
+    const result = await window.studio.setupDevWorkspace(activeProject.path, {
+      mode: devWorkspace.mode,
+      runtimes: devWorkspace.runtimeTargets.length > 0 ? devWorkspace.runtimeTargets : manifest.runtime.supports,
+      force: false,
+      runtimeTools: {
+        echoNativeExecutable: config.runtimeTools.echoNativeExecutable,
+        standaloneExecutable: config.runtimeTools.standaloneExecutable
+      }
+    })
+    setWorkspaceBusy(false)
+    if (result.ok && result.data) {
+      setDevWorkspace(result.data.state)
+      toast('Dev workspace module locks refreshed')
+    } else {
+      toast(result.error || 'Dev workspace refresh failed')
+    }
+  }
+
   const statusColor = (status: EchoModuleRecord['status']): string => {
     if (status === 'stable') return 'var(--good)'
     if (status === 'beta') return 'var(--accent)'
     if (status === 'experimental') return 'var(--warn)'
     return 'var(--text-faint)'
   }
+
+  const workspaceCurrent = Boolean(devWorkspace?.lastSetupAt && devWorkspace.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate)
+  const workspaceLabel = !devWorkspace?.lastSetupAt ? 'Not Set Up' : workspaceCurrent ? 'Current' : 'Stale'
 
   return (
     <Page
@@ -200,6 +241,32 @@ export default function Modules(): JSX.Element {
             <div className="issue WARNING" style={{ marginTop: 10 }}>
               <span className="lvl">WARNING</span>
               {catalogResult.warnings.join(' ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {devWorkspace && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span className={`badge ${workspaceCurrent ? 'ready' : 'fixes'}`}>Dev Workspace {workspaceLabel}</span>
+            <span className={`badge ${devWorkspace.moduleLock.upToDate ? 'ready' : 'local'}`}>
+              Lock {devWorkspace.moduleLock.upToDate ? 'current' : 'stale'}
+            </span>
+            <span className={`badge ${devWorkspace.moduleWorkspace.upToDate ? 'ready' : 'local'}`}>
+              Map {devWorkspace.moduleWorkspace.upToDate ? 'current' : 'stale'}
+            </span>
+            <span className="badge">{devWorkspace.moduleWorkspace.localModuleCount}/{devWorkspace.moduleWorkspace.moduleCount} local sources</span>
+            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Open Dev Workspace</button>
+            <button className="btn" disabled={workspaceBusy || !devWorkspace.lastSetupAt} onClick={refreshDevWorkspace}>
+              {workspaceBusy ? 'Refreshing...' : 'Refresh Locks & Map'}
+            </button>
+          </div>
+          {!workspaceCurrent && devWorkspace.lastSetupAt && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">WARNING</span>
+              Module selections changed after workspace setup.
+              <div className="fix">Refresh generated module locks and the local source map before running clients, builds, preview, or packaging.</div>
             </div>
           )}
         </div>
