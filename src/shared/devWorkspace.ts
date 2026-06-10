@@ -369,22 +369,22 @@ export const DEV_TASKS: DevTask[] = [
   },
   {
     id: 'modules:releaseSelected',
-    label: 'Generate Selected Module Release',
-    description: 'Generate source-packaged release visibility artifacts for the resolved local module closure.',
+    label: 'Generate Selected Module Visibility',
+    description: 'Generate source-packaged development visibility artifacts for the resolved local module closure.',
     command: 'node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source',
     kind: 'package'
   },
   {
     id: 'modules:releaseAll',
-    label: 'Generate All Module Releases',
-    description: 'Generate source-packaged release visibility artifacts for every discoverable local ECHO module.',
+    label: 'Generate All Module Visibility',
+    description: 'Generate source-packaged development visibility artifacts for every discoverable local ECHO module.',
     command: 'node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source',
     kind: 'package'
   },
   {
     id: 'modules:verifyRelease',
-    label: 'Verify Module Release',
-    description: 'Verify dist/echo-module-release manifests, packages, jars, embedded metadata, and checksums.',
+    label: 'Verify Module Visibility Artifacts',
+    description: 'Verify dist/echo-module-release visibility manifests, packages, jars, embedded metadata, and checksums.',
     command: 'node scripts/verify-module-release.mjs --release-dir dist/echo-module-release',
     kind: 'test'
   },

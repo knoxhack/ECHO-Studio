@@ -34,7 +34,7 @@ const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks
   {
     id: 'modules',
     title: 'ECHO Modules',
-    description: 'Inspect the resolved module closure, validate the local module graph, and build visibility artifacts.',
+    description: 'Inspect the resolved module closure, validate the local graph, and build dev-only source visibility artifacts.',
     tasks: ['gradle:moduleWorkspace', 'modules:validate', 'modules:releaseSelected', 'modules:releaseAll', 'modules:verifyRelease', 'modules:docsAudit']
   },
   {

@@ -226,7 +226,7 @@ export default function Modules(): JSX.Element {
   return (
     <Page
       title="Modules"
-      subtitle="A project-aware map of ECHO Modules, dependencies, capabilities, runtimes, and release readiness."
+      subtitle="A project-aware map of ECHO Modules, dependencies, capabilities, runtimes, and local readiness."
       actions={
         <>
           <button className="btn" onClick={() => addClosure(selected)}>Add Closure</button>
