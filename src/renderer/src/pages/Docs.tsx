@@ -15,7 +15,7 @@ const CATEGORIES = [
   'HoloMap',
   'Index',
   'Assets',
-  'PackOS Validation',
+  'Validation',
   'Publishing',
   'Verification Program',
   'Best Practices',
@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 const SNIPPETS: Record<string, string> = {
   'Getting Started':
-    'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Validate with PackOS.\n5. Package local release assets before GitHub publishing.',
+    'ECHO Studio lets you build on top of ECHO without starting from raw files.\n\n1. Create an experience, addon, module, or pack from a template.\n2. Choose ECHO Modules and set up the local dev workspace.\n3. Run preview clients and local builds.\n4. Run Validation.\n5. Package local release assets before GitHub publishing.',
   'ECHO Modules':
     'ECHO Modules provide the public contracts creators build against:\n- MissionCore (missions, objectives, rewards)\n- RecipeCore (crafting recipes, machine recipes)\n- ScreenCore (custom UI screens)\n- HoloMap (map layers and markers)\n- Index (lore entries)\n\nAll content must be namespaced to the creator.\nUse only documented module APIs and permissions.',
   'Manifest Reference':
@@ -45,12 +45,12 @@ const SNIPPETS: Record<string, string> = {
     '{\n  "id": "teamnova:beacon_lore",\n  "title": "Signal Beacon",\n  "category": "technology",\n  "content": "An emergency beacon used by colonists. Emits a low-frequency pulse detectable by HoloMap scanners.",\n  "tags": ["lore", "technology"]\n}',
   'Assets':
     'Assets are stored in the assets/ folder of your project.\n\nSupported formats:\n- PNG   : textures, icons, UI elements\n- JSON  : models, blockstates, language files\n- TTF   : custom fonts\n- OGG   : sound effects\n\nUse the Assets page to scan, import and export asset packs.\nAll assets are validated for correct format and size.',
-  'PackOS Validation':
-    'PackOS is the core safety gate. It checks:\n\n1. Namespace safety - no reserved "echo:" namespace\n2. Permission safety - no blocked internal permissions\n3. Dependency completeness - required ECHO module closure present\n4. Version format - semantic versioning\n5. Content integrity - no broken references\n6. Publishing readiness - description, tags, support link\n\nRun Validation before every release. Use Codex Tasks for reviewable repair plans.',
+  'Validation':
+    'Validation is the core safety gate. It checks:\n\n1. Namespace safety - no reserved "echo:" namespace\n2. Permission safety - no blocked internal permissions\n3. Dependency completeness - required ECHO module closure present\n4. Version format - semantic versioning\n5. Content integrity - no broken references\n6. Publishing readiness - description, tags, support link\n\nRun Validation before every release. Use Codex Tasks for reviewable repair plans.',
   'Publishing':
-    'To publish your project:\n\n1. Run Validation and resolve all BLOCKERs and ERRORs.\n2. Prepare release assets from Release.\n3. Review echo-addon-package.json, echo-release.json, checksums.sha256, release-index-handoff.json, and release-index-submission.md.\n4. Connect the GitHub App or GitHub CLI provider.\n5. Create a GitHub Release draft and upload the prepared assets.\n6. Use the handoff and submission notes for Release Index ingestion.\n\nTrust levels:\n- Community            : Source-linked public release.\n- Provenance-attested  : GitHub artifact attestation verified.\n- Official             : ECHO-owned or explicitly approved publisher.\n- Blocked              : Prevented by Release Index policy.',
+    'To publish your project:\n\n1. Run Validation and resolve all BLOCKERs and ERRORs.\n2. Prepare release assets from Release.\n3. Review echo-addon-package.json, echo-release.json, checksums.sha256, release-index-handoff.json, and release-index-submission.md.\n4. Connect the GitHub App or GitHub CLI provider.\n5. Create a GitHub Release draft and upload the prepared assets.\n6. Use the handoff and review notes for Release Index ingestion.\n\nTrust levels:\n- Community            : Source-linked public release.\n- Provenance-attested  : GitHub artifact attestation verified.\n- Official             : ECHO-owned or explicitly approved publisher.\n- Blocked              : Prevented by Release Index policy.',
   'Verification Program':
-    'The ECHO Verification Program reviews public projects and addon packages for:\n\n- Code quality and safety\n- Documentation completeness\n- User experience\n- Community feedback\n\nVerified releases receive:\n- A verified badge in the catalog\n- Priority in search results\n- Access to beta module APIs\n\nPrepare release assets in Release, then use the generated Release Index handoff and submission notes for review.',
+    'The ECHO Verification Program reviews public projects and addon packages for:\n\n- Code quality and safety\n- Documentation completeness\n- User experience\n- Community feedback\n\nVerified releases receive:\n- A verified badge in the catalog\n- Priority in search results\n- Access to beta module APIs\n\nPrepare release assets in Release, then use the generated Release Index handoff and review notes for review.',
   'Best Practices':
     'Best practices for ECHO projects:\n\n1. Always namespace content to your creator ID\n2. Use public ECHO module contracts - never touch ECHO internals\n3. Add meaningful descriptions and tags\n4. Include localization keys for all user-facing text\n5. Test in Preview before packaging\n6. Version releases with semantic versioning\n7. Write a README and CHANGELOG\n8. Handle errors gracefully - never crash the runtime',
   'Examples':
@@ -58,7 +58,7 @@ const SNIPPETS: Record<string, string> = {
 }
 
 function guideRecommendations(moduleRoles: string[], runtimes: string[]): string[] {
-  const guides = new Set<string>(['Manifest Reference', 'PackOS Validation'])
+  const guides = new Set<string>(['Manifest Reference', 'Validation'])
   if (moduleRoles.includes('missions')) guides.add('MissionCore')
   if (moduleRoles.includes('recipes')) guides.add('RecipeCore')
   if (moduleRoles.some((role) => ['interface', 'theme', 'terminal'].includes(role))) guides.add('ScreenCore')

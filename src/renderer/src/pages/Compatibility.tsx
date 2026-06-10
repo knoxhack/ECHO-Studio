@@ -106,7 +106,7 @@ export default function Compatibility(): JSX.Element {
         <div style={{ marginBottom: 10 }}>Declared: <b>{m.permissions.length}</b></div>
         {blockedUsed.length > 0 && (
           <div className="alert" style={{ marginBottom: 10 }}>
-            <b>Blocked permissions used:</b> {blockedUsed.join(', ')} - these will fail PackOS validation.
+            <b>Blocked permissions used:</b> {blockedUsed.join(', ')} - these will fail validation.
           </div>
         )}
         {unknownUsed.length > 0 && (

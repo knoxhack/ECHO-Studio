@@ -162,10 +162,10 @@ function validateReleaseDraftMetadata(draft: ReleaseDraftFile, assets: DraftAsse
     throw new Error('Release Index handoff entry metadata is required.')
   }
   if (handoff.entry.validation === 'rejected') {
-    throw new Error('Release Index handoff is rejected. Resolve PackOS, module, and release validation issues before creating a GitHub draft.')
+    throw new Error('Release Index handoff is rejected. Resolve validation, module, and release issues before creating a GitHub draft.')
   }
   if (!isRecord(handoff.ingestion) || handoff.ingestion.requirePackOSReady !== true) {
-    throw new Error('Release Index handoff must require PackOS-ready assets before creating a GitHub draft.')
+    throw new Error('Release Index handoff must require validation-ready assets before creating a GitHub draft.')
   }
 
   if (!Array.isArray(handoff.assets) || !handoff.assets.length) {

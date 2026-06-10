@@ -2,11 +2,11 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
-import { addRelease, getReleases, getSubmission, saveSubmission } from '../../main/studioStore'
-import type { ReleaseEntry, SubmissionState } from '../publishing'
+import { addRelease, getReleaseReview, getReleases, getSubmission, saveReleaseReview, saveSubmission } from '../../main/studioStore'
+import type { ReleaseEntry, ReleaseReviewState } from '../publishing'
 
 describe('studioStore', () => {
-  it('reads legacy .studio submission state and writes normalized .echo-studio state', async () => {
+  it('reads legacy .studio submission state and writes normalized .echo-studio release review state', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-studio-store-'))
     try {
       await fs.mkdir(path.join(root, '.studio'), { recursive: true })
@@ -20,22 +20,44 @@ describe('studioStore', () => {
           permissionsConfirmed: true,
           status: 'draft',
           thread: []
-        } satisfies SubmissionState),
+        } satisfies ReleaseReviewState),
         'utf8'
       )
 
-      const legacy = await getSubmission(root)
+      const legacy = await getReleaseReview(root)
       expect(legacy.target).toBe('Release Index Ingestion')
       expect(legacy.description).toBe('legacy review')
 
-      await saveSubmission(root, {
+      await saveReleaseReview(root, {
         ...legacy,
         target: 'Verified Addon Review',
         description: 'modern review'
       })
-      const modern = JSON.parse(await fs.readFile(path.join(root, '.echo-studio', 'submission.json'), 'utf8'))
+      const modern = JSON.parse(await fs.readFile(path.join(root, '.echo-studio', 'release-review.json'), 'utf8'))
       expect(modern.target).toBe('Verified Release Review')
       expect(modern.description).toBe('modern review')
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps legacy submission helpers wired to release review state', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-studio-store-'))
+    try {
+      await saveSubmission(root, {
+        target: 'Private Unlisted Share',
+        description: 'compat review',
+        changelog: '',
+        screenshots: [],
+        permissionsConfirmed: true,
+        status: 'draft',
+        thread: []
+      })
+
+      const review = await getSubmission(root)
+      expect(review.target).toBe('Private Draft Release')
+      expect(review.description).toBe('compat review')
+      await expect(fs.readFile(path.join(root, '.echo-studio', 'release-review.json'), 'utf8')).resolves.toContain('compat review')
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

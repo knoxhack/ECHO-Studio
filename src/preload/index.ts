@@ -19,7 +19,7 @@ import type {
   GitHubRepoConnection,
   ReleaseEntry,
   ReleasesState,
-  SubmissionState
+  ReleaseReviewState
 } from '../shared/publishing'
 import type { AppConfig, AiChatResult, AiFile } from '../shared/config'
 import type { CreatorProfile } from '../shared/profile'
@@ -89,9 +89,9 @@ const api = {
   connectGitHubRepo: (owner: string, repo: string) => invoke<GitHubRepoConnection>('publish:connectRepo', owner, repo),
   createGitHubReleaseDraft: (releaseDraftPath: string, owner: string, repo: string, tag?: string, draft?: boolean) =>
     invoke<GitHubReleaseDraftResult>('publish:createDraft', releaseDraftPath, owner, repo, tag, draft),
-  getSubmission: (projectPath: string) => invoke<SubmissionState>('submission:get', projectPath),
-  saveSubmission: (projectPath: string, state: SubmissionState) =>
-    invoke<void>('submission:save', projectPath, state),
+  getReleaseReview: (projectPath: string) => invoke<ReleaseReviewState>('releaseReview:get', projectPath),
+  saveReleaseReview: (projectPath: string, state: ReleaseReviewState) =>
+    invoke<void>('releaseReview:save', projectPath, state),
   getReleases: (projectPath: string) => invoke<ReleasesState>('releases:get', projectPath),
   addRelease: (projectPath: string, entry: ReleaseEntry) =>
     invoke<ReleasesState>('releases:add', projectPath, entry),

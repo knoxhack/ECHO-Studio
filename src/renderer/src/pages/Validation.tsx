@@ -39,7 +39,7 @@ function StepRow({
   )
 }
 
-export default function PackOSCheck(): JSX.Element {
+export default function Validation(): JSX.Element {
   const { activeProject, refresh, toast } = useWorkspace()
   const nav = useNavigate()
   const [report, setReport] = useState<PackOSReport | null>(null)
@@ -68,7 +68,7 @@ export default function PackOSCheck(): JSX.Element {
 
   if (!activeProject)
     return (
-      <Page title="Validation" subtitle="PackOS, modules, content references, assets, runtime compatibility, and release readiness.">
+      <Page title="Validation" subtitle="Contracts, modules, content references, assets, runtime compatibility, and release readiness.">
         <NoProject />
       </Page>
     )
@@ -288,7 +288,7 @@ export default function PackOSCheck(): JSX.Element {
             <span style={{ width: `${hs.assets}%` }} />
           </div>
           <p className="dim" style={{ fontSize: 13 }}>
-            PackOS treats local release artifacts as ready only when runtime packages and Release Index sidecars are present.
+            Validation treats local release artifacts as ready only when runtime packages and Release Index sidecars are present.
           </p>
           {devWorkspace?.artifacts.length ? (
             <div className="btn-row">
@@ -328,7 +328,7 @@ export default function PackOSCheck(): JSX.Element {
       {report.issues.length === 0 ? (
         <div className="card">
           <p className="dim" style={{ margin: 0 }}>
-            No issues found. This project passes PackOS validation.
+            No issues found. This project passes validation.
           </p>
         </div>
       ) : (

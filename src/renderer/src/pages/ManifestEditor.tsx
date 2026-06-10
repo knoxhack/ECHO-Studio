@@ -286,7 +286,7 @@ export default function ManifestEditor(): JSX.Element {
 
       const draftReport = runPackOSCheck(parsed.manifest, catalog)
       setReport(draftReport)
-      setStatus(draftReport.publishingReady ? 'Draft passes manifest PackOS checks.' : 'Draft has PackOS issues.')
+      setStatus(draftReport.publishingReady ? 'Draft passes manifest validation.' : 'Draft has validation issues.')
       return parsed.manifest
     },
     [catalog, raw]
@@ -355,7 +355,7 @@ export default function ManifestEditor(): JSX.Element {
   return (
     <Page
       title="Manifest JSON"
-      subtitle="Direct editing for the project contract, backed by PackOS and the active ECHO Modules catalog."
+      subtitle="Direct editing for the project contract, backed by validation and the active ECHO Modules catalog."
       actions={
         <>
           <button className="btn" disabled={loading || saving} onClick={formatRaw}>
@@ -382,7 +382,7 @@ export default function ManifestEditor(): JSX.Element {
           tone={hasContractErrors ? 'var(--bad)' : 'var(--good)'}
         />
         <Metric
-          label="PackOS"
+          label="Validation"
           value={report ? `${report.compatibilityScore}%` : 'Not run'}
           tone={report ? (report.publishingReady ? 'var(--good)' : 'var(--warn)') : 'var(--text-faint)'}
         />
@@ -445,10 +445,10 @@ export default function ManifestEditor(): JSX.Element {
           </div>
 
           <div className="card">
-            <h3>PackOS Preview</h3>
+            <h3>Validation Preview</h3>
             {!report ? (
               <p className="dim" style={{ margin: 0 }}>
-                Validate a structurally complete manifest to preview PackOS status.
+                Validate a structurally complete manifest to preview release readiness.
               </p>
             ) : (
               <>
@@ -464,7 +464,7 @@ export default function ManifestEditor(): JSX.Element {
                 </div>
                 {report.issues.length === 0 ? (
                   <p className="dim" style={{ margin: 0 }}>
-                    No PackOS issues found.
+                    No validation issues found.
                   </p>
                 ) : (
                   report.issues.map((issue, index) => (

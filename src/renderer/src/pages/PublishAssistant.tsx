@@ -213,6 +213,22 @@ export default function PublishAssistant(): JSX.Element {
     }
   }
 
+  const openAppInstall = async (): Promise<void> => {
+    if (!authStatus?.githubAppInstallUrl) {
+      setStatus('No GitHub App install URL is configured for this Studio session.')
+      return
+    }
+    await window.studio.openExternal(authStatus.githubAppInstallUrl)
+  }
+
+  const openBroker = async (): Promise<void> => {
+    if (!authStatus?.githubAppBrokerUrl) {
+      setStatus('No GitHub App broker URL is configured for this Studio session.')
+      return
+    }
+    await window.studio.openExternal(authStatus.githubAppBrokerUrl)
+  }
+
   const createDraft = async (): Promise<void> => {
     if (!publishReady) {
       setStatus(`Cannot create a GitHub draft yet. ${publishBlockers[0] ?? 'Review the draft requirements.'}`)
@@ -227,7 +243,7 @@ export default function PublishAssistant(): JSX.Element {
       !pkg.releaseIndexSubmissionPath ||
       !pkg.releaseIndexHandoff?.attestation.subjects.length
     ) {
-      setStatus('Prepare local release assets with Release Index handoff, submission notes, and attestation metadata before creating a GitHub draft.')
+      setStatus('Prepare local release assets with Release Index handoff, review notes, and attestation metadata before creating a GitHub draft.')
       return
     }
     setBusy(true)
@@ -247,7 +263,7 @@ export default function PublishAssistant(): JSX.Element {
 
   if (!activeProject) {
     return (
-      <Page title="Release" subtitle="Build local release assets, checksums, echo-release.json, Release Index handoff, and submission notes.">
+      <Page title="Release" subtitle="Build local release assets, checksums, echo-release.json, Release Index handoff, and review notes.">
         <NoProject />
       </Page>
     )
@@ -293,7 +309,7 @@ export default function PublishAssistant(): JSX.Element {
     {
       key: 'packos',
       ready: packosReady,
-      label: 'PackOS',
+      label: 'Validation',
       detail: readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}.` : 'Run project validation or Prepare Assets.'
     },
     {
@@ -310,7 +326,7 @@ export default function PublishAssistant(): JSX.Element {
       key: 'sidecars',
       ready: releaseSidecarsReady,
       label: 'Release sidecars',
-      detail: releaseSidecarsReady ? 'All package sidecars and draft metadata were generated.' : 'Run Prepare Assets to write checksums, package manifest, release manifest, handoff, submission notes, and draft JSON.'
+      detail: releaseSidecarsReady ? 'All package sidecars and draft metadata were generated.' : 'Run Prepare Assets to write checksums, package manifest, release manifest, handoff, review notes, and draft JSON.'
     },
     {
       key: 'handoff',
@@ -368,6 +384,14 @@ export default function PublishAssistant(): JSX.Element {
     : publishReady
       ? 'Ready to create a GitHub draft.'
       : publishBlockers[0] ?? 'Review draft requirements.'
+  const githubAppActionLabel = authStatus?.githubAppBrokerConfigured ? 'Start App Login' : 'Install GitHub App'
+  const githubAppDetail = authStatus?.githubAppSessionReady
+    ? 'GitHub App session token is ready for draft creation.'
+    : authStatus?.githubAppBrokerConfigured
+      ? 'Use the broker login to connect a GitHub App session for release drafts.'
+      : authStatus?.githubAppInstallUrl
+        ? 'Install the GitHub App, then restart Studio with the broker or session token configured.'
+        : 'Configure the GitHub App broker or install URL, or authenticate GitHub CLI.'
 
   return (
     <Page
@@ -388,7 +412,7 @@ export default function PublishAssistant(): JSX.Element {
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Package Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
-        <Metric label="PackOS" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={packosReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
+        <Metric label="Validation" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={packosReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
         <Metric label="ECHO Modules" value={moduleReady ? 'Current' : workspace ? 'Needs Sync' : 'Checking'} tone={moduleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Publish Auth" value={providerLabel(authStatus)} tone={authStatus?.activeProvider === 'none' ? 'var(--warn)' : 'var(--good)'} />
       </div>
@@ -566,8 +590,8 @@ export default function PublishAssistant(): JSX.Element {
         <div className="card">
           <h3>Local Release Pipeline</h3>
           <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
-          <StepRow done={packosReady} label="PackOS project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
-          <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md, and github-release-draft.json." />
+          <StepRow done={packosReady} label="Project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
+          <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md (review notes), and github-release-draft.json." />
           <StepRow
             done={handoffReady}
             label="Release Index handoff"
@@ -609,7 +633,7 @@ export default function PublishAssistant(): JSX.Element {
               Open Handoff
             </button>
             <button className="btn ghost" onClick={() => pkg?.releaseIndexSubmissionPath && window.studio.openPath(pkg.releaseIndexSubmissionPath)} disabled={!pkg?.releaseIndexSubmissionPath}>
-              Open Submission Notes
+              Open Review Notes
             </button>
           </div>
         </div>
@@ -629,6 +653,20 @@ export default function PublishAssistant(): JSX.Element {
               {authStatus.message}
             </p>
           )}
+          <div className="issue INFO" style={{ marginBottom: 12 }}>
+            <span className="lvl">AUTH</span>
+            {githubAppDetail}
+            {authStatus?.githubAppInstallUrl && (
+              <div className="mono dim" style={{ fontSize: 11, marginTop: 6, wordBreak: 'break-all' }}>
+                App install: {authStatus.githubAppInstallUrl}
+              </div>
+            )}
+            {authStatus?.githubAppBrokerUrl && (
+              <div className="mono dim" style={{ fontSize: 11, marginTop: 4, wordBreak: 'break-all' }}>
+                Broker: {authStatus.githubAppBrokerUrl}
+              </div>
+            )}
+          </div>
           <div className="grid cols-2" style={{ gap: 10 }}>
             <label className="field">
               <span>Owner</span>
@@ -665,7 +703,17 @@ export default function PublishAssistant(): JSX.Element {
           <div className="btn-row" style={{ marginTop: 12 }}>
             {authStatus?.githubAppConfigured && (
               <button className="btn" onClick={startAppLogin} disabled={busy}>
-                Start App Login
+                {githubAppActionLabel}
+              </button>
+            )}
+            {authStatus?.githubAppInstallUrl && authStatus.githubAppBrokerConfigured && (
+              <button className="btn ghost" onClick={openAppInstall} disabled={busy}>
+                Open App Install
+              </button>
+            )}
+            {authStatus?.githubAppBrokerUrl && (
+              <button className="btn ghost" onClick={openBroker} disabled={busy}>
+                Open Broker
               </button>
             )}
             <button className="btn" onClick={connectRepo} disabled={busy || !owner.trim() || !repo.trim()}>

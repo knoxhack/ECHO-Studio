@@ -135,7 +135,7 @@ describe('codex task service', () => {
     })
   })
 
-  it('uses local module catalog dependencies in PackOS manifest autofix tasks', async () => {
+  it('uses local module catalog dependencies in manifest validation autofix tasks', async () => {
     await withProject(async (project) => {
       const nextManifest = manifest()
       nextManifest.dependencies.required = ['echo:core']

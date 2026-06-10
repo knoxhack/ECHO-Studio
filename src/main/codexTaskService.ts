@@ -219,7 +219,7 @@ async function packosFixTask(store: CodexTaskStore, context: ProjectContext): Pr
     store,
     context,
     'manifest:packos-autofix',
-    'Apply safe PackOS manifest fixes',
+    'Apply safe validation fixes',
     'Uses Studio safety rules to repair reserved namespace usage, blocked permissions, missing core dependencies, empty runtimes, and missing tags.',
     `${context.report.counts.BLOCKER} blocker(s) and ${context.report.counts.ERROR} error(s) are present before release.`,
     autoFixManifest(context.manifest, context.moduleCatalog)
@@ -282,7 +282,7 @@ function releasePackageTask(store: CodexTaskStore, context: ProjectContext): Cod
     title: 'Prepare local release package',
     kind: 'release_package',
     lane: taskLane('release:package-local', ready ? 'suggested' : 'ready', store),
-    summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, Release Index handoff, submission notes, and GitHub release draft payload.',
+    summary: 'Builds the local .echo-addon package, checksums.sha256, echo-release.json, package manifest, Release Index handoff, review notes, and GitHub release draft payload.',
     reason: ready
       ? 'Release assets exist; rerun this before publishing if project content changed.'
       : context.releasePackageReady && !context.releaseSidecarsReady
@@ -305,7 +305,7 @@ function manualValidationTask(store: CodexTaskStore, context: ProjectContext): C
     title: 'Review remaining validation output',
     kind: 'navigation',
     lane: taskLane('validation:manual-review', 'suggested', store),
-    summary: 'Opens the full PackOS report for issues that need creator judgment or content-level fixes.',
+    summary: 'Opens the full validation report for issues that need creator judgment or content-level fixes.',
     reason: `${context.report.counts.WARNING} warning(s), ${context.report.counts.ERROR} error(s), and ${context.report.counts.BLOCKER} blocker(s) are currently reported.`,
     route: '/validation',
     affectedFiles: [],

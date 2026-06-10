@@ -26,7 +26,7 @@ import Loot from './pages/Loot'
 import DialogueBuilder from './pages/Dialogue'
 import Assets from './pages/Assets'
 import Preview from './pages/Preview'
-import PackOSCheck from './pages/PackOSCheck'
+import Validation from './pages/Validation'
 import Compatibility from './pages/Compatibility'
 import CommunityCatalog from './pages/CommunityCatalog'
 import Ecosystem from './pages/Ecosystem'
@@ -83,8 +83,8 @@ export default function App(): JSX.Element {
             <Route path="/dialogue" element={<DialogueBuilder />} />
             <Route path="/assets" element={<Assets />} />
             <Route path="/preview" element={<Preview />} />
-            <Route path="/validation" element={<PackOSCheck />} />
-            <Route path="/packos" element={<PackOSCheck />} />
+            <Route path="/validation" element={<Validation />} />
+            <Route path="/packos" element={<Validation />} />
             <Route path="/compatibility" element={<Compatibility />} />
             <Route path="/submit" element={<Navigate to="/release" replace />} />
             <Route path="/release" element={<PublishAssistant />} />

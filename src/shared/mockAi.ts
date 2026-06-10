@@ -12,7 +12,7 @@ export interface AiReply {
 }
 
 const SAFETY_NOTE =
-  'I only use public ECHO contracts and approved modules, keep everything namespaced to your creator namespace, and never bypass PackOS validation.'
+  'I only use public ECHO contracts and approved modules, keep everything namespaced to your creator namespace, and never bypass validation.'
 
 export function generateAiReply(prompt: string): AiReply {
   const p = prompt.toLowerCase()
@@ -31,7 +31,7 @@ export function generateAiReply(prompt: string): AiReply {
     }
   }
 
-  if (p.includes('fix') || p.includes('packos') || p.includes('error')) {
+  if (p.includes('fix') || p.includes('packos') || p.includes('validation') || p.includes('error')) {
     return {
       text: [
         'I found 3 issues:',
@@ -73,6 +73,6 @@ export function generateAiReply(prompt: string): AiReply {
   }
 
   return {
-    text: `I'm the ECHO Studio Assistant. I can create missions, recipes, Index entries, HoloMap markers, manifests, and fix PackOS issues. ${SAFETY_NOTE}\n\nTry: "Create a mission pack for Ashfall about a lost convoy."`
+    text: `I'm the ECHO Studio Assistant. I can create missions, recipes, Index entries, HoloMap markers, manifests, and fix validation issues. ${SAFETY_NOTE}\n\nTry: "Create a mission pack for Ashfall about a lost convoy."`
   }
 }

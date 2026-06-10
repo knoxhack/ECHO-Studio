@@ -1,30 +1,39 @@
 import type { AddonPackageValidationResult } from './addonPackageContract'
 import type { PackOSReport, PublishStatus } from './types'
 
-export interface SubmissionReview {
+export interface ReleaseReviewMessage {
   from: 'reviewer' | 'creator'
   text: string
   at: number
 }
 
-export interface SubmissionState {
+export interface ReleaseReviewState {
   target: string
   description: string
   changelog: string
   screenshots: string[]
   permissionsConfirmed: boolean
   status: PublishStatus
-  thread: SubmissionReview[]
+  thread: ReleaseReviewMessage[]
   lastHash?: string
   submittedAt?: number
 }
 
-export const RELEASE_SUBMISSION_TARGETS = [
+export const RELEASE_REVIEW_TARGETS = [
   'Release Index Ingestion',
   'Verified Release Review',
   'Private Draft Release',
   'Server Pack Handoff'
 ] as const
+
+/** @deprecated Use ReleaseReviewMessage. Kept for legacy saved review state. */
+export type SubmissionReview = ReleaseReviewMessage
+
+/** @deprecated Use ReleaseReviewState. Kept for legacy saved review state. */
+export type SubmissionState = ReleaseReviewState
+
+/** @deprecated Use RELEASE_REVIEW_TARGETS. Kept for legacy saved review state. */
+export const RELEASE_SUBMISSION_TARGETS = RELEASE_REVIEW_TARGETS
 
 export interface ReleaseEntry {
   version: string

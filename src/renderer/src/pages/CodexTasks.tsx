@@ -288,7 +288,7 @@ function ActionResult({ result }: { result: CodexTaskActionResult }): JSX.Elemen
           <div className="grid cols-4" style={{ marginTop: 12 }}>
             <Metric label="Package" value={formatBytes(packageResult.bytes)} tone="var(--good)" />
             <Metric label="Assets" value={String(packageResult.assetPaths.length)} tone={packageResult.assetPaths.length ? 'var(--good)' : 'var(--warn)'} />
-            <Metric label="PackOS" value={`${packageResult.report.compatibilityScore}%`} tone={packageResult.report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
+            <Metric label="Validation" value={`${packageResult.report.compatibilityScore}%`} tone={packageResult.report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
             <Metric label="Contract" value={packageResult.sdkValidation.ok ? 'Ready' : 'Issues'} tone={packageResult.sdkValidation.ok ? 'var(--good)' : 'var(--bad)'} />
           </div>
           <div className="btn-row" style={{ marginTop: 12 }}>
@@ -312,7 +312,7 @@ function ActionResult({ result }: { result: CodexTaskActionResult }): JSX.Elemen
             )}
             {packageResult.releaseIndexSubmissionPath && (
               <button className="btn ghost" onClick={() => window.studio.openPath(packageResult.releaseIndexSubmissionPath!)}>
-                Open Submission Notes
+                Open Review Notes
               </button>
             )}
           </div>

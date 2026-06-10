@@ -19,7 +19,7 @@ const SUGGESTIONS = [
   'Create a mission pack for Ashfall about a lost convoy.',
   'Generate a grinder recipe for ash alloy.',
   'Write a README and changelog for my project.',
-  'How do I fix PackOS errors?'
+  'How do I fix validation errors?'
 ]
 
 export default function AIAssistant(): JSX.Element {
@@ -28,7 +28,7 @@ export default function AIAssistant(): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: 'assistant',
-      text: "I'm the ECHO Studio Assistant. I generate content against public ECHO contracts, keep it namespaced to you, and never bypass PackOS. Add an API key in Settings for full model-powered generation; otherwise I run offline."
+      text: "I'm the ECHO Studio Assistant. I generate content against public ECHO contracts, keep it namespaced to you, and never bypass validation. Add an API key in Settings for full model-powered generation; otherwise I run offline."
     }
   ])
   const [input, setInput] = useState('')

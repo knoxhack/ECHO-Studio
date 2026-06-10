@@ -158,7 +158,7 @@ export default function CommunityCatalog(): JSX.Element {
                   {manifest.id} v{manifest.version}
                 </div>
                 <div className="grid cols-4" style={{ gap: 10 }}>
-                  <SmallStat label="PackOS" value={report.publishingReady ? `${report.compatibilityScore}% ready` : `${blockers} blocker/error`} tone={report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
+                  <SmallStat label="Validation" value={report.publishingReady ? `${report.compatibilityScore}% ready` : `${blockers} blocker/error`} tone={report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
                   <SmallStat label="Targets" value={manifest.target.experiences.map((target) => TARGET_LABELS[target]).join(', ') || 'None'} />
                   <SmallStat label="Runtimes" value={manifest.runtime.supports.map((runtime) => RUNTIME_LABELS[runtime]).join(' + ') || 'None'} />
                   <SmallStat label="Modules" value={moduleValue} tone={moduleTone} />

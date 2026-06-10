@@ -29,12 +29,12 @@ import { scanAssets, importAssets, exportAssetPack } from './assetService'
 import { packageAddon } from './packageService'
 import { connectGitHubRepo, createGitHubReleaseDraft, getGitHubPublishingStatus, startGitHubAppLogin } from './publishingService'
 import {
-  getSubmission,
-  saveSubmission,
+  getReleaseReview,
+  saveReleaseReview,
   getReleases,
   addRelease
 } from './studioStore'
-import type { ReleaseEntry, SubmissionState } from '../shared/publishing'
+import type { ReleaseEntry, ReleaseReviewState } from '../shared/publishing'
 import { getConfig, setConfig } from './config'
 import { getProfile, setProfile } from './profileStore'
 import type { CreatorProfile } from '../shared/profile'
@@ -204,9 +204,13 @@ export function registerIpc(): void {
   handle('publish:createDraft', (releaseDraftPath: string, owner: string, repo: string, tag?: string, draft?: boolean) =>
     createGitHubReleaseDraft(releaseDraftPath, owner, repo, tag, draft ?? true)
   )
-  handle('submission:get', (projectPath: string) => getSubmission(projectPath))
-  handle('submission:save', (projectPath: string, state: SubmissionState) =>
-    saveSubmission(projectPath, state)
+  handle('releaseReview:get', (projectPath: string) => getReleaseReview(projectPath))
+  handle('releaseReview:save', (projectPath: string, state: ReleaseReviewState) =>
+    saveReleaseReview(projectPath, state)
+  )
+  handle('submission:get', (projectPath: string) => getReleaseReview(projectPath))
+  handle('submission:save', (projectPath: string, state: ReleaseReviewState) =>
+    saveReleaseReview(projectPath, state)
   )
   handle('releases:get', (projectPath: string) => getReleases(projectPath))
   handle('releases:add', (projectPath: string, entry: ReleaseEntry) =>

@@ -28,7 +28,7 @@ export interface ProjectCheckInput {
   artifactReadiness?: 'current' | 'packaging'
 }
 
-// Runs the manifest PackOS check PLUS cross-content relationship validation,
+// Runs the manifest safety check PLUS cross-content relationship validation,
 // then merges everything into a single report (re-scored).
 export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
   const base = runPackOSCheck(input.manifest, input.moduleCatalog)

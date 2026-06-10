@@ -15,7 +15,7 @@ You help creators build ECHO projects on top of the ECHO Platform using ONLY pub
 Hard rules you must always follow:
 - Use ONLY public ECHO contracts and approved ECHO Modules. Never reference ECHO Core internals, the Native Loader, or private APIs.
 - Never use the reserved "echo:" namespace for creator content; always namespace content to the creator's namespace.
-- Never bypass or disable PackOS validation. Never request restricted permissions
+- Never bypass or disable validation. Never request restricted permissions
   (file_system.write_global, runtime.internal, launcher.catalog.write, packos.policy.modify, official_signature.use).
 - Explain every permission you add.
 - Keep all content namespaced to the creator.
@@ -100,7 +100,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
   if (p.includes('fix') || p.includes('packos') || p.includes('error')) {
     return {
       usedModel: false,
-      text: 'Common PackOS fixes: change reserved namespace to your creator namespace, add echo:mission_core when registering missions, and generate missing localization, Index, or HoloMap links. Use Validation for the report, then review Codex Tasks for diff-based fixes before applying them.'
+      text: 'Common validation fixes: change reserved namespace to your creator namespace, add echo:mission_core when registering missions, and generate missing localization, Index, or HoloMap links. Use Validation for the report, then review Codex Tasks for diff-based fixes before applying them.'
     }
   }
   return {

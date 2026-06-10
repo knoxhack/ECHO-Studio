@@ -357,12 +357,12 @@ describe('GitHub App broker publishing', () => {
     }
   })
 
-  it('rejects release drafts whose handoff does not require PackOS-ready assets', async () => {
+  it('rejects release drafts whose handoff does not require validation-ready assets', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {
       const draftPath = await writeDraftFixture(root, { requirePackOSReady: false })
 
-      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/PackOS-ready/)
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/validation-ready/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
@@ -412,7 +412,7 @@ describe('GitHub App broker publishing', () => {
     }
   })
 
-  it('rejects release drafts without the submission notes sidecar asset', async () => {
+  it('rejects release drafts without the Release Index review notes sidecar asset', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {
       const draftPath = await writeDraftFixture(root, { omitAssetNames: ['release-index-submission.md'] })
