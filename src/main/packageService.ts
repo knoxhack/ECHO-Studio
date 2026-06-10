@@ -10,6 +10,7 @@ import { readAllContent, readLangKeys } from './contentService'
 import { runProjectCheck } from '../shared/projectValidation'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { validateAddonPackageManifest } from '../shared/addonPackageContract'
+import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { PackOSReport } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } from '../shared/publishing'
@@ -298,16 +299,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
   if (packageManifest.artifacts.neoforge) {
     const neoforgeZip = new AdmZip()
     addCommonMetadata(neoforgeZip, manifest, packageManifest, report)
-    neoforgeZip.addFile('META-INF/neoforge.mods.toml', Buffer.from([
-      'modLoader="javafml"',
-      'loaderVersion="[1,)"',
-      'license="MIT"',
-      `[[mods]]`,
-      `modId="${localId(manifest.id).replace(/[^a-z0-9_]/gi, '_').toLowerCase()}"`,
-      `version="${manifest.version}"`,
-      `displayName="${manifest.name.replace(/"/g, '\\"')}"`,
-      ''
-    ].join('\n'), 'utf-8'))
+    neoforgeZip.addFile('META-INF/neoforge.mods.toml', Buffer.from(buildNeoForgeModsToml(manifest), 'utf-8'))
     addChecksums(neoforgeZip)
     artifactRecords.push(await writeZipArtifact(join(exportsDir, packageManifest.artifacts.neoforge), neoforgeZip))
   }

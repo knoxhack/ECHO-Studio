@@ -4,6 +4,7 @@ import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevModuleLockStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
+import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { AddonManifest, Runtime } from '../shared/types'
 import { packageAddon } from './packageService'
 import { readManifest } from './fsService'
@@ -582,18 +583,21 @@ function expectedModes(rel: string): DevWorkspaceMode[] {
   return []
 }
 
-function isExpectedForMode(rel: string, mode: DevWorkspaceMode): boolean {
+function isExpectedForMode(rel: string, mode: DevWorkspaceMode, runtimes: Runtime[]): boolean {
+  if (rel === 'src/generated/resources/META-INF/neoforge.mods.toml') {
+    return mode !== 'visual' && runtimes.includes('neoforge')
+  }
   return expectedModes(rel).includes(mode)
 }
 
-async function fileStatus(projectPath: string, rel: string, mode: DevWorkspaceMode): Promise<DevWorkspaceFileStatus> {
+async function fileStatus(projectPath: string, rel: string, mode: DevWorkspaceMode, runtimes: Runtime[]): Promise<DevWorkspaceFileStatus> {
   const path = join(projectPath, rel)
   const isThere = await exists(path)
   return {
     path: rel,
     exists: isThere,
     generatedByStudio: isThere ? (await readText(path)).includes(STUDIO_MARKER) : false,
-    expected: isExpectedForMode(rel, mode)
+    expected: isExpectedForMode(rel, mode, runtimes)
   }
 }
 
@@ -605,26 +609,28 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const saved = await readText(studioStatePath)
   const parsed = saved ? JSON.parse(saved) as Partial<DevWorkspaceState> : {}
   const mode = parsed.mode ?? 'visual'
+  const runtimes = parsed.runtimeTargets ?? manifest.runtime.supports
   const javaPath = `src/main/java/${packagePath(manifest)}/${className(manifest)}.java`
   const testPath = `src/test/java/${packagePath(manifest)}/${className(manifest)}Test.java`
   const files = await Promise.all([
-    fileStatus(projectPath, 'echo.mod.json', mode),
-    fileStatus(projectPath, '.echo-studio/dev-workspace.json', mode),
-    fileStatus(projectPath, '.echo-studio/modules.lock.json', mode),
-    fileStatus(projectPath, 'META-INF/echo-addon-package.json', mode),
-    fileStatus(projectPath, 'settings.gradle', mode),
-    fileStatus(projectPath, 'build.gradle', mode),
-    fileStatus(projectPath, 'gradle.properties', mode),
-    fileStatus(projectPath, 'gradlew.bat', mode),
-    fileStatus(projectPath, 'gradlew', mode),
-    fileStatus(projectPath, 'src/main/resources/META-INF/echo.mod.json', mode),
-    fileStatus(projectPath, 'src/generated/resources/META-INF/echo.modules.lock.json', mode),
-    fileStatus(projectPath, javaPath, mode),
-    fileStatus(projectPath, testPath, mode),
-    fileStatus(projectPath, 'scripts/run-dev-client.ps1', mode),
-    fileStatus(projectPath, 'scripts/build-local.ps1', mode),
-    fileStatus(projectPath, '.echo-studio/release-checklist.md', mode),
-    fileStatus(projectPath, 'release', mode)
+    fileStatus(projectPath, 'echo.mod.json', mode, runtimes),
+    fileStatus(projectPath, '.echo-studio/dev-workspace.json', mode, runtimes),
+    fileStatus(projectPath, '.echo-studio/modules.lock.json', mode, runtimes),
+    fileStatus(projectPath, 'META-INF/echo-addon-package.json', mode, runtimes),
+    fileStatus(projectPath, 'settings.gradle', mode, runtimes),
+    fileStatus(projectPath, 'build.gradle', mode, runtimes),
+    fileStatus(projectPath, 'gradle.properties', mode, runtimes),
+    fileStatus(projectPath, 'gradlew.bat', mode, runtimes),
+    fileStatus(projectPath, 'gradlew', mode, runtimes),
+    fileStatus(projectPath, 'src/main/resources/META-INF/echo.mod.json', mode, runtimes),
+    fileStatus(projectPath, 'src/generated/resources/META-INF/echo.modules.lock.json', mode, runtimes),
+    fileStatus(projectPath, 'src/generated/resources/META-INF/neoforge.mods.toml', mode, runtimes),
+    fileStatus(projectPath, javaPath, mode, runtimes),
+    fileStatus(projectPath, testPath, mode, runtimes),
+    fileStatus(projectPath, 'scripts/run-dev-client.ps1', mode, runtimes),
+    fileStatus(projectPath, 'scripts/build-local.ps1', mode, runtimes),
+    fileStatus(projectPath, '.echo-studio/release-checklist.md', mode, runtimes),
+    fileStatus(projectPath, 'release', mode, runtimes)
   ])
   const modulePlan = resolveProjectModulePlan(manifest, moduleCatalog.catalog)
   const hasGradleWrapper = files.some((file) => ['gradlew.bat', 'gradlew'].includes(file.path) && file.exists)
@@ -639,7 +645,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     gradleReady,
     hasGradleWrapper,
     sourceReady,
-    runtimeTargets: parsed.runtimeTargets ?? manifest.runtime.supports,
+    runtimeTargets: runtimes,
     files,
     modulePlan,
     moduleLock: lockStatus,
@@ -670,6 +676,9 @@ export async function setupDevWorkspace(projectPath: string, options: DevWorkspa
     await writeIfAllowed(join(projectPath, 'gradlew'), gradlewSh(), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'src', 'main', 'resources', 'META-INF', 'echo.mod.json'), JSON.stringify(manifest, null, 2), force, written, skipped)
     await writeGenerated(join(projectPath, 'src', 'generated', 'resources', 'META-INF', 'echo.modules.lock.json'), moduleLockJson, written)
+    if (runtimes.includes('neoforge')) {
+      await writeGenerated(join(projectPath, 'src', 'generated', 'resources', 'META-INF', 'neoforge.mods.toml'), buildNeoForgeModsToml(manifest), written)
+    }
     await writeIfAllowed(join(projectPath, 'src', 'main', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}.java`), javaSource(manifest), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'src', 'test', 'java', ...packagePath(manifest).split('/'), `${className(manifest)}Test.java`), testSource(manifest), force, written, skipped)
     await writeIfAllowed(join(projectPath, 'scripts', 'run-dev-client.ps1'), runScript('run-dev-client', manifest), force, written, skipped)
