@@ -4,7 +4,7 @@ import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { useContent } from '../state/useContent'
 import { emptyContent } from '@shared/content/paths'
-import type { Recipe } from '@shared/content/schemas'
+import type { IndexEntry, Recipe } from '@shared/content/schemas'
 
 const RECIPE_TYPES = [
   'crafting',
@@ -15,9 +15,19 @@ const RECIPE_TYPES = [
   'extractor_recipe'
 ]
 
+function localId(id: string): string {
+  return id.includes(':') ? id.split(':')[1] : id
+}
+
+function defaultIndexEntryId(recipe: Recipe, namespace: string): string {
+  const local = localId(recipe.output.item || recipe.id || 'recipe_output')
+  return `${namespace}:${local}_entry`
+}
+
 export default function Recipes(): JSX.Element {
   const { activeProject } = useWorkspace()
   const { records, save, remove } = useContent('recipe')
+  const { records: indexRecords } = useContent('index')
   const [draft, setDraft] = useState<Recipe | null>(null)
 
   useEffect(() => {
@@ -33,6 +43,11 @@ export default function Recipes(): JSX.Element {
 
   const ns = activeProject.manifest.namespace
   const update = (patch: Partial<Recipe>): void => setDraft((d) => (d ? { ...d, ...patch } : d))
+  const indexEntries = indexRecords.map((record) => record.data as IndexEntry)
+  const linkedIndexEntry = draft?.indexEntry
+    ? indexEntries.find((entry) => entry.id === draft.indexEntry)
+    : undefined
+  const inputs = draft?.inputs ?? []
 
   return (
     <Page
@@ -97,7 +112,16 @@ export default function Recipes(): JSX.Element {
                   onChange={(e) => update({ output: { ...draft.output, item: e.target.value } })}
                 />
               </label>
-              <div className="grid cols-2">
+              <div className="grid cols-3">
+                <label className="field">
+                  <span>Output count</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.output.count}
+                    onChange={(e) => update({ output: { ...draft.output, count: Number(e.target.value) } })}
+                  />
+                </label>
                 <label className="field">
                   <span>Time</span>
                   <input
@@ -119,14 +143,14 @@ export default function Recipes(): JSX.Element {
 
             <div className="card">
               <h3>Inputs</h3>
-              {draft.inputs.map((inp, i) => (
+              {inputs.map((inp, i) => (
                 <div className="btn-row" key={i} style={{ marginBottom: 6 }}>
                   <input
                     style={{ flex: 2 }}
                     value={inp.item}
                     onChange={(e) =>
                       update({
-                        inputs: draft.inputs.map((x, j) => (j === i ? { ...x, item: e.target.value } : x))
+                        inputs: inputs.map((x, j) => (j === i ? { ...x, item: e.target.value } : x))
                       })
                     }
                   />
@@ -136,7 +160,7 @@ export default function Recipes(): JSX.Element {
                     value={inp.count}
                     onChange={(e) =>
                       update({
-                        inputs: draft.inputs.map((x, j) =>
+                        inputs: inputs.map((x, j) =>
                           j === i ? { ...x, count: Number(e.target.value) } : x
                         )
                       })
@@ -144,7 +168,7 @@ export default function Recipes(): JSX.Element {
                   />
                   <button
                     className="btn ghost"
-                    onClick={() => update({ inputs: draft.inputs.filter((_, j) => j !== i) })}
+                    onClick={() => update({ inputs: inputs.filter((_, j) => j !== i) })}
                   >
                     Remove
                   </button>
@@ -152,18 +176,47 @@ export default function Recipes(): JSX.Element {
               ))}
               <button
                 className="btn ghost"
-                onClick={() => update({ inputs: [...draft.inputs, { item: `${ns}:input`, count: 1 }] })}
+                onClick={() => update({ inputs: [...inputs, { item: `${ns}:input`, count: 1 }] })}
               >
                 + Add input
               </button>
               <div className="section-title">Index</div>
               <label className="field">
-                <span>Index entry id (for output)</span>
+                <span>Index entry</span>
+                <select
+                  value={draft.indexEntry || ''}
+                  onChange={(e) => update({ indexEntry: e.target.value || undefined })}
+                >
+                  <option value="">None</option>
+                  {indexEntries.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.title || entry.id}
+                    </option>
+                  ))}
+                  {draft.indexEntry && !linkedIndexEntry && (
+                    <option value={draft.indexEntry}>{draft.indexEntry}</option>
+                  )}
+                </select>
+              </label>
+              <label className="field">
+                <span>Index entry id</span>
                 <input
                   value={draft.indexEntry || ''}
-                  onChange={(e) => update({ indexEntry: e.target.value })}
+                  onChange={(e) => update({ indexEntry: e.target.value || undefined })}
+                  placeholder={`${ns}:output_entry`}
                 />
               </label>
+              <div className="btn-row" style={{ marginBottom: 10 }}>
+                <button
+                  className="btn ghost"
+                  onClick={() => update({ indexEntry: defaultIndexEntryId(draft, ns) })}
+                >
+                  Default Index ID
+                </button>
+                <span className={`badge ${draft.indexEntry ? linkedIndexEntry ? 'ready' : 'local' : 'local'}`}>
+                  {draft.indexEntry ? linkedIndexEntry ? 'Index linked' : 'Index can be generated' : 'No Index link'}
+                </span>
+              </div>
               <button
                 className="btn ghost"
                 onClick={() => {
