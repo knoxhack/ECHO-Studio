@@ -79,4 +79,22 @@ describe('module catalog service', () => {
     expect(result.indexPath).toBe(path.resolve(indexPath))
     expect(module?.source).toBe('local-index')
   })
+
+  it('resolves relative index overrides from the configured module root', async () => {
+    const modulesRoot = path.join(root, 'ECHO-Modules')
+    const indexPath = await writeModuleIndex(modulesRoot, 'echosignalcore')
+    await setConfig({
+      moduleCatalog: {
+        moduleRoot: modulesRoot,
+        indexPath: path.join('metadata', 'modules', 'index.json')
+      }
+    })
+
+    const result = await listEchoModules(path.join(root, 'workspace', 'project'))
+
+    expect(result.source).toBe('local-index')
+    expect(result.moduleRoot).toBe(path.resolve(modulesRoot))
+    expect(result.indexPath).toBe(path.resolve(indexPath))
+    expect(findEchoModule('echo:signal_core', result.catalog)?.source).toBe('local-index')
+  })
 })

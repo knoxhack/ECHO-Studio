@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { basename, dirname, join, resolve } from 'path'
+import { basename, dirname, isAbsolute, join, resolve } from 'path'
 import {
   ECHO_MODULE_CATALOG,
   mergeModuleCatalog,
@@ -68,15 +68,21 @@ function inferRootFromIndexPath(indexPath: string): string {
   return dirname(resolved)
 }
 
+function resolveConfiguredIndexPath(indexPath: string, moduleRoot: string): string {
+  if (isAbsolute(indexPath)) return resolve(indexPath)
+  return moduleRoot ? resolve(moduleRoot, indexPath) : resolve(indexPath)
+}
+
 async function configuredModuleCandidates(): Promise<ModuleIndexCandidate[]> {
   const config = await getConfig().catch(() => DEFAULT_CONFIG)
   const moduleRoot = config.moduleCatalog.moduleRoot.trim()
   const indexPath = config.moduleCatalog.indexPath.trim()
   const candidates: ModuleIndexCandidate[] = []
   if (indexPath) {
+    const resolvedIndexPath = resolveConfiguredIndexPath(indexPath, moduleRoot)
     candidates.push({
-      root: moduleRoot ? resolve(moduleRoot) : inferRootFromIndexPath(indexPath),
-      indexPath: resolve(indexPath),
+      root: moduleRoot ? resolve(moduleRoot) : inferRootFromIndexPath(resolvedIndexPath),
+      indexPath: resolvedIndexPath,
       configured: true
     })
   }
