@@ -434,6 +434,12 @@ export function findEchoModule(id: string, catalog: EchoModuleRecord[] = ECHO_MO
   return catalog.find((mod) => mod.id === normalized)
 }
 
+export function preferredModuleAlias(mod: EchoModuleRecord): string {
+  return mod.aliases.find((alias) => alias.startsWith('echo:') && alias.includes('_'))
+    ?? mod.aliases.find((alias) => alias.startsWith('echo:'))
+    ?? mod.id
+}
+
 export function dependencyIncludes(dependencies: string[], id: string, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): boolean {
   const target = normalizeModuleId(id, catalog)
   return dependencies.some((dep) => normalizeModuleId(dep, catalog) === target)

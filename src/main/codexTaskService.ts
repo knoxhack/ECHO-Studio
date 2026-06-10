@@ -9,7 +9,7 @@ import {
   type CodexTaskActionResult,
   type CodexTaskLane
 } from '../shared/codexTasks'
-import { resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
+import { preferredModuleAlias, resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
@@ -46,12 +46,6 @@ const STORE_PATH = join('.echo-studio', 'codex-tasks.json')
 
 function cloneManifest(manifest: AddonManifest): AddonManifest {
   return JSON.parse(JSON.stringify(manifest)) as AddonManifest
-}
-
-function manifestAlias(mod: EchoModuleRecord): string {
-  return mod.aliases.find((alias) => alias.startsWith('echo:') && alias.includes('_'))
-    ?? mod.aliases.find((alias) => alias.startsWith('echo:'))
-    ?? mod.id
 }
 
 function appendUnique(list: string[], value: string): string[] {
@@ -181,8 +175,8 @@ async function moduleClosureTask(store: CodexTaskStore, context: ProjectContext)
   const plan = resolveProjectModulePlan(context.manifest, context.moduleCatalog)
   if (plan.missingRequired.length === 0) return null
   const proposed = cloneManifest(context.manifest)
-  const closureAliases = plan.closure.map(manifestAlias)
-  const missingAliases = plan.missingRequired.map(manifestAlias)
+  const closureAliases = plan.closure.map(preferredModuleAlias)
+  const missingAliases = plan.missingRequired.map(preferredModuleAlias)
   proposed.target.modules = closureAliases.reduce(appendUnique, [...proposed.target.modules])
   proposed.dependencies.required = missingAliases.reduce(appendUnique, [...proposed.dependencies.required])
   return manifestTask(

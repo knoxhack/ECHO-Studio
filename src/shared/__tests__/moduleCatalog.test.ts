@@ -6,6 +6,7 @@ import {
   mergeModuleCatalog,
   moduleFromIndexEntry,
   normalizeModuleId,
+  preferredModuleAlias,
   resolveProjectModulePlan
 } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
@@ -43,6 +44,11 @@ describe('module catalog', () => {
     expect(closure.map((mod) => mod.id)).toContain('echomissioncore')
   })
 
+  it('selects the public echo:* alias for manifest writes', () => {
+    expect(preferredModuleAlias(findEchoModule('echocore')!)).toBe('echo:core')
+    expect(preferredModuleAlias(findEchoModule('echomissioncore')!)).toBe('echo:mission_core')
+  })
+
   it('imports and merges local ECHO-Modules index entries', () => {
     const imported = moduleFromIndexEntry({
       id: 'echoweathercore',
@@ -59,6 +65,7 @@ describe('module catalog', () => {
     const catalog = mergeModuleCatalog([imported], ECHO_MODULE_CATALOG)
     expect(findEchoModule('echo:weather_core', catalog)?.id).toBe('echoweathercore')
     expect(findEchoModule('echoweathercore', catalog)?.provides).toContain('weather.events')
+    expect(preferredModuleAlias(findEchoModule('echoweathercore', catalog)!)).toBe('echo:weather_core')
   })
 
   it('preserves trust and blocked metadata from local ECHO-Modules index entries', () => {

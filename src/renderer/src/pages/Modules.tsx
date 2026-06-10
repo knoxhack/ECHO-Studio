@@ -9,6 +9,7 @@ import {
   getModuleDependencyClosure,
   modulesForCapability,
   normalizeModuleId,
+  preferredModuleAlias,
   resolveProjectModulePlan,
   type EchoModuleCatalogResult,
   type EchoModuleRecord
@@ -127,22 +128,23 @@ export default function Modules(): JSX.Element {
   }
 
   const addModule = (mod: EchoModuleRecord, kind: 'required' | 'optional'): void => {
+    const alias = preferredModuleAlias(mod)
     const next: AddonManifest = {
       ...manifest,
       target: {
         ...manifest.target,
-        modules: appendUnique(manifest.target.modules, mod.id)
+        modules: appendUnique(manifest.target.modules, alias)
       },
       dependencies: {
         ...manifest.dependencies,
-        [kind]: appendUnique(manifest.dependencies[kind], mod.id)
+        [kind]: appendUnique(manifest.dependencies[kind], alias)
       }
     }
     void saveManifest(next, `${mod.name} added as ${kind}`)
   }
 
   const addClosure = (mod: EchoModuleRecord): void => {
-    const closure = getModuleDependencyClosure([mod.id], catalog).map((item) => item.id)
+    const closure = getModuleDependencyClosure([mod.id], catalog).map(preferredModuleAlias)
     const next: AddonManifest = {
       ...manifest,
       target: {
@@ -310,11 +312,11 @@ export default function Modules(): JSX.Element {
                     ...manifest,
                     target: {
                       ...manifest.target,
-                      modules: mods.reduce((list, mod) => appendUnique(list, mod.id), manifest.target.modules)
+                      modules: mods.map(preferredModuleAlias).reduce((list, id) => appendUnique(list, id), manifest.target.modules)
                     },
                     dependencies: {
                       ...manifest.dependencies,
-                      required: mods.reduce((list, mod) => appendUnique(list, mod.id), manifest.dependencies.required)
+                      required: mods.map(preferredModuleAlias).reduce((list, id) => appendUnique(list, id), manifest.dependencies.required)
                     }
                   }
                   void saveManifest(next, `${label} modules added`)
