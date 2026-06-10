@@ -246,7 +246,7 @@ export default function PublishAssistant(): JSX.Element {
 
   if (!activeProject) {
     return (
-      <Page title="Release Builder" subtitle="Build local release assets, checksums, echo-release.json, Release Index handoff, and submission notes.">
+      <Page title="Release" subtitle="Build local release assets, checksums, echo-release.json, Release Index handoff, and submission notes.">
         <NoProject />
       </Page>
     )
@@ -370,7 +370,7 @@ export default function PublishAssistant(): JSX.Element {
 
   return (
     <Page
-      title="Release Builder"
+      title="Release"
       subtitle="Local-first release preparation: package assets, verify checksums, preview Release Index ingestion, then optionally publish a GitHub draft."
       actions={
         <>

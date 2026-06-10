@@ -4,7 +4,7 @@ const SHORTCUTS = [
   { keys: 'Ctrl + S', action: 'Save current file / Apply primary action' },
   { keys: 'Ctrl + F', action: 'Focus search or filter input' },
   { keys: 'Ctrl + R', action: 'Refresh workspace projects' },
-  { keys: 'Ctrl + N', action: 'Create new addon' },
+  { keys: 'Ctrl + N', action: 'Create new project' },
   { keys: 'Ctrl + /', action: 'Open keyboard shortcuts help' },
   { keys: 'Esc', action: 'Close modal or dialog' }
 ]

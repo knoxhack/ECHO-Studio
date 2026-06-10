@@ -20,7 +20,7 @@ export default function Examples(): JSX.Element {
   return (
     <Page
       title="Examples"
-      subtitle="Real, working example addons you can clone and learn from."
+      subtitle="Real, working example projects you can clone and learn from."
     >
       <div className="grid cols-2">
         {examples.map((e) => (

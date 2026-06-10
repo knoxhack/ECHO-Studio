@@ -267,7 +267,7 @@ export default function PackOSCheck(): JSX.Element {
                   ? `${devWorkspace.artifacts.length} artifact/sidecar file(s), including echo-release.json and checksums.sha256.`
                   : devWorkspace.artifacts.length > 0
                     ? 'Built artifacts exist, but release sidecars are missing.'
-                    : 'Run Release Builder to prepare local packages and Release Index sidecars.'
+                    : 'Run Release to prepare local packages and Release Index sidecars.'
                 : 'Inspecting local artifact outputs.'
             }
           />
@@ -275,7 +275,7 @@ export default function PackOSCheck(): JSX.Element {
             <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
             <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Dev Workspace</button>
             <button className="btn ghost" onClick={() => nav('/preview')}>Preview</button>
-            <button className="btn ghost" onClick={() => nav('/release')}>Release Builder</button>
+            <button className="btn ghost" onClick={() => nav('/release')}>Release</button>
           </div>
         </div>
 
@@ -328,7 +328,7 @@ export default function PackOSCheck(): JSX.Element {
       {report.issues.length === 0 ? (
         <div className="card">
           <p className="dim" style={{ margin: 0 }}>
-            No issues found. This addon passes PackOS validation.
+            No issues found. This project passes PackOS validation.
           </p>
         </div>
       ) : (

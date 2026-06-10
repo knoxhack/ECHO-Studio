@@ -9,4 +9,10 @@ describe('renderer navigation metadata', () => {
     expect(findLabel('/ai')).toBe('Assistant')
     expect(findLabel('/codex')).toBe('Codex Tasks')
   })
+
+  it('keeps legacy routes labeled with current Studio surface names', () => {
+    expect(findLabel('/manifest-editor')).toBe('Manifest JSON')
+    expect(findLabel('/releases')).toBe('Release')
+    expect(findLabel('/catalog')).toBe('Catalog')
+  })
 })

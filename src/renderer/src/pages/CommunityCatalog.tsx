@@ -81,7 +81,7 @@ export default function CommunityCatalog(): JSX.Element {
 
   return (
     <Page
-      title="Release Index Catalog"
+      title="Catalog"
       subtitle="Local projects grouped by Release Index readiness, review state, trust, targets, and runtime artifacts."
       actions={
         <>
@@ -194,7 +194,7 @@ export default function CommunityCatalog(): JSX.Element {
                 <div className="btn-row" style={{ marginTop: 12 }}>
                   <button className="btn" onClick={() => open(project, '/experience')}>Open</button>
                   <button className="btn" onClick={() => open(project, '/validation')}>Validate</button>
-                  <button className="btn" onClick={() => open(project, '/release')}>Release Builder</button>
+                  <button className="btn" onClick={() => open(project, '/release')}>Release</button>
                   <button className="btn ghost" onClick={() => open(project, '/submit')}>Submission Review</button>
                 </div>
               </div>
