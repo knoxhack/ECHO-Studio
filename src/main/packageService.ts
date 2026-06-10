@@ -11,6 +11,7 @@ import { runProjectCheck } from '../shared/projectValidation'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { validateAddonPackageManifest } from '../shared/addonPackageContract'
 import type { PackOSReport } from '../shared/types'
+import type { DevWorkspaceState } from '../shared/devWorkspace'
 import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
 import { listEchoModules } from './moduleCatalogService'
@@ -247,7 +248,7 @@ function buildReleaseIndexHandoff(
 }
 
 // Run the full project check (used before packaging).
-export async function fullProjectReport(projectPath: string): Promise<PackOSReport> {
+export async function fullProjectReport(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<PackOSReport> {
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
   const all = await readAllContent(projectPath)
@@ -258,15 +259,23 @@ export async function fullProjectReport(projectPath: string): Promise<PackOSRepo
   const langKeys = await readLangKeys(projectPath)
   const assetFiles = await listAssetFiles(projectPath)
   const moduleCatalog = await listEchoModules(projectPath)
-  return runProjectCheck({ manifest, content: content as never, langKeys, assetFiles, moduleCatalog: moduleCatalog.catalog })
+  return runProjectCheck({
+    manifest,
+    content: content as never,
+    langKeys,
+    assetFiles,
+    moduleCatalog: moduleCatalog.catalog,
+    devWorkspace,
+    artifactReadiness: devWorkspace ? 'packaging' : 'current'
+  })
 }
 
 // Build a distributable .echo-addon of the project (excludes local Studio state and build outputs),
 // writes packos.report.json into the bundle, and returns a content hash.
-export async function packageAddon(projectPath: string): Promise<PackageResult> {
+export async function packageAddon(projectPath: string, devWorkspace?: DevWorkspaceState): Promise<PackageResult> {
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')
-  const report = await fullProjectReport(projectPath)
+  const report = await fullProjectReport(projectPath, devWorkspace)
   const packageManifest = buildAddonPackageManifest(manifest)
 
   const zip = new AdmZip()

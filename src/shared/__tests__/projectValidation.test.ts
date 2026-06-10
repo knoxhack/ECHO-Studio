@@ -193,6 +193,7 @@ describe('runProjectCheck', () => {
     })
 
     expect(report.issues.some((i) => i.message === 'ECHO module lock is stale or incomplete.')).toBe(true)
+    expect(report.issues.find((i) => i.message === 'ECHO module lock is stale or incomplete.')?.level).toBe('ERROR')
     expect(report.issues.find((i) => i.message === 'ECHO module lock is stale or incomplete.')?.fix).toContain('echomissioncore')
   })
 })

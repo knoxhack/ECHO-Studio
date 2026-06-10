@@ -3,6 +3,7 @@ import os from 'os'
 import path from 'path'
 import AdmZip from 'adm-zip'
 import { describe, expect, it, vi } from 'vitest'
+import type { DevWorkspaceState } from '../devWorkspace'
 import type { AddonManifest } from '../types'
 
 vi.mock('electron', () => ({
@@ -29,6 +30,52 @@ function manifest(): AddonManifest {
     trust: { level: 'community', signed: false, verified: false },
     support: { tier: 'community', issues: 'https://example.com/issues' },
     tags: ['test']
+  }
+}
+
+function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState {
+  return {
+    ready: true,
+    mode: 'gradle',
+    projectPath: 'C:\\test\\project',
+    gradleReady: true,
+    hasGradleWrapper: true,
+    sourceReady: true,
+    runtimeTargets: ['neoforge'],
+    files: [],
+    modulePlan: {
+      declared: ['echo:core'],
+      normalizedDeclared: ['echocore'],
+      enabled: [],
+      unknown: [],
+      missingRequired: [],
+      optionalAvailable: [],
+      closure: []
+    },
+    moduleLock: {
+      schemaVersion: 'echo.studio.modules.lock.status.v1',
+      studioLockPath: '.echo-studio/modules.lock.json',
+      runtimeLockPath: 'src/generated/resources/META-INF/echo.modules.lock.json',
+      studioExists: true,
+      runtimeExists: true,
+      runtimeExpected: true,
+      upToDate: true,
+      runtimeUpToDate: true,
+      projectMatches: true,
+      expectedModuleIds: ['echocore'],
+      lockedModuleIds: ['echocore'],
+      runtimeModuleIds: ['echocore'],
+      missingFromLock: [],
+      extraInLock: [],
+      missingFromRuntimeLock: [],
+      extraInRuntimeLock: [],
+      lockedProjectId: 'teamnova:weather_pack',
+      lockedProjectVersion: '1.0.0',
+      generatedAt: '2026-06-09T00:00:00.000Z'
+    },
+    artifacts: [],
+    lastSetupAt: '2026-06-09T00:00:00.000Z',
+    ...overrides
   }
 }
 
@@ -163,6 +210,35 @@ describe('packageAddon', () => {
       else process.env.ECHO_STUDIO_COMMIT_SHA = previousCommitSha
       if (previousLegacyCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
       else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousLegacyCommitSha
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('includes dev workspace errors in package reports without pre-package artifact warnings', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
+    try {
+      const project = path.join(root, 'project')
+      await fs.mkdir(project, { recursive: true })
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest(), null, 2), 'utf8')
+
+      const { packageAddon } = await import('../../main/packageService')
+      const result = await packageAddon(project, devWorkspace({
+        ready: false,
+        moduleLock: {
+          ...devWorkspace().moduleLock,
+          upToDate: false,
+          runtimeUpToDate: false,
+          missingFromLock: ['echomissioncore'],
+          missingFromRuntimeLock: ['echomissioncore']
+        }
+      }))
+
+      expect(result.report.publishingReady).toBe(false)
+      expect(result.report.issues.some((issue) => issue.message === 'ECHO module lock is stale or incomplete.')).toBe(true)
+      expect(result.report.issues.find((issue) => issue.message === 'ECHO module lock is stale or incomplete.')?.level).toBe('ERROR')
+      expect(result.report.issues.some((issue) => issue.message === 'No local artifacts have been built yet.')).toBe(false)
+      expect((result.releaseIndexPreview as { validation?: string }).validation).toBe('rejected')
+    } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
   })

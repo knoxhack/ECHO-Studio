@@ -164,7 +164,10 @@ export function registerIpc(): void {
   })
   handle('assets:exportPack', (projectPath: string) => exportAssetPack(projectPath))
 
-  handle('package:build', (projectPath: string) => packageAddon(projectPath))
+  handle('package:build', async (projectPath: string) => {
+    const devWorkspace = await inspectDevWorkspace(projectPath).catch(() => undefined)
+    return packageAddon(projectPath, devWorkspace)
+  })
   handle('publish:authStatus', () => getGitHubPublishingStatus())
   handle('publish:startGitHubAppLogin', () => startGitHubAppLogin())
   handle('publish:connectRepo', (owner: string, repo: string) => connectGitHubRepo(owner, repo))

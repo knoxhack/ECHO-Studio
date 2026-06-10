@@ -307,7 +307,7 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
   }
 
   if (taskId === 'release:package-local') {
-    const packageResult = await packageAddon(projectPath)
+    const packageResult = await packageAddon(projectPath, await inspectDevWorkspace(projectPath))
     await writeStore(projectPath, store)
     return {
       taskId,

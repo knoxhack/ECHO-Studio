@@ -25,6 +25,7 @@ export interface ProjectCheckInput {
   assetFiles: string[] // relative paths under assets/
   moduleCatalog?: EchoModuleRecord[]
   devWorkspace?: DevWorkspaceState
+  artifactReadiness?: 'current' | 'packaging'
 }
 
 // Runs the manifest PackOS check PLUS cross-content relationship validation,
@@ -152,7 +153,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
       const missing = input.devWorkspace.moduleLock.missingFromLock
       const extraIds = input.devWorkspace.moduleLock.extraInLock
       extra.push({
-        level: 'WARNING',
+        level: 'ERROR',
         category: 'ECHO Modules',
         message: 'ECHO module lock is stale or incomplete.',
         fix: [
@@ -163,7 +164,8 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
-    if (input.devWorkspace.artifacts.length === 0) {
+    const checkArtifactReadiness = input.artifactReadiness !== 'packaging'
+    if (checkArtifactReadiness && input.devWorkspace.artifacts.length === 0) {
       extra.push({
         level: 'SUGGESTION',
         category: 'Release readiness',
@@ -174,7 +176,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
     }
     const hasReleaseManifest = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'echo-release.json')
     const hasChecksums = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'checksums.sha256')
-    if (input.devWorkspace.artifacts.length > 0 && (!hasReleaseManifest || !hasChecksums)) {
+    if (checkArtifactReadiness && input.devWorkspace.artifacts.length > 0 && (!hasReleaseManifest || !hasChecksums)) {
       extra.push({
         level: 'WARNING',
         category: 'Release readiness',

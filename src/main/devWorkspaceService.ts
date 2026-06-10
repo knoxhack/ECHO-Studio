@@ -743,7 +743,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
     const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
     let result: Awaited<ReturnType<typeof packageAddon>>
     try {
-      result = await packageAddon(projectPath)
+      result = await packageAddon(projectPath, await inspectDevWorkspace(projectPath))
     } catch (error) {
       const finishedAt = new Date().toISOString()
       await appendTaskLog(logPath, 'error', error instanceof Error ? error.message : String(error))
