@@ -62,7 +62,8 @@ const REQUIRED_RELEASE_DRAFT_SIDECARS = [
   'checksums.sha256',
   'echo-addon-package.json',
   'echo-release.json',
-  'release-index-handoff.json'
+  'release-index-handoff.json',
+  'release-index-submission.md'
 ] as const
 
 function repoFullName(owner: string, repo: string): string {
@@ -109,6 +110,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function assetName(asset: DraftAsset): string {
   return asset.name || basename(asset.path)
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value)
 }
 
 function requireString(value: unknown, message: string): string {
@@ -243,6 +252,21 @@ async function readVerifiedDraftAsset(asset: DraftAsset): Promise<Buffer> {
     throw new Error(`Release draft asset ${asset.name} SHA-256 mismatch.`)
   }
   return buffer
+}
+
+async function verifyReleaseIndexHandoffSidecar(handoff: ReleaseIndexHandoff, assets: DraftAsset[]): Promise<void> {
+  const sidecar = assets.find((asset) => assetName(asset) === 'release-index-handoff.json')
+  if (!sidecar) throw new Error('Release draft is missing required sidecar asset release-index-handoff.json.')
+  const buffer = await readVerifiedDraftAsset(sidecar)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(buffer.toString('utf-8'))
+  } catch {
+    throw new Error('release-index-handoff.json must contain valid JSON.')
+  }
+  if (stableJson(parsed) !== stableJson(handoff)) {
+    throw new Error('release-index-handoff.json does not match the releaseIndexHandoff metadata embedded in github-release-draft.json.')
+  }
 }
 
 async function runGh(args: string[]) {
@@ -444,6 +468,7 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
     await fs.access(asset.path)
     await readVerifiedDraftAsset(asset)
   }
+  await verifyReleaseIndexHandoffSidecar(metadata.releaseIndexHandoff, assets)
 
   const status = await getGitHubPublishingStatus()
   if (status.githubAppSessionReady) {

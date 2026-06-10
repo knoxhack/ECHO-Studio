@@ -27,6 +27,7 @@ type DraftFixtureOptions = {
   artifactSha256?: string
   omitAssetNames?: string[]
   releaseIndexHandoff?: unknown
+  releaseIndexHandoffSidecar?: unknown
   releaseEntry?: unknown
   requirePackOSReady?: boolean
   attestation?: unknown
@@ -45,7 +46,7 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
     ['checksums.sha256', checksumsContent],
     ['echo-addon-package.json', JSON.stringify({ schemaVersion: 'echo.addon.package.v1' })],
     ['echo-release.json', JSON.stringify({ schemaVersion: 'echo.release.index.entry.v1' })],
-    ['release-index-handoff.json', JSON.stringify({ schemaVersion: 'echo.release.index.handoff.v1' })]
+    ['release-index-submission.md', '# Release Index Submission\n']
   ])
   const omitAssetNames = new Set(options.omitAssetNames ?? [])
   const assetRecords: Array<{ path: string; name: string; sha256: string }> = []
@@ -128,6 +129,17 @@ async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}
     }
   }
   const releaseIndexHandoff = 'releaseIndexHandoff' in options ? options.releaseIndexHandoff : handoff
+  const handoffSidecar = 'releaseIndexHandoffSidecar' in options ? options.releaseIndexHandoffSidecar : releaseIndexHandoff
+  const handoffContent = JSON.stringify(handoffSidecar, null, 2)
+  const handoffPath = join(root, 'release-index-handoff.json')
+  await fs.writeFile(handoffPath, handoffContent)
+  if (!omitAssetNames.has('release-index-handoff.json')) {
+    assetRecords.push({
+      path: handoffPath,
+      name: 'release-index-handoff.json',
+      sha256: sha256(handoffContent)
+    })
+  }
   const attestation = 'attestation' in options ? options.attestation : handoff.attestation
   const draftPath = join(root, 'github-release-draft.json')
   await fs.writeFile(
@@ -234,7 +246,8 @@ describe('GitHub App broker publishing', () => {
         'checksums.sha256',
         'echo-addon-package.json',
         'echo-release.json',
-        'release-index-handoff.json'
+        'release-index-handoff.json',
+        'release-index-submission.md'
       ]))
     } finally {
       await fs.rm(root, { recursive: true, force: true })
@@ -365,6 +378,35 @@ describe('GitHub App broker publishing', () => {
       const draftPath = await writeDraftFixture(root, { omitAssetNames: ['release-index-handoff.json'] })
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/release-index-handoff\.json/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts without the submission notes sidecar asset', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { omitAssetNames: ['release-index-submission.md'] })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/release-index-submission\.md/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose handoff sidecar does not match embedded metadata', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, {
+        releaseIndexHandoffSidecar: {
+          schemaVersion: 'echo.release.index.handoff.v1',
+          targetRepository: 'knoxhack/ECHO-Release-Index',
+          targetCollection: 'addons',
+          entryFileName: 'different.json'
+        }
+      })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/does not match/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
