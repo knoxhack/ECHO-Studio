@@ -25,6 +25,7 @@ export default function DevWorkspace(): JSX.Element {
   const [force, setForce] = useState(false)
   const [busy, setBusy] = useState(false)
   const [lastRun, setLastRun] = useState<DevTaskRun | null>(null)
+  const [liveLog, setLiveLog] = useState('')
 
   const inspect = useCallback(async () => {
     if (!activeProject) return
@@ -39,6 +40,24 @@ export default function DevWorkspace(): JSX.Element {
   useEffect(() => {
     void inspect()
   }, [inspect])
+
+  useEffect(() => {
+    if (!activeProject || !lastRun?.logPath) {
+      setLiveLog('')
+      return
+    }
+    let cancelled = false
+    const read = async (): Promise<void> => {
+      const result = await window.studio.readDevTaskLog(activeProject.path, lastRun.logPath!)
+      if (!cancelled && result.ok && result.data !== undefined) setLiveLog(result.data)
+    }
+    void read()
+    const interval = window.setInterval(() => { void read() }, lastRun.status === 'started' ? 1000 : 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [activeProject, lastRun?.logPath, lastRun?.status])
 
   if (!activeProject) {
     return (
@@ -71,6 +90,7 @@ export default function DevWorkspace(): JSX.Element {
   const runTask = async (taskId: DevTaskId): Promise<void> => {
     setBusy(true)
     setLastRun(null)
+    setLiveLog('')
     const result = await window.studio.runDevTask(activeProject.path, taskId)
     setBusy(false)
     if (result.ok && result.data) {
@@ -212,10 +232,16 @@ export default function DevWorkspace(): JSX.Element {
               <div className="btn-row" style={{ marginBottom: 10 }}>
                 <span className={`badge ${lastRun.status === 'failed' ? 'fixes' : 'ready'}`}>{lastRun.status}</span>
                 <span className="badge">{lastRun.command}</span>
+                {lastRun.pid && <span className="badge">pid {lastRun.pid}</span>}
+                {lastRun.logPath && (
+                  <button className="btn ghost" onClick={() => window.studio.openPath(lastRun.logPath!)}>
+                    Open Log
+                  </button>
+                )}
               </div>
               <div className="code" style={{ whiteSpace: 'pre-wrap', maxHeight: 260 }}>
-                {lastRun.stdout || 'No stdout.'}
-                {lastRun.stderr ? `\n\nSTDERR\n${lastRun.stderr}` : ''}
+                {liveLog || lastRun.stdout || 'No log output yet.'}
+                {!liveLog && lastRun.stderr ? `\n\nSTDERR\n${lastRun.stderr}` : ''}
               </div>
             </>
           ) : (

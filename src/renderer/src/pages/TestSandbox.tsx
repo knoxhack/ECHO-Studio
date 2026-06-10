@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
+import { DEV_TASKS, type DevTaskId, type DevTaskRun } from '@shared/devWorkspace'
 import type { SandboxResult, SandboxOptions } from '@shared/sandbox'
 
 const PROFILES = [
@@ -13,12 +14,22 @@ const PROFILES = [
   'Server Sandbox'
 ]
 
+const RUNTIME_TASKS: DevTaskId[] = [
+  'gradle:runClient',
+  'gradle:runServer',
+  'preview:native',
+  'preview:standalone'
+]
+
 export default function TestSandbox(): JSX.Element {
   const { activeProject, workspaceDir, config, toast } = useWorkspace()
   const nav = useNavigate()
   const [profile, setProfile] = useState(config.sandbox?.defaultProfile || PROFILES[0])
   const [running, setRunning] = useState(false)
+  const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [result, setResult] = useState<SandboxResult | null>(null)
+  const [runtimeRun, setRuntimeRun] = useState<DevTaskRun | null>(null)
+  const [runtimeLog, setRuntimeLog] = useState('')
   const [error, setError] = useState('')
   const [options, setOptions] = useState<SandboxOptions>({
     loadOnlySelected: false,
@@ -27,7 +38,25 @@ export default function TestSandbox(): JSX.Element {
     testInventory: false
   })
 
-  const toggleOption = (key: keyof SandboxOptions) => {
+  useEffect(() => {
+    if (!activeProject || !runtimeRun?.logPath) {
+      setRuntimeLog('')
+      return
+    }
+    let cancelled = false
+    const read = async (): Promise<void> => {
+      const res = await window.studio.readDevTaskLog(activeProject.path, runtimeRun.logPath!)
+      if (!cancelled && res.ok && res.data !== undefined) setRuntimeLog(res.data)
+    }
+    void read()
+    const interval = window.setInterval(() => { void read() }, runtimeRun.status === 'started' ? 1000 : 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [activeProject, runtimeRun?.logPath, runtimeRun?.status])
+
+  const toggleOption = (key: keyof SandboxOptions): void => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
@@ -45,19 +74,35 @@ export default function TestSandbox(): JSX.Element {
     }
   }
 
-  const scoreColor = (s: number) => {
-    if (s >= 80) return 'var(--good)'
-    if (s >= 50) return 'var(--warn)'
+  const launchRuntime = async (taskId: DevTaskId): Promise<void> => {
+    if (!activeProject) return
+    setRuntimeBusy(true)
+    setRuntimeRun(null)
+    setRuntimeLog('')
+    setError('')
+    const res = await window.studio.runDevTask(activeProject.path, taskId)
+    setRuntimeBusy(false)
+    if (res.ok && res.data) {
+      setRuntimeRun(res.data)
+      toast(`${taskId} ${res.data.status}`)
+    } else {
+      setError(res.error || `${taskId} failed.`)
+    }
+  }
+
+  const scoreColor = (score: number): string => {
+    if (score >= 80) return 'var(--good)'
+    if (score >= 50) return 'var(--warn)'
     return 'var(--bad)'
   }
 
-  const collectLogs = () => {
+  const collectLogs = (): void => {
     if (!result) return
-    const text = result.logs.map((l) => `[${l.time}] [${l.level}] ${l.message}`).join('\n')
+    const text = result.logs.map((log) => `[${log.time}] [${log.level}] ${log.message}`).join('\n')
     navigator.clipboard.writeText(text).then(() => toast('Logs copied to clipboard'))
   }
 
-  const askAi = () => {
+  const askAi = (): void => {
     if (!result || result.errors.length === 0) return
     const errorText = result.errors.join('\n')
     const prompt = `My addon failed sandbox testing with these errors:\n${errorText}\n\nCan you explain what went wrong and how to fix it?`
@@ -67,14 +112,14 @@ export default function TestSandbox(): JSX.Element {
   return (
     <Page
       title="Preview"
-      subtitle="Test runtime profiles, dependency loading, content registration, and log output before packaging."
+      subtitle="Test runtime profiles, dependency loading, content registration, runtime launches, and log output before packaging."
       actions={
         <>
           <button className="btn" disabled={running || !activeProject} onClick={launch}>
-            {running ? 'Running…' : 'Run Quick Test'}
+            {running ? 'Running...' : 'Run Quick Test'}
           </button>
           <button className="btn primary" disabled={running || !activeProject} onClick={launch}>
-            {running ? 'Running…' : 'Launch Sandbox'}
+            {running ? 'Running...' : 'Launch Sandbox'}
           </button>
         </>
       }
@@ -85,9 +130,9 @@ export default function TestSandbox(): JSX.Element {
           <h3>Sandbox Profile</h3>
           <label className="field">
             <span>Target profile</span>
-            <select value={profile} onChange={(e) => setProfile(e.target.value)}>
-              {PROFILES.map((p) => (
-                <option key={p}>{p}</option>
+            <select value={profile} onChange={(event) => setProfile(event.target.value)}>
+              {PROFILES.map((item) => (
+                <option key={item}>{item}</option>
               ))}
             </select>
           </label>
@@ -96,14 +141,14 @@ export default function TestSandbox(): JSX.Element {
             { key: 'debugOverlay', label: 'Enable debug overlay' },
             { key: 'fakePlayer', label: 'Enable fake player profile' },
             { key: 'testInventory', label: 'Enable test inventory' }
-          ] as { key: keyof SandboxOptions; label: string }[]).map((f) => (
-            <label className="checkbox" key={f.key}>
+          ] as { key: keyof SandboxOptions; label: string }[]).map((field) => (
+            <label className="checkbox" key={field.key}>
               <input
                 type="checkbox"
-                checked={options[f.key]}
-                onChange={() => toggleOption(f.key)}
+                checked={options[field.key]}
+                onChange={() => toggleOption(field.key)}
               />
-              {f.label}
+              {field.label}
             </label>
           ))}
         </div>
@@ -112,23 +157,14 @@ export default function TestSandbox(): JSX.Element {
           {result ? (
             <div style={{ fontSize: 13, lineHeight: 2 }}>
               <div>
-                Compatibility score:{" "}
-                <b style={{ color: scoreColor(result.compatibilityScore) }}>
-                  {result.compatibilityScore}%
-                </b>
+                Compatibility score: <b style={{ color: scoreColor(result.compatibilityScore) }}>{result.compatibilityScore}%</b>
               </div>
               <div>Missing dependencies: <b>{result.missingDependencies.length}</b></div>
               <div>
-                Warnings:{" "}
-                <b style={{ color: result.warnings.length > 0 ? 'var(--warn)' : 'inherit' }}>
-                  {result.warnings.length}
-                </b>
+                Warnings: <b style={{ color: result.warnings.length > 0 ? 'var(--warn)' : 'inherit' }}>{result.warnings.length}</b>
               </div>
               <div>
-                Errors:{" "}
-                <b style={{ color: result.errors.length > 0 ? 'var(--bad)' : 'inherit' }}>
-                  {result.errors.length}
-                </b>
+                Errors: <b style={{ color: result.errors.length > 0 ? 'var(--bad)' : 'inherit' }}>{result.errors.length}</b>
               </div>
               <div>Content loaded: <b>{result.contentLoaded}</b></div>
               <div>Content failed: <b>{result.contentFailed}</b></div>
@@ -147,15 +183,64 @@ export default function TestSandbox(): JSX.Element {
         </div>
       </div>
 
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Runtime Launchers</h3>
+          <div className="grid cols-2" style={{ gap: 8 }}>
+            {RUNTIME_TASKS.map((taskId) => {
+              const task = DEV_TASKS.find((item) => item.id === taskId)
+              if (!task) return null
+              return (
+                <button
+                  key={task.id}
+                  className="tile"
+                  style={{ textAlign: 'left', padding: 12 }}
+                  disabled={runtimeBusy || !activeProject}
+                  onClick={() => launchRuntime(task.id)}
+                >
+                  <h4>{task.label}</h4>
+                  <p>{task.description}</p>
+                  <span className="badge">{task.command}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>
+              Open Dev Workspace
+            </button>
+            {runtimeRun?.logPath && (
+              <button className="btn ghost" onClick={() => window.studio.openPath(runtimeRun.logPath!)}>
+                Open Runtime Log
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Runtime Log</h3>
+          {runtimeRun && (
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <span className={`badge ${runtimeRun.status === 'failed' ? 'fixes' : 'ready'}`}>{runtimeRun.status}</span>
+              <span className="badge">{runtimeRun.command}</span>
+              {runtimeRun.pid && <span className="badge">pid {runtimeRun.pid}</span>}
+            </div>
+          )}
+          <div className="code" style={{ minHeight: 180, maxHeight: 280, whiteSpace: 'pre-wrap' }}>
+            {runtimeLog || runtimeRun?.stdout || 'Launch a runtime target to stream logs here.'}
+          </div>
+        </div>
+      </div>
+
       {error && <div className="alert" style={{ marginBottom: 14 }}>{error}</div>}
 
       <div className="card">
         <h3>Sandbox Output</h3>
         <div className="code" style={{ minHeight: 180, whiteSpace: 'pre-wrap' }}>
           {result ? (
-            result.logs.map((l, i) => (
-              <div key={i} style={{ color: l.level === 'error' ? 'var(--bad)' : l.level === 'warn' ? 'var(--warn)' : l.level === 'ok' ? 'var(--good)' : 'inherit' }}>
-                [{l.level}] {l.message}
+            result.logs.map((log, index) => (
+              <div key={index} style={{ color: log.level === 'error' ? 'var(--bad)' : log.level === 'warn' ? 'var(--warn)' : log.level === 'ok' ? 'var(--good)' : 'inherit' }}>
+                [{log.level}] {log.message}
               </div>
             ))
           ) : (
@@ -167,9 +252,9 @@ export default function TestSandbox(): JSX.Element {
       {result && result.warnings.length > 0 && (
         <div className="card" style={{ marginTop: 14 }}>
           <h3>Warnings</h3>
-          {result.warnings.map((w, i) => (
-            <div key={i} className="dim" style={{ fontSize: 13, marginBottom: 4 }}>
-              ⚠ {w}
+          {result.warnings.map((warning, index) => (
+            <div key={index} className="dim" style={{ fontSize: 13, marginBottom: 4 }}>
+              Warning: {warning}
             </div>
           ))}
         </div>
@@ -178,9 +263,9 @@ export default function TestSandbox(): JSX.Element {
       {result && result.errors.length > 0 && (
         <div className="card" style={{ marginTop: 14, borderColor: 'var(--bad)' }}>
           <h3>Errors</h3>
-          {result.errors.map((e, i) => (
-            <div key={i} style={{ fontSize: 13, marginBottom: 4, color: 'var(--bad)' }}>
-              ✖ {e}
+          {result.errors.map((item, index) => (
+            <div key={index} style={{ fontSize: 13, marginBottom: 4, color: 'var(--bad)' }}>
+              Error: {item}
             </div>
           ))}
         </div>

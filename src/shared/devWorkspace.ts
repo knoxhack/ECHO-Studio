@@ -69,6 +69,8 @@ export interface DevTaskRun {
   status: 'completed' | 'failed' | 'started'
   command: string
   cwd: string
+  pid?: number
+  logPath?: string
   exitCode?: number
   stdout: string
   stderr: string

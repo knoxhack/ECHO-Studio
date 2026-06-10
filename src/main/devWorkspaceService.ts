@@ -1,5 +1,5 @@
 import { existsSync, promises as fs } from 'fs'
-import { basename, dirname, join, relative } from 'path'
+import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { DEV_TASKS, type DevArtifact, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
@@ -60,6 +60,40 @@ function artifactKind(name: string): DevArtifact['kind'] {
   if (name.endsWith('.json')) return 'manifest'
   if (name.endsWith('.sha256')) return 'checksum'
   return 'other'
+}
+
+function safeTaskName(taskId: DevTaskId): string {
+  return taskId.replace(/[^a-z0-9_-]/gi, '-')
+}
+
+function logStamp(date = new Date()): string {
+  return date.toISOString().replace(/[:.]/g, '-')
+}
+
+async function createTaskLog(projectPath: string, taskId: DevTaskId, command: string, startedAt: string): Promise<string> {
+  const dir = join(projectPath, '.echo-studio', 'logs')
+  await fs.mkdir(dir, { recursive: true })
+  const path = join(dir, `${logStamp(new Date(startedAt))}-${safeTaskName(taskId)}.log`)
+  await fs.writeFile(path, [
+    `ECHO Studio task: ${taskId}`,
+    `Command: ${command}`,
+    `Started: ${startedAt}`,
+    ''
+  ].join('\n'), 'utf8')
+  return path
+}
+
+async function appendTaskLog(logPath: string, label: string, text: string): Promise<void> {
+  if (!text) return
+  await fs.appendFile(logPath, `\n[${label}]\n${text}`, 'utf8')
+}
+
+async function finishTaskLog(logPath: string, status: DevTaskRun['status'], finishedAt?: string, exitCode?: number): Promise<void> {
+  const lines = ['', `[status] ${status}`]
+  if (exitCode !== undefined) lines.push(`[exit] ${exitCode}`)
+  if (finishedAt) lines.push(`[finished] ${finishedAt}`)
+  lines.push('')
+  await fs.appendFile(logPath, lines.join('\n'), 'utf8')
 }
 
 async function collectArtifacts(projectPath: string): Promise<DevArtifact[]> {
@@ -454,35 +488,59 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
   const startedAt = new Date().toISOString()
 
   if (task.id === 'package:local') {
-    const result = await packageAddon(projectPath)
+    const command = 'ECHO Studio packageAddon'
+    const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
+    let result: Awaited<ReturnType<typeof packageAddon>>
+    try {
+      result = await packageAddon(projectPath)
+    } catch (error) {
+      const finishedAt = new Date().toISOString()
+      await appendTaskLog(logPath, 'error', error instanceof Error ? error.message : String(error))
+      await finishTaskLog(logPath, 'failed', finishedAt)
+      throw error
+    }
+    const stdout = `Prepared ${basename(result.zipPath)} with ${result.assetPaths.length} release asset(s).`
+    const stderr = result.sdkValidation.issues.join('\n')
+    const finishedAt = new Date().toISOString()
+    await appendTaskLog(logPath, 'stdout', stdout)
+    await appendTaskLog(logPath, 'stderr', stderr)
+    await finishTaskLog(logPath, 'completed', finishedAt, 0)
     return {
       taskId,
       status: 'completed',
-      command: 'ECHO Studio packageAddon',
+      command,
       cwd: projectPath,
-      stdout: `Prepared ${basename(result.zipPath)} with ${result.assetPaths.length} release asset(s).`,
-      stderr: result.sdkValidation.issues.join('\n'),
+      logPath,
+      stdout,
+      stderr,
       startedAt,
-      finishedAt: new Date().toISOString(),
+      finishedAt,
       artifacts: await collectArtifacts(projectPath)
     }
   }
 
   const command = `${gradleCommand(projectPath)} ${task.command}`
+  const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
   if (task.detached) {
     const child = spawn(command, {
       cwd: projectPath,
       shell: true,
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+    child.stdout?.on('data', (chunk) => { void appendTaskLog(logPath, 'stdout', String(chunk)) })
+    child.stderr?.on('data', (chunk) => { void appendTaskLog(logPath, 'stderr', String(chunk)) })
+    child.on('close', (code) => { void finishTaskLog(logPath, code === 0 ? 'completed' : 'failed', new Date().toISOString(), code ?? undefined) })
+    child.on('error', (error) => { void appendTaskLog(logPath, 'error', error.message) })
     child.unref()
     return {
       taskId,
       status: 'started',
       command,
       cwd: projectPath,
+      pid: child.pid,
+      logPath,
       stdout: `Started ${task.label} as process ${child.pid}.`,
       stderr: '',
       startedAt,
@@ -491,16 +549,32 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
   }
 
   const result = await runShell(command, projectPath, 180000)
+  const status = result.exitCode === 0 ? 'completed' : 'failed'
+  const finishedAt = new Date().toISOString()
+  await appendTaskLog(logPath, 'stdout', result.stdout)
+  await appendTaskLog(logPath, 'stderr', result.stderr)
+  await finishTaskLog(logPath, status, finishedAt, result.exitCode)
   return {
     taskId,
-    status: result.exitCode === 0 ? 'completed' : 'failed',
+    status,
     command,
     cwd: projectPath,
+    logPath,
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr,
     startedAt,
-    finishedAt: new Date().toISOString(),
+    finishedAt,
     artifacts: await collectArtifacts(projectPath)
   }
+}
+
+export async function readDevTaskLog(projectPath: string, logPath: string): Promise<string> {
+  const root = resolve(projectPath, '.echo-studio', 'logs')
+  const target = resolve(logPath)
+  if (target !== root && !target.startsWith(`${root}${sep}`)) {
+    throw new Error('Log path must stay inside the project log folder.')
+  }
+  const text = await fs.readFile(target, 'utf8')
+  return text.length > 200000 ? text.slice(-200000) : text
 }

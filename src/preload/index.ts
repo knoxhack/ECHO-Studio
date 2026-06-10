@@ -115,6 +115,8 @@ const api = {
     invoke<DevSetupResult>('dev:setup', projectPath, options),
   runDevTask: (projectPath: string, taskId: DevTaskId) =>
     invoke<DevTaskRun>('dev:runTask', projectPath, taskId),
+  readDevTaskLog: (projectPath: string, logPath: string) =>
+    invoke<string>('dev:readLog', projectPath, logPath),
 
   listCodexTasks: (projectPath: string) =>
     invoke<CodexTask[]>('codex:listTasks', projectPath),
