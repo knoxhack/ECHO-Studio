@@ -11,7 +11,7 @@ import { runProjectCheck } from '../shared/projectValidation'
 import { buildAddonPackageManifest } from '../shared/templates'
 import { validateAddonPackageManifest } from '../shared/addonPackageContract'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
-import type { PackOSReport } from '../shared/types'
+import type { PackOSReport, TargetExperience } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import type { PackageResult, ReleaseIndexHandoff, ReleaseIndexHandoffAsset } from '../shared/publishing'
 import type { AddonPackageManifest, AddonPackageTarget } from '../shared/addonPackageContract'
@@ -28,10 +28,10 @@ const EXCLUDE_DIRS = new Set([
   'release'
 ])
 const execFileAsync = promisify(execFile)
-const TARGET_COMPATIBILITY: Record<AddonPackageTarget, string> = {
-  native: 'ashfall-native-edition',
-  neoforge: 'ashfall-neoforge-edition',
-  standalone: 'ashfall-standalone-edition'
+const TARGET_RUNTIME_SLUGS: Record<AddonPackageTarget, string> = {
+  native: 'native-edition',
+  neoforge: 'neoforge-edition',
+  standalone: 'standalone-edition'
 }
 
 function localId(id: string): string {
@@ -112,6 +112,21 @@ function artifactKind(name: string): string {
   return 'asset'
 }
 
+function targetExperienceSlug(experience: TargetExperience): string {
+  return experience.replace(/_/g, '-')
+}
+
+function releaseCompatibility(
+  manifest: NonNullable<Awaited<ReturnType<typeof readManifest>>>,
+  targets: AddonPackageTarget[]
+): string[] {
+  const experiences = manifest.target.experiences.length ? manifest.target.experiences : ['generic' as TargetExperience]
+  const values = experiences.flatMap((experience) =>
+    targets.map((target) => `${targetExperienceSlug(experience)}-${TARGET_RUNTIME_SLUGS[target]}`)
+  )
+  return Array.from(new Set(values)).sort()
+}
+
 function realCommitSha(value: unknown): string | undefined {
   const sha = String(value ?? '').trim()
   return /^[a-f0-9]{7,40}$/i.test(sha) && !/^0{7,40}$/.test(sha) ? sha : undefined
@@ -158,7 +173,7 @@ function buildReleaseManifest(
     ...(commitSha ? { commitSha } : {}),
     trust: 'community',
     validation: report.publishingReady ? 'warning' : 'rejected',
-    compatibility: packageManifest.targets.map((target) => TARGET_COMPATIBILITY[target]),
+    compatibility: releaseCompatibility(manifest, packageManifest.targets),
     dependencies: packageManifest.dependencies,
     artifacts: artifactMap,
     package: {

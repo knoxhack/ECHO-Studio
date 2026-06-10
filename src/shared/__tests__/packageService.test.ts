@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-function manifest(): AddonManifest {
+function manifest(overrides?: Partial<AddonManifest>): AddonManifest {
   return {
     schemaVersion: 1,
     id: 'teamnova:weather_pack',
@@ -29,7 +29,8 @@ function manifest(): AddonManifest {
     dependencies: { required: ['echo:core'], optional: [] },
     trust: { level: 'community', signed: false, verified: false },
     support: { tier: 'community', issues: 'https://example.com/issues' },
-    tags: ['test']
+    tags: ['test'],
+    ...overrides
   }
 }
 
@@ -273,6 +274,36 @@ describe('packageAddon', () => {
       else process.env.ECHO_STUDIO_COMMIT_SHA = previousCommitSha
       if (previousLegacyCommitSha === undefined) delete process.env.ECHO_ADDON_STUDIO_COMMIT_SHA
       else process.env.ECHO_ADDON_STUDIO_COMMIT_SHA = previousLegacyCommitSha
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('derives Release Index compatibility from manifest targets and package runtimes', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
+    try {
+      const project = path.join(root, 'project')
+      await fs.mkdir(project, { recursive: true })
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest({
+        target: { experiences: ['echo_prime', 'generic'], modules: [] },
+        runtime: {
+          supports: ['echo_native', 'standalone'],
+          nativeReadiness: 'partial',
+          minimumEchoSdk: '1.4.0'
+        }
+      }), null, 2), 'utf8')
+
+      const { packageAddon } = await import('../../main/packageService')
+      const result = await packageAddon(project)
+      const releaseManifest = JSON.parse(await fs.readFile(result.releaseManifestPath ?? '', 'utf8'))
+
+      expect(releaseManifest.compatibility).toEqual([
+        'echo-prime-native-edition',
+        'echo-prime-standalone-edition',
+        'generic-native-edition',
+        'generic-standalone-edition'
+      ])
+      expect(releaseManifest.compatibility).not.toContain('ashfall-native-edition')
+    } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
   })
