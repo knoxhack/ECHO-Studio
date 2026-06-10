@@ -26,8 +26,26 @@ interface UpdateStatus {
 }
 
 const ECHO_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
+const DEFAULT_MODULE_INDEX_PATH = 'metadata/modules/index.json'
 type RuntimeToolKey = 'echoNativeExecutable' | 'standaloneExecutable'
 type PreviewRuntime = Extract<Runtime, 'echo_native' | 'standalone'>
+
+function isAbsoluteLocalPath(value: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\') || value.startsWith('/')
+}
+
+function joinLocalPath(root: string, child: string): string {
+  const separator = root.includes('\\') ? '\\' : '/'
+  return `${root.replace(/[\\/]+$/, '')}${separator}${child.replace(/[\\/]+/g, separator)}`
+}
+
+function moduleIndexInputPath(moduleRoot: string, indexPath: string): string {
+  const trimmedIndex = indexPath.trim()
+  const trimmedRoot = moduleRoot.trim()
+  if (!trimmedIndex) return trimmedRoot ? joinLocalPath(trimmedRoot, DEFAULT_MODULE_INDEX_PATH) : ''
+  if (isAbsoluteLocalPath(trimmedIndex) || !trimmedRoot) return trimmedIndex
+  return joinLocalPath(trimmedRoot, trimmedIndex)
+}
 
 export default function Settings(): JSX.Element {
   const { workspaceDir, chooseWorkspace, refresh, profile, config, moduleCatalog, moduleCatalogResult, updateProfile, updateConfig, toast } =
@@ -71,12 +89,18 @@ export default function Settings(): JSX.Element {
   const chooseModuleRoot = async (): Promise<void> => {
     const res = await window.studio.chooseModuleRoot()
     if (res.ok && res.data) {
-      await updateConfig({ moduleCatalog: { ...config.moduleCatalog, moduleRoot: res.data } })
+      await updateConfig({ moduleCatalog: { moduleRoot: res.data, indexPath: DEFAULT_MODULE_INDEX_PATH } })
       await refresh()
-      toast('ECHO-Modules checkout selected')
+      toast('ECHO-Modules checkout and default index selected')
     } else if (!res.ok) {
       toast(res.error || 'Unable to choose ECHO-Modules checkout')
     }
+  }
+
+  const useDefaultModuleIndex = async (): Promise<void> => {
+    await updateConfig({ moduleCatalog: { ...config.moduleCatalog, indexPath: DEFAULT_MODULE_INDEX_PATH } })
+    await refresh()
+    toast('Using default ECHO-Modules index path')
   }
 
   const clearModuleCatalog = async (): Promise<void> => {
@@ -89,6 +113,11 @@ export default function Settings(): JSX.Element {
     await refresh()
     toast('Module catalog refreshed')
   }
+
+  const openableModuleIndexPath = moduleCatalogResult?.indexPath || moduleIndexInputPath(
+    config.moduleCatalog.moduleRoot,
+    config.moduleCatalog.indexPath
+  )
 
   return (
     <Page title="Settings" subtitle="Configure your creator profile, workspace, ECHO contracts, AI, preview tools, and updates. Changes persist.">
@@ -167,10 +196,10 @@ export default function Settings(): JSX.Element {
             />
           </label>
           <label className="field">
-            <span>Index path override</span>
+            <span>Module index path</span>
             <input
               value={config.moduleCatalog.indexPath}
-              placeholder="metadata/modules/index.json"
+              placeholder={DEFAULT_MODULE_INDEX_PATH}
               onChange={(event) =>
                 updateConfig({ moduleCatalog: { ...config.moduleCatalog, indexPath: event.target.value } })
               }
@@ -208,14 +237,21 @@ export default function Settings(): JSX.Element {
             <button
               className="btn ghost"
               disabled={!config.moduleCatalog.moduleRoot}
+              onClick={useDefaultModuleIndex}
+            >
+              Use Default Index
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!config.moduleCatalog.moduleRoot}
               onClick={() => window.studio.openPath(config.moduleCatalog.moduleRoot)}
             >
               Open Checkout
             </button>
             <button
               className="btn ghost"
-              disabled={!config.moduleCatalog.indexPath}
-              onClick={() => window.studio.openPath(config.moduleCatalog.indexPath)}
+              disabled={!openableModuleIndexPath}
+              onClick={() => window.studio.openPath(openableModuleIndexPath)}
             >
               Open Index
             </button>
