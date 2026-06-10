@@ -404,7 +404,15 @@ describe('setupDevWorkspace', () => {
         }, null, 2), 'utf8')
         await fs.writeFile(
           path.join(modulesRoot, 'scripts', 'generate-module-release.mjs'),
-          'console.log(process.argv.slice(2).join(" "))\n',
+          [
+            'import { mkdirSync, writeFileSync } from "node:fs"',
+            'mkdirSync("dist/echo-module-release/echocore", { recursive: true })',
+            'writeFileSync("dist/echo-module-release/echo-release.json", "{}")',
+            'writeFileSync("dist/echo-module-release/checksums.sha256", "hash  echocore/echocore-1.0.0.echo-addon\\n")',
+            'writeFileSync("dist/echo-module-release/echocore/echocore-1.0.0.echo-addon", "addon")',
+            'writeFileSync("dist/echo-module-release/echocore/echocore-1.0.0-neoforge.jar", "jar")',
+            'console.log(process.argv.slice(2).join(" "))'
+          ].join('\n'),
           'utf8'
         )
 
@@ -417,6 +425,14 @@ describe('setupDevWorkspace', () => {
         expect(result.command).toContain('--package-from-source')
         expect(result.command).toContain('--module echocore')
         expect(result.stdout).toContain('--module echocore')
+        expect(result.artifacts.map((artifact) => artifact.name)).toEqual(expect.arrayContaining([
+          'echo-release.json',
+          'checksums.sha256',
+          'echocore-1.0.0.echo-addon',
+          'echocore-1.0.0-neoforge.jar'
+        ]))
+        expect(result.artifacts.find((artifact) => artifact.name === 'echocore-1.0.0.echo-addon')?.path)
+          .toContain(path.join('dist', 'echo-module-release', 'echocore', 'echocore-1.0.0.echo-addon'))
       } finally {
         if (previous === undefined) delete process.env.ECHO_MODULES_DIR
         else process.env.ECHO_MODULES_DIR = previous

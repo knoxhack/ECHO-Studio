@@ -177,26 +177,47 @@ function terminateChildProcess(child: ChildProcess): Promise<void> {
   return Promise.resolve()
 }
 
-async function collectArtifacts(projectPath: string): Promise<DevArtifact[]> {
-  const roots = [join(projectPath, 'build', 'libs'), join(projectPath, 'release'), join(projectPath, 'exports')]
+async function listArtifactFiles(root: string): Promise<string[]> {
+  if (!await exists(root)) return []
+  const entries = await fs.readdir(root, { withFileTypes: true })
+  const files: string[] = []
+  for (const entry of entries) {
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...await listArtifactFiles(path))
+    } else if (entry.isFile()) {
+      files.push(path)
+    }
+  }
+  return files
+}
+
+async function collectArtifacts(projectPath: string, echoModulesRoot?: string): Promise<DevArtifact[]> {
+  const roots = [
+    join(projectPath, 'build', 'libs'),
+    join(projectPath, 'release'),
+    join(projectPath, 'exports'),
+    ...(echoModulesRoot ? [join(echoModulesRoot, 'dist', 'echo-module-release')] : [])
+  ]
   const artifacts: DevArtifact[] = []
   for (const root of roots) {
-    if (!await exists(root)) continue
-    const entries = await fs.readdir(root, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isFile()) continue
-      const path = join(root, entry.name)
-      const stat = await fs.stat(path)
+    for (const filePath of await listArtifactFiles(root)) {
+      const stat = await fs.stat(filePath)
       artifacts.push({
-        path,
-        name: entry.name,
-        kind: artifactKind(entry.name),
+        path: filePath,
+        name: basename(filePath),
+        kind: artifactKind(basename(filePath)),
         bytes: stat.size,
         modifiedAt: stat.mtimeMs
       })
     }
   }
   return artifacts.sort((a, b) => b.modifiedAt - a.modifiedAt)
+}
+
+async function collectCurrentArtifacts(projectPath: string): Promise<DevArtifact[]> {
+  const catalog = await listEchoModules(projectPath).catch(() => undefined)
+  return collectArtifacts(projectPath, catalog?.moduleRoot)
 }
 
 function runtimeTargets(manifest: AddonManifest, options?: DevWorkspaceOptions): Runtime[] {
@@ -999,7 +1020,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     moduleWorkspace,
     moduleLock: lockStatus,
     runtimeLaunchers,
-    artifacts: await collectArtifacts(projectPath),
+    artifacts: await collectArtifacts(projectPath, moduleCatalog.moduleRoot),
     lastSetupAt: parsed.lastSetupAt
   }
 }
@@ -1177,7 +1198,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       stderr: result.stderr,
       startedAt,
       finishedAt,
-      artifacts: await collectArtifacts(projectPath)
+      artifacts: await collectArtifacts(projectPath, cwd)
     }
   }
 
@@ -1209,7 +1230,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       stderr,
       startedAt,
       finishedAt,
-      artifacts: await collectArtifacts(projectPath)
+      artifacts: await collectCurrentArtifacts(projectPath)
     }
   }
 
@@ -1260,7 +1281,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       stdout: `Started ${task.label} as process ${child.pid}.`,
       stderr: '',
       startedAt,
-      artifacts: await collectArtifacts(projectPath)
+      artifacts: await collectCurrentArtifacts(projectPath)
     }
   }
 
@@ -1281,13 +1302,13 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
     stderr: result.stderr,
     startedAt,
     finishedAt,
-    artifacts: await collectArtifacts(projectPath)
+    artifacts: await collectCurrentArtifacts(projectPath)
   }
 }
 
 export async function listRunningDevTasks(projectPath: string): Promise<DevTaskRun[]> {
   const projectRoot = resolve(projectPath)
-  const artifacts = await collectArtifacts(projectPath)
+  const artifacts = await collectCurrentArtifacts(projectPath)
   return [...runningDevProcesses.values()]
     .filter((running) => resolve(running.cwd) === projectRoot)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))

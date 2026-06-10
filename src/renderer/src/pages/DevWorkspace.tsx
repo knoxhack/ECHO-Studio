@@ -556,6 +556,9 @@ export default function DevWorkspace(): JSX.Element {
                 <span className="badge">{artifact.kind}</span>
                 <span className="mono" style={{ flex: 1 }}>{artifact.name}</span>
                 <span className="dim" style={{ fontSize: 11 }}>{Math.round(artifact.bytes / 1024)} KB</span>
+                <button className="btn ghost" onClick={() => window.studio.openPath(artifact.path)}>
+                  Open
+                </button>
               </div>
             ))
           ) : (
