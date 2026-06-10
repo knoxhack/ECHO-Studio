@@ -158,7 +158,7 @@ export function runPackOSCheck(manifest: AddonManifest, moduleCatalog?: EchoModu
         level: 'WARNING',
         category: 'ECHO Modules',
         message: `${mod.name} is sandboxed and may require additional review before publishing.`,
-        fix: 'Keep sandboxed modules for local/dev use or confirm release eligibility before submitting.'
+        fix: 'Keep sandboxed modules for local/dev use or confirm release eligibility before public release.'
       })
     }
   }

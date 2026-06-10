@@ -284,7 +284,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         level: 'WARNING',
         category: 'Release readiness',
         message: 'Built artifacts are missing echo-release.json or checksums.sha256.',
-        fix: 'Use Release Builder to prepare the local release package.',
+        fix: 'Use Release to prepare the local release package.',
         aiFixable: false
       })
     }

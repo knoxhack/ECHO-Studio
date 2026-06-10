@@ -164,8 +164,8 @@ export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManif
 
   files['echo.mod.json'] = JSON.stringify(manifest, null, 2)
   files['META-INF/echo-addon-package.json'] = JSON.stringify(buildAddonPackageManifest(manifest), null, 2)
-  files['packos.validation.json'] = JSON.stringify(
-    { schemaVersion: 1, policyTarget: 'community', minimumScore: 70, ignoreWarnings: [] },
+  files['validation.policy.json'] = JSON.stringify(
+    { schemaVersion: 'echo.studio.validation.policy.v1', policyTarget: 'community', minimumScore: 70, ignoreWarnings: [] },
     null,
     2
   )

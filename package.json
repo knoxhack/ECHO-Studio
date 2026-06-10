@@ -2,7 +2,7 @@
   "name": "echo-studio",
   "productName": "ECHO Studio",
   "version": "0.1.0",
-  "description": "Design ECHO experiences, wire modules, run local dev tools, validate PackOS, and package releases.",
+  "description": "Design ECHO experiences, wire modules, run local dev tools, validate projects, and package releases.",
   "author": "ECHO Platform",
   "main": "out/main/index.js",
   "scripts": {

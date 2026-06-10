@@ -437,7 +437,7 @@ function previewTree(ns: string, id: string): string {
   return `${ns}_${id}/
 +-- echo.mod.json
 +-- META-INF/echo-addon-package.json
-+-- packos.validation.json
++-- validation.policy.json
 +-- README.md
 +-- CHANGELOG.md
 +-- LICENSE
