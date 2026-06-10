@@ -56,6 +56,13 @@ describe('setupDevWorkspace', () => {
       expect(result.state.mode).toBe('visual')
       expect(result.state.ready).toBe(true)
       expect(result.state.gradleReady).toBe(false)
+      expect(result.state.runtimeLaunchers).toMatchObject({
+        schemaVersion: 'echo.studio.runtime.launchers.status.v1',
+        gradlePropertiesExists: false,
+        nativeExpected: false,
+        standaloneExpected: false,
+        ready: true
+      })
       expect(result.state.files.find((file) => file.path === 'build.gradle')?.expected).toBe(false)
       expect(result.state.files.find((file) => file.path === '.echo-studio/modules.lock.json')?.expected).toBe(true)
       expect(result.state.files.find((file) => file.path === 'src/generated/resources/META-INF/neoforge.mods.toml')?.expected).toBe(false)
@@ -78,6 +85,12 @@ describe('setupDevWorkspace', () => {
       expect(result.state.ready).toBe(true)
       expect(result.state.gradleReady).toBe(true)
       expect(result.state.sourceReady).toBe(true)
+      expect(result.state.runtimeLaunchers).toMatchObject({
+        gradlePropertiesExists: true,
+        nativeExpected: false,
+        standaloneExpected: false,
+        ready: true
+      })
       expect(result.state.files.find((file) => file.path === 'META-INF/echo-addon-package.json')?.expected).toBe(false)
       await expect(fs.access(path.join(project, 'build.gradle'))).resolves.toBeUndefined()
       await expect(fs.access(path.join(project, 'META-INF', 'echo-addon-package.json'))).rejects.toThrow()
@@ -119,6 +132,31 @@ describe('setupDevWorkspace', () => {
       expect(gradlewSh).toContain('https://services.gradle.org/distributions/gradle-9.1.0-bin.zip')
       expect(gradlewSh).toContain('.gradle/studio')
       expect(gradlewSh).not.toContain('command -v gradle')
+    })
+  })
+
+  it('reports missing runtime preview launcher paths from generated Gradle properties', async () => {
+    await withProject(async (project) => {
+      const { setupDevWorkspace } = await import('../../main/devWorkspaceService')
+      const result = await setupDevWorkspace(project, {
+        mode: 'gradle',
+        runtimes: ['echo_native', 'standalone'],
+        force: false
+      })
+
+      expect(result.state.ready).toBe(true)
+      expect(result.state.runtimeLaunchers).toMatchObject({
+        schemaVersion: 'echo.studio.runtime.launchers.status.v1',
+        gradlePropertiesPath: 'gradle.properties',
+        gradlePropertiesExists: true,
+        nativeExpected: true,
+        nativeConfigured: false,
+        nativeExecutable: '',
+        standaloneExpected: true,
+        standaloneConfigured: false,
+        standaloneExecutable: '',
+        ready: false
+      })
     })
   })
 
@@ -170,6 +208,15 @@ describe('setupDevWorkspace', () => {
       const buildGradle = await fs.readFile(path.join(project, 'build.gradle'), 'utf8')
       expect(gradleProperties).toContain('echo_native_executable=C:/ECHO Runtime/echo-native.exe')
       expect(gradleProperties).toContain('echo_standalone_executable=C:/ECHO Runtime/echo-standalone.exe')
+      expect(result.state.runtimeLaunchers).toMatchObject({
+        nativeExpected: true,
+        nativeConfigured: true,
+        nativeExecutable: 'C:/ECHO Runtime/echo-native.exe',
+        standaloneExpected: true,
+        standaloneConfigured: true,
+        standaloneExecutable: 'C:/ECHO Runtime/echo-standalone.exe',
+        ready: true
+      })
       expect(buildGradle).toContain('tasks.register("echoNativePreview", Exec)')
       expect(buildGradle).toContain('tasks.register("echoStandalonePreview", Exec)')
       expect(buildGradle).toContain('--modules-lock')

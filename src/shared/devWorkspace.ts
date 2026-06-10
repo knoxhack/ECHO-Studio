@@ -93,6 +93,19 @@ export interface DevModuleLockStatus {
   generatedAt?: string
 }
 
+export interface DevRuntimeLauncherStatus {
+  schemaVersion: 'echo.studio.runtime.launchers.status.v1'
+  gradlePropertiesPath: string
+  gradlePropertiesExists: boolean
+  nativeExpected: boolean
+  nativeConfigured: boolean
+  nativeExecutable: string
+  standaloneExpected: boolean
+  standaloneConfigured: boolean
+  standaloneExecutable: string
+  ready: boolean
+}
+
 export interface DevWorkspaceState {
   ready: boolean
   mode: DevWorkspaceMode
@@ -104,6 +117,7 @@ export interface DevWorkspaceState {
   files: DevWorkspaceFileStatus[]
   modulePlan: ProjectModulePlan
   moduleLock: DevModuleLockStatus
+  runtimeLaunchers: DevRuntimeLauncherStatus
   artifacts: DevArtifact[]
   lastSetupAt?: string
 }

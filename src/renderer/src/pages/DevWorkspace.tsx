@@ -119,12 +119,21 @@ export default function DevWorkspace(): JSX.Element {
       ? state.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
       : 'Missing'
     : '...'
+  const launcherValue = state
+    ? state.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
+    : '...'
   const expectedFiles = state?.files.filter((file) => file.expected) ?? []
   const optionalFiles = state?.files.filter((file) => !file.expected) ?? []
   const missingRuntimeTools = [
     runtimes.includes('echo_native') && !config.runtimeTools.echoNativeExecutable ? 'ECHO Native executable' : '',
     runtimes.includes('standalone') && !config.runtimeTools.standaloneExecutable ? 'Standalone executable' : ''
   ].filter(Boolean)
+  const workspaceLauncherIssues = state
+    ? [
+        state.runtimeLaunchers.nativeExpected && !state.runtimeLaunchers.nativeConfigured ? 'ECHO Native preview path' : '',
+        state.runtimeLaunchers.standaloneExpected && !state.runtimeLaunchers.standaloneConfigured ? 'Standalone preview path' : ''
+      ].filter(Boolean)
+    : []
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
@@ -134,6 +143,8 @@ export default function DevWorkspace(): JSX.Element {
     if (taskId === 'gradle:runData' && !state.runtimeTargets.includes('neoforge')) return 'Enable the NeoForge target and run setup.'
     if (taskId === 'preview:native' && !state.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
     if (taskId === 'preview:standalone' && !state.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
+    if (taskId === 'preview:native' && !state.runtimeLaunchers.nativeConfigured) return 'Set ECHO Native executable in Settings and run setup.'
+    if (taskId === 'preview:standalone' && !state.runtimeLaunchers.standaloneConfigured) return 'Set Standalone executable in Settings and run setup.'
     return null
   }
 
@@ -155,7 +166,7 @@ export default function DevWorkspace(): JSX.Element {
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Metric label="Workspace" value={state?.ready ? 'Ready' : 'Needs Setup'} tone={readyTone} />
         <Metric label="Gradle" value={gradleValue} tone={state?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
-        <Metric label="Source" value={state?.sourceReady ? 'Ready' : 'Missing'} tone={state?.sourceReady ? 'var(--good)' : 'var(--warn)'} />
+        <Metric label="Launchers" value={launcherValue} tone={state?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Expected Files" value={state ? `${expectedFiles.filter((file) => file.exists).length}/${expectedFiles.length}` : '...'} tone={state?.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>
 
@@ -194,6 +205,15 @@ export default function DevWorkspace(): JSX.Element {
               <span className="lvl">INFO</span>
               Preview launchers need: {missingRuntimeTools.join(', ')}.
               <div className="fix">Add local runtime executable paths in Settings, then run Set Up Workspace again.</div>
+            </div>
+          )}
+          {workspaceLauncherIssues.length > 0 && (
+            <div className="issue WARNING" style={{ marginTop: 10 }}>
+              <span className="lvl">WARNING</span>
+              Generated workspace is missing: {workspaceLauncherIssues.join(', ')}.
+              <div className="fix">
+                Set runtime executable paths in Settings and run Set Up Workspace to update {state?.runtimeLaunchers.gradlePropertiesPath}.
+              </div>
             </div>
           )}
           <label className="checkbox" style={{ marginTop: 10 }}>

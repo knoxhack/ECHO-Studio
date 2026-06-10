@@ -141,6 +141,26 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
         aiFixable: false
       })
     }
+    if (input.devWorkspace.runtimeLaunchers.nativeExpected && !input.devWorkspace.runtimeLaunchers.nativeConfigured) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Runtime Preview',
+        message: 'ECHO Native preview executable is not configured in the generated workspace.',
+        fix: 'Set the ECHO Native executable in Settings, then run Set Up Workspace.',
+        file: input.devWorkspace.runtimeLaunchers.gradlePropertiesPath,
+        aiFixable: false
+      })
+    }
+    if (input.devWorkspace.runtimeLaunchers.standaloneExpected && !input.devWorkspace.runtimeLaunchers.standaloneConfigured) {
+      extra.push({
+        level: 'WARNING',
+        category: 'Runtime Preview',
+        message: 'Standalone preview executable is not configured in the generated workspace.',
+        fix: 'Set the Standalone executable in Settings, then run Set Up Workspace.',
+        file: input.devWorkspace.runtimeLaunchers.gradlePropertiesPath,
+        aiFixable: false
+      })
+    }
     if (!input.devWorkspace.moduleLock.studioExists) {
       extra.push({
         level: 'WARNING',

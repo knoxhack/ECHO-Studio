@@ -65,6 +65,18 @@ function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspa
       lockedProjectVersion: '0.1.0',
       generatedAt: '2026-06-09T00:00:00.000Z'
     },
+    runtimeLaunchers: {
+      schemaVersion: 'echo.studio.runtime.launchers.status.v1',
+      gradlePropertiesPath: 'gradle.properties',
+      gradlePropertiesExists: true,
+      nativeExpected: false,
+      nativeConfigured: false,
+      nativeExecutable: '',
+      standaloneExpected: false,
+      standaloneConfigured: false,
+      standaloneExecutable: '',
+      ready: true
+    },
     artifacts,
     lastSetupAt: '2026-06-09T00:00:00.000Z'
   }
@@ -195,5 +207,28 @@ describe('runProjectCheck', () => {
     expect(report.issues.some((i) => i.message === 'ECHO module lock is stale or incomplete.')).toBe(true)
     expect(report.issues.find((i) => i.message === 'ECHO module lock is stale or incomplete.')?.level).toBe('ERROR')
     expect(report.issues.find((i) => i.message === 'ECHO module lock is stale or incomplete.')?.fix).toContain('echomissioncore')
+  })
+
+  it('warns when selected preview runtimes are missing generated executable paths', () => {
+    const workspace = makeDevWorkspace([])
+    workspace.runtimeTargets = ['echo_native', 'standalone']
+    workspace.runtimeLaunchers = {
+      ...workspace.runtimeLaunchers,
+      nativeExpected: true,
+      standaloneExpected: true,
+      ready: false
+    }
+
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: workspace
+    })
+
+    expect(report.issues.some((i) => i.message === 'ECHO Native preview executable is not configured in the generated workspace.')).toBe(true)
+    expect(report.issues.some((i) => i.message === 'Standalone preview executable is not configured in the generated workspace.')).toBe(true)
+    expect(report.issues.find((i) => i.message.includes('ECHO Native preview executable'))?.file).toBe('gradle.properties')
   })
 })

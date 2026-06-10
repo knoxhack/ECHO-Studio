@@ -73,6 +73,18 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
       lockedProjectVersion: '1.0.0',
       generatedAt: '2026-06-09T00:00:00.000Z'
     },
+    runtimeLaunchers: {
+      schemaVersion: 'echo.studio.runtime.launchers.status.v1',
+      gradlePropertiesPath: 'gradle.properties',
+      gradlePropertiesExists: true,
+      nativeExpected: false,
+      nativeConfigured: false,
+      nativeExecutable: '',
+      standaloneExpected: false,
+      standaloneConfigured: false,
+      standaloneExecutable: '',
+      ready: true
+    },
     artifacts: [],
     lastSetupAt: '2026-06-09T00:00:00.000Z',
     ...overrides

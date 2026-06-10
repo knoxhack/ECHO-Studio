@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { spawn } from 'child_process'
 import { buildAddonPackageManifest } from '../shared/templates'
-import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevModuleLockStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
+import { DEV_TASKS, type DevArtifact, type DevModuleLock, type DevModuleLockStatus, type DevRuntimeLauncherStatus, type DevSetupResult, type DevTaskId, type DevTaskRun, type DevWorkspaceFileStatus, type DevWorkspaceMode, type DevWorkspaceOptions, type DevWorkspaceState } from '../shared/devWorkspace'
 import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord, type ProjectModulePlan } from '../shared/moduleCatalog'
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import type { AddonManifest, Runtime } from '../shared/types'
@@ -255,6 +255,49 @@ async function moduleLockStatus(
     lockedProjectId: studioLock?.project.id,
     lockedProjectVersion: studioLock?.project.version,
     generatedAt: studioLock?.generatedAt
+  }
+}
+
+function parseGradleProperties(text: string): Record<string, string> {
+  const properties: Record<string, string> = {}
+  for (const rawLine of text.split(/\r?\n/g)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#') || line.startsWith('!')) continue
+    const index = line.search(/[:=]/)
+    if (index < 0) continue
+    const key = line.slice(0, index).trim()
+    const value = line.slice(index + 1).trim()
+    if (key) properties[key] = value
+  }
+  return properties
+}
+
+async function runtimeLauncherStatus(
+  projectPath: string,
+  runtimes: Runtime[],
+  mode: DevWorkspaceMode
+): Promise<DevRuntimeLauncherStatus> {
+  const gradlePropertiesPath = join(projectPath, 'gradle.properties')
+  const gradlePropertiesExists = await exists(gradlePropertiesPath)
+  const properties = parseGradleProperties(await readText(gradlePropertiesPath))
+  const nativeExecutable = properties.echo_native_executable ?? ''
+  const standaloneExecutable = properties.echo_standalone_executable ?? ''
+  const nativeExpected = mode !== 'visual' && runtimes.includes('echo_native')
+  const standaloneExpected = mode !== 'visual' && runtimes.includes('standalone')
+  const nativeConfigured = nativeExecutable.trim().length > 0
+  const standaloneConfigured = standaloneExecutable.trim().length > 0
+
+  return {
+    schemaVersion: 'echo.studio.runtime.launchers.status.v1',
+    gradlePropertiesPath: relative(projectPath, gradlePropertiesPath),
+    gradlePropertiesExists,
+    nativeExpected,
+    nativeConfigured,
+    nativeExecutable,
+    standaloneExpected,
+    standaloneConfigured,
+    standaloneExecutable,
+    ready: (!nativeExpected || nativeConfigured) && (!standaloneExpected || standaloneConfigured)
   }
 }
 
@@ -656,6 +699,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
   const sourceReady = files.some((file) => file.path.startsWith('src/main/java') && file.exists)
   const expectedReady = files.filter((file) => file.expected).every((file) => file.exists)
   const lockStatus = await moduleLockStatus(projectPath, manifest, modulePlan, mode)
+  const runtimeLaunchers = await runtimeLauncherStatus(projectPath, runtimes, mode)
   return {
     ready: Boolean(parsed.lastSetupAt) && expectedReady && lockStatus.upToDate,
     mode,
@@ -667,6 +711,7 @@ export async function inspectDevWorkspace(projectPath: string): Promise<DevWorks
     files,
     modulePlan,
     moduleLock: lockStatus,
+    runtimeLaunchers,
     artifacts: await collectArtifacts(projectPath),
     lastSetupAt: parsed.lastSetupAt
   }

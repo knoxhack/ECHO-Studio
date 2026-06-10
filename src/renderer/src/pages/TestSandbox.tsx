@@ -118,6 +118,8 @@ export default function TestSandbox(): JSX.Element {
     if (taskId === 'gradle:runServer' && !devWorkspace.runtimeTargets.includes('neoforge')) return 'Enable NeoForge and run setup.'
     if (taskId === 'preview:native' && !devWorkspace.runtimeTargets.includes('echo_native')) return 'Enable ECHO Native and run setup.'
     if (taskId === 'preview:standalone' && !devWorkspace.runtimeTargets.includes('standalone')) return 'Enable Standalone Runtime and run setup.'
+    if (taskId === 'preview:native' && !devWorkspace.runtimeLaunchers.nativeConfigured) return 'Set ECHO Native executable in Settings and run setup.'
+    if (taskId === 'preview:standalone' && !devWorkspace.runtimeLaunchers.standaloneConfigured) return 'Set Standalone executable in Settings and run setup.'
     return null
   }
 
@@ -144,6 +146,9 @@ export default function TestSandbox(): JSX.Element {
     ? devWorkspace.gradleReady
       ? devWorkspace.hasGradleWrapper ? 'Pinned Launcher' : 'Project Files'
       : 'Missing'
+    : '...'
+  const launcherValue = devWorkspace
+    ? devWorkspace.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
     : '...'
 
   if (!activeProject) {
@@ -174,7 +179,7 @@ export default function TestSandbox(): JSX.Element {
         <Metric label="Workspace" value={devWorkspace?.ready ? 'Ready' : 'Needs Setup'} tone={devWorkspace?.ready ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Gradle" value={gradleValue} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Runtime Targets" value={devWorkspace?.runtimeTargets.length ? String(devWorkspace.runtimeTargets.length) : '0'} tone={devWorkspace?.runtimeTargets.length ? 'var(--accent)' : 'var(--warn)'} />
-        <Metric label="Artifacts" value={String(devWorkspace?.artifacts.length ?? 0)} />
+        <Metric label="Launchers" value={launcherValue} tone={devWorkspace?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
