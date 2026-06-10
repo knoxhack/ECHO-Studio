@@ -8,7 +8,8 @@ import type {
   GitHubAuthProvider,
   GitHubPublishingStatus,
   GitHubReleaseDraftResult,
-  GitHubRepoConnection
+  GitHubRepoConnection,
+  ReleaseIndexHandoff
 } from '../shared/publishing'
 
 const execFileAsync = promisify(execFile)
@@ -28,6 +29,11 @@ type ReleaseDraftFile = {
   assets?: DraftAsset[]
   releaseIndexHandoff?: unknown
   attestation?: unknown
+}
+
+type ReleaseDraftMetadata = {
+  releaseIndexHandoff: ReleaseIndexHandoff
+  attestation: ReleaseIndexHandoff['attestation']
 }
 
 type BrokerRepoResponse = {
@@ -50,6 +56,14 @@ type BrokerLoginResponse = {
   sessionId?: string
   message?: string
 }
+
+const SHA_256_RE = /^[a-f0-9]{64}$/i
+const REQUIRED_RELEASE_DRAFT_SIDECARS = [
+  'checksums.sha256',
+  'echo-addon-package.json',
+  'echo-release.json',
+  'release-index-handoff.json'
+] as const
 
 function repoFullName(owner: string, repo: string): string {
   const cleanOwner = owner.trim()
@@ -83,10 +97,130 @@ function normalizeDraftAsset(asset: DraftAsset, draftDir: string): DraftAsset {
   if (!/^[A-Za-z0-9._-]+$/.test(name)) {
     throw new Error(`Release draft asset name is unsafe: ${name}`)
   }
-  if (!asset.sha256 || !/^[a-f0-9]{64}$/i.test(asset.sha256)) {
+  if (!asset.sha256 || !SHA_256_RE.test(asset.sha256)) {
     throw new Error(`Release draft asset ${name} must include a valid SHA-256 hash.`)
   }
   return { ...asset, path: assetPath, name }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function assetName(asset: DraftAsset): string {
+  return asset.name || basename(asset.path)
+}
+
+function requireString(value: unknown, message: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(message)
+  return value.trim()
+}
+
+function requireSha256(value: unknown, message: string): string {
+  const sha256 = requireString(value, message)
+  if (!SHA_256_RE.test(sha256)) throw new Error(message)
+  return sha256
+}
+
+function validateReleaseDraftMetadata(draft: ReleaseDraftFile, assets: DraftAsset[]): ReleaseDraftMetadata {
+  const assetsByName = new Map(assets.map((asset) => [assetName(asset), asset]))
+  for (const sidecar of REQUIRED_RELEASE_DRAFT_SIDECARS) {
+    if (!assetsByName.has(sidecar)) {
+      throw new Error(`Release draft is missing required sidecar asset ${sidecar}. Run Prepare Assets again.`)
+    }
+  }
+
+  if (!isRecord(draft.releaseIndexHandoff)) {
+    throw new Error('Release draft must include releaseIndexHandoff metadata. Run Prepare Assets again.')
+  }
+  const handoff = draft.releaseIndexHandoff
+  if (handoff.schemaVersion !== 'echo.release.index.handoff.v1') {
+    throw new Error('Release Index handoff schemaVersion must be echo.release.index.handoff.v1.')
+  }
+  if (handoff.targetRepository !== 'knoxhack/ECHO-Release-Index') {
+    throw new Error('Release Index handoff targetRepository must be knoxhack/ECHO-Release-Index.')
+  }
+  if (handoff.targetCollection !== 'addons') {
+    throw new Error('Release Index handoff targetCollection must be addons.')
+  }
+  const entryFileName = requireString(handoff.entryFileName, 'Release Index handoff entryFileName is required.')
+  if (!/^[A-Za-z0-9._-]+\.json$/.test(entryFileName)) {
+    throw new Error('Release Index handoff entryFileName must be a safe JSON file name.')
+  }
+  requireString(handoff.sourceRepo, 'Release Index handoff sourceRepo is required.')
+  requireString(handoff.releaseTag, 'Release Index handoff releaseTag is required.')
+
+  if (!Array.isArray(handoff.assets) || !handoff.assets.length) {
+    throw new Error('Release Index handoff must list release assets.')
+  }
+  const handoffAssetsByName = new Map<string, Record<string, unknown>>()
+  for (const handoffAsset of handoff.assets) {
+    if (!isRecord(handoffAsset)) throw new Error('Release Index handoff contains an invalid asset record.')
+    const name = requireString(handoffAsset.name, 'Release Index handoff asset name is required.')
+    const sha256 = requireSha256(handoffAsset.sha256, `Release Index handoff asset ${name} must include a valid SHA-256 hash.`)
+    const draftAsset = assetsByName.get(name)
+    if (!draftAsset) throw new Error(`Release Index handoff asset ${name} is not included in release draft assets.`)
+    if (draftAsset.sha256?.toLowerCase() !== sha256.toLowerCase()) {
+      throw new Error(`Release Index handoff asset ${name} SHA-256 does not match release draft assets.`)
+    }
+    if (handoffAsset.role !== 'artifact' && handoffAsset.role !== 'sidecar') {
+      throw new Error(`Release Index handoff asset ${name} must declare an artifact or sidecar role.`)
+    }
+    handoffAssetsByName.set(name, handoffAsset)
+  }
+
+  if (!isRecord(handoff.checksums)) throw new Error('Release Index handoff checksums metadata is required.')
+  if (handoff.checksums.file !== 'checksums.sha256') {
+    throw new Error('Release Index handoff checksums.file must be checksums.sha256.')
+  }
+  const checksumsSha256 = requireSha256(handoff.checksums.sha256, 'Release Index handoff checksums.sha256 must be a valid SHA-256 hash.')
+  if (assetsByName.get('checksums.sha256')?.sha256?.toLowerCase() !== checksumsSha256.toLowerCase()) {
+    throw new Error('Release Index handoff checksums.sha256 does not match the checksums.sha256 release asset.')
+  }
+
+  const attestation = draft.attestation ?? handoff.attestation
+  if (!isRecord(attestation)) {
+    throw new Error('Release draft must include GitHub artifact attestation metadata.')
+  }
+  if (attestation.provider !== 'github-artifact-attestations') {
+    throw new Error('Release draft attestation provider must be github-artifact-attestations.')
+  }
+  if (attestation.requireDigestMatch !== true) {
+    throw new Error('Release draft attestation must require digest matches.')
+  }
+  if (!Array.isArray(attestation.subjects) || !attestation.subjects.length) {
+    throw new Error('Release draft attestation must include at least one subject.')
+  }
+
+  const attestedSubjectsByName = new Map<string, string>()
+  for (const subject of attestation.subjects) {
+    if (!isRecord(subject)) throw new Error('Release draft attestation contains an invalid subject.')
+    const name = requireString(subject.name, 'Release draft attestation subject name is required.')
+    const sha256 = requireSha256(subject.sha256, `Release draft attestation subject ${name} must include a valid SHA-256 hash.`)
+    const draftAsset = assetsByName.get(name)
+    if (!draftAsset) throw new Error(`Release draft attestation subject ${name} is not included in release draft assets.`)
+    if (draftAsset.sha256?.toLowerCase() !== sha256.toLowerCase()) {
+      throw new Error(`Release draft attestation subject ${name} SHA-256 does not match release draft assets.`)
+    }
+    if (handoffAssetsByName.get(name)?.role !== 'artifact') {
+      throw new Error(`Release draft attestation subject ${name} must match a handoff artifact asset.`)
+    }
+    attestedSubjectsByName.set(name, sha256)
+  }
+
+  for (const handoffAsset of handoffAssetsByName.values()) {
+    if (handoffAsset.role !== 'artifact') continue
+    const name = String(handoffAsset.name)
+    const sha256 = String(handoffAsset.sha256).toLowerCase()
+    if (attestedSubjectsByName.get(name)?.toLowerCase() !== sha256) {
+      throw new Error(`Release Index handoff artifact ${name} is missing a matching attestation subject.`)
+    }
+  }
+
+  return {
+    releaseIndexHandoff: handoff as unknown as ReleaseIndexHandoff,
+    attestation: attestation as unknown as ReleaseIndexHandoff['attestation']
+  }
 }
 
 function sha256Buffer(buffer: Buffer): string {
@@ -296,6 +430,7 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
   if (!tag) throw new Error('Release tag is required.')
   const assets = (draft.assets ?? []).map((asset) => normalizeDraftAsset(asset, draftDir))
   if (!assets.length) throw new Error('Release draft has no assets.')
+  const metadata = validateReleaseDraftMetadata(draft, assets)
   for (const asset of assets) {
     await fs.access(asset.path)
     await readVerifiedDraftAsset(asset)
@@ -323,8 +458,8 @@ export async function createGitHubReleaseDraft(releaseDraftPath: string, owner: 
       draft: forceDraft || draft.draft !== false,
       prerelease: Boolean(draft.prerelease),
       releaseDraft: draft,
-      releaseIndexHandoff: draft.releaseIndexHandoff,
-      attestation: draft.attestation,
+      releaseIndexHandoff: metadata.releaseIndexHandoff,
+      attestation: metadata.attestation,
       assets: brokerAssets,
     })
     return {

@@ -23,6 +23,129 @@ function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
 
+type DraftFixtureOptions = {
+  artifactSha256?: string
+  omitAssetNames?: string[]
+  releaseIndexHandoff?: unknown
+  attestation?: unknown
+  handoffAttestation?: unknown
+  attestationSubjectName?: string
+  attestationSubjectSha256?: string
+}
+
+async function writeDraftFixture(root: string, options: DraftFixtureOptions = {}): Promise<string> {
+  const artifactName = 'myaddon-0.1.0.echo-addon'
+  const artifactContent = 'artifact-bytes'
+  const artifactSha256 = options.artifactSha256 ?? sha256(artifactContent)
+  const checksumsContent = `${artifactSha256}  ${artifactName}\n`
+  const fileContents = new Map<string, string>([
+    [artifactName, artifactContent],
+    ['checksums.sha256', checksumsContent],
+    ['echo-addon-package.json', JSON.stringify({ schemaVersion: 'echo.addon.package.v1' })],
+    ['echo-release.json', JSON.stringify({ schemaVersion: 'echo.release.index.entry.v1' })],
+    ['release-index-handoff.json', JSON.stringify({ schemaVersion: 'echo.release.index.handoff.v1' })]
+  ])
+  const omitAssetNames = new Set(options.omitAssetNames ?? [])
+  const assetRecords: Array<{ path: string; name: string; sha256: string }> = []
+  for (const [name, content] of fileContents) {
+    const assetPath = join(root, name)
+    await fs.writeFile(assetPath, content)
+    if (omitAssetNames.has(name)) continue
+    assetRecords.push({
+      path: assetPath,
+      name,
+      sha256: name === artifactName ? artifactSha256 : sha256(content)
+    })
+  }
+
+  const checksumsAsset = assetRecords.find((asset) => asset.name === 'checksums.sha256')
+  if (!checksumsAsset) throw new Error('Test fixture requires checksums.sha256 unless the test overrides handoff metadata.')
+  const handoff = {
+    schemaVersion: 'echo.release.index.handoff.v1',
+    generatedAt: '2026-06-10T00:00:00.000Z',
+    targetRepository: 'knoxhack/ECHO-Release-Index',
+    targetCollection: 'addons',
+    entryFileName: 'myaddon.json',
+    entry: { id: 'myaddon', kind: 'addon' },
+    sourceRepo: 'knoxhack/my-addon',
+    releaseTag: 'v0.1.0',
+    assets: [
+      {
+        name: artifactName,
+        path: join(root, artifactName),
+        sha256: artifactSha256,
+        bytes: Buffer.byteLength(artifactContent),
+        role: 'artifact'
+      },
+      {
+        name: 'checksums.sha256',
+        path: join(root, 'checksums.sha256'),
+        sha256: checksumsAsset.sha256,
+        bytes: Buffer.byteLength(checksumsContent),
+        role: 'sidecar'
+      },
+      {
+        name: 'echo-addon-package.json',
+        path: join(root, 'echo-addon-package.json'),
+        sha256: sha256(fileContents.get('echo-addon-package.json') ?? ''),
+        bytes: Buffer.byteLength(fileContents.get('echo-addon-package.json') ?? ''),
+        role: 'sidecar'
+      },
+      {
+        name: 'echo-release.json',
+        path: join(root, 'echo-release.json'),
+        sha256: sha256(fileContents.get('echo-release.json') ?? ''),
+        bytes: Buffer.byteLength(fileContents.get('echo-release.json') ?? ''),
+        role: 'sidecar'
+      }
+    ],
+    checksums: {
+      file: 'checksums.sha256',
+      sha256: checksumsAsset.sha256
+    },
+    attestation: 'handoffAttestation' in options ? options.handoffAttestation : {
+      mode: 'required-for-official-or-verified',
+      provider: 'github-artifact-attestations',
+      requiredWorkflow: '.github/workflows/release.yml',
+      requireDigestMatch: true,
+      subjects: [
+        {
+          name: options.attestationSubjectName ?? artifactName,
+          sha256: options.attestationSubjectSha256 ?? artifactSha256,
+          bytes: Buffer.byteLength(artifactContent),
+          sourceRepo: 'knoxhack/my-addon',
+          releaseTag: 'v0.1.0'
+        }
+      ]
+    },
+    ingestion: {
+      status: 'pending-review',
+      requireSchemaValidation: true,
+      requirePackOSReady: true,
+      notes: []
+    }
+  }
+  const releaseIndexHandoff = 'releaseIndexHandoff' in options ? options.releaseIndexHandoff : handoff
+  const attestation = 'attestation' in options ? options.attestation : handoff.attestation
+  const draftPath = join(root, 'github-release-draft.json')
+  await fs.writeFile(
+    draftPath,
+    JSON.stringify(
+      {
+        tag_name: 'v0.1.0',
+        name: 'myaddon v0.1.0',
+        draft: true,
+        assets: assetRecords,
+        releaseIndexHandoff,
+        attestation
+      },
+      null,
+      2
+    )
+  )
+  return draftPath
+}
+
 describe('GitHub App broker publishing', () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV }
@@ -83,23 +206,12 @@ describe('GitHub App broker publishing', () => {
   it('uploads release draft payload and assets through the GitHub App broker', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {
-      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
-      const draftPath = join(root, 'github-release-draft.json')
-      await fs.writeFile(assetPath, 'artifact-bytes')
-      await fs.writeFile(
-        draftPath,
-        JSON.stringify({
-          tag_name: 'v0.1.0',
-          name: 'myaddon v0.1.0',
-          draft: true,
-          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: sha256('artifact-bytes') }]
-        })
-      )
+      const draftPath = await writeDraftFixture(root)
 
       const fetchMock = vi.fn(() =>
         jsonResponse({
           url: 'https://github.com/knoxhack/my-addon/releases/tag/v0.1.0',
-          assets: ['myaddon-0.1.0.echo-addon']
+          assets: ['myaddon-0.1.0.echo-addon', 'release-index-handoff.json']
         })
       )
       vi.stubGlobal('fetch', fetchMock)
@@ -112,6 +224,16 @@ describe('GitHub App broker publishing', () => {
       expect(result.url).toContain('/releases/tag/v0.1.0')
       expect(requestBody.assets[0].contentBase64).toBe(Buffer.from('artifact-bytes').toString('base64'))
       expect(requestBody.releaseDraft.tag_name).toBe('v0.1.0')
+      expect(requestBody.releaseIndexHandoff.schemaVersion).toBe('echo.release.index.handoff.v1')
+      expect(requestBody.releaseIndexHandoff.targetRepository).toBe('knoxhack/ECHO-Release-Index')
+      expect(requestBody.attestation.provider).toBe('github-artifact-attestations')
+      expect(requestBody.assets.map((asset: { name: string }) => asset.name)).toEqual(expect.arrayContaining([
+        'myaddon-0.1.0.echo-addon',
+        'checksums.sha256',
+        'echo-addon-package.json',
+        'echo-release.json',
+        'release-index-handoff.json'
+      ]))
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
@@ -181,18 +303,53 @@ describe('GitHub App broker publishing', () => {
   it('rejects release draft assets whose bytes do not match declared SHA-256 hashes', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
     try {
-      const assetPath = join(root, 'myaddon-0.1.0.echo-addon')
-      const draftPath = join(root, 'github-release-draft.json')
-      await fs.writeFile(assetPath, 'artifact-bytes')
-      await fs.writeFile(
-        draftPath,
-        JSON.stringify({
-          tag_name: 'v0.1.0',
-          assets: [{ path: assetPath, name: 'myaddon-0.1.0.echo-addon', sha256: sha256('different-bytes') }]
-        })
-      )
+      const draftPath = await writeDraftFixture(root, { artifactSha256: sha256('different-bytes') })
 
       await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/SHA-256 mismatch/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts without Release Index handoff metadata', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { releaseIndexHandoff: null })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/releaseIndexHandoff metadata/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts without artifact attestation metadata', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { attestation: null, handoffAttestation: null })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/attestation metadata/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts without the handoff sidecar asset', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { omitAssetNames: ['release-index-handoff.json'] })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/release-index-handoff\.json/)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release drafts whose attestation subjects do not match uploaded artifacts', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'echo-publish-'))
+    try {
+      const draftPath = await writeDraftFixture(root, { attestationSubjectSha256: sha256('other-artifact') })
+
+      await expect(createGitHubReleaseDraft(draftPath, 'knoxhack', 'my-addon')).rejects.toThrow(/attestation subject .* SHA-256/)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
