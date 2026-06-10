@@ -1,5 +1,61 @@
+import {
+  Bot,
+  BookOpen,
+  Boxes,
+  CircleHelp,
+  FileCode2,
+  FolderOpen,
+  Gamepad2,
+  GitBranch,
+  Home,
+  Image,
+  Keyboard,
+  LayoutTemplate,
+  Library,
+  ListChecks,
+  MapPinned,
+  PackageCheck,
+  PanelsTopLeft,
+  Play,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  SquarePlus,
+  SquareTerminal,
+  type LucideIcon
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
-import { NAV } from '../nav'
+import { NAV, type NavIcon } from '../nav'
+
+const NAV_ICONS: Record<NavIcon, LucideIcon> = {
+  assets: Image,
+  assistant: Bot,
+  catalog: Library,
+  codex: ListChecks,
+  content: FileCode2,
+  create: SquarePlus,
+  devWorkspace: SquareTerminal,
+  experience: Sparkles,
+  gameplay: Gamepad2,
+  git: GitBranch,
+  home: Home,
+  index: BookOpen,
+  interface: PanelsTopLeft,
+  missions: MapPinned,
+  modules: Boxes,
+  preview: Play,
+  projects: FolderOpen,
+  release: PackageCheck,
+  settings: Settings,
+  shortcuts: Keyboard,
+  templates: LayoutTemplate,
+  validation: ShieldCheck
+}
+
+function NavItemIcon({ icon }: { icon: NavIcon }): JSX.Element {
+  const Icon = NAV_ICONS[icon] ?? CircleHelp
+  return <Icon aria-hidden="true" size={16} strokeWidth={2.1} />
+}
 
 export function Sidebar(): JSX.Element {
   return (
@@ -20,7 +76,9 @@ export function Sidebar(): JSX.Element {
               end={item.path === '/'}
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
-              <span className="ico">{item.icon}</span>
+              <span className="ico">
+                <NavItemIcon icon={item.icon} />
+              </span>
               <span>{item.label}</span>
             </NavLink>
           ))}

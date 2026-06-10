@@ -1,7 +1,31 @@
+export type NavIcon =
+  | 'assets'
+  | 'assistant'
+  | 'catalog'
+  | 'codex'
+  | 'content'
+  | 'create'
+  | 'devWorkspace'
+  | 'experience'
+  | 'gameplay'
+  | 'git'
+  | 'home'
+  | 'index'
+  | 'interface'
+  | 'missions'
+  | 'modules'
+  | 'preview'
+  | 'projects'
+  | 'release'
+  | 'settings'
+  | 'shortcuts'
+  | 'templates'
+  | 'validation'
+
 export interface NavItem {
   path: string
   label: string
-  icon: string
+  icon: NavIcon
 }
 
 export interface NavGroup {
@@ -13,53 +37,53 @@ export const NAV: NavGroup[] = [
   {
     title: 'Start',
     items: [
-      { path: '/', label: 'Home', icon: 'H' },
-      { path: '/projects', label: 'Projects', icon: 'P' },
-      { path: '/create', label: 'Create', icon: '+' },
-      { path: '/templates', label: 'Templates', icon: 'T' },
-      { path: '/experience', label: 'Experience', icon: 'E' }
+      { path: '/', label: 'Home', icon: 'home' },
+      { path: '/projects', label: 'Projects', icon: 'projects' },
+      { path: '/create', label: 'Create', icon: 'create' },
+      { path: '/templates', label: 'Templates', icon: 'templates' },
+      { path: '/experience', label: 'Experience', icon: 'experience' }
     ]
   },
   {
     title: 'Build',
     items: [
-      { path: '/modules', label: 'Modules', icon: 'M' },
-      { path: '/dev-workspace', label: 'Dev Workspace', icon: 'D' },
-      { path: '/content', label: 'Content', icon: 'C' },
-      { path: '/assets', label: 'Assets', icon: 'A' }
+      { path: '/modules', label: 'Modules', icon: 'modules' },
+      { path: '/dev-workspace', label: 'Dev Workspace', icon: 'devWorkspace' },
+      { path: '/content', label: 'Content', icon: 'content' },
+      { path: '/assets', label: 'Assets', icon: 'assets' }
     ]
   },
   {
     title: 'Author',
     items: [
-      { path: '/gameplay', label: 'Gameplay', icon: 'G' },
-      { path: '/missions', label: 'Missions', icon: 'Q' },
-      { path: '/interface', label: 'Interface', icon: 'U' },
-      { path: '/index', label: 'Index', icon: 'I' }
+      { path: '/gameplay', label: 'Gameplay', icon: 'gameplay' },
+      { path: '/missions', label: 'Missions', icon: 'missions' },
+      { path: '/interface', label: 'Interface', icon: 'interface' },
+      { path: '/index', label: 'Index', icon: 'index' }
     ]
   },
   {
     title: 'Ship',
     items: [
-      { path: '/preview', label: 'Preview', icon: 'P' },
-      { path: '/validation', label: 'Validation', icon: 'V' },
-      { path: '/release', label: 'Release', icon: 'R' },
-      { path: '/catalog', label: 'Catalog', icon: 'C' }
+      { path: '/preview', label: 'Preview', icon: 'preview' },
+      { path: '/validation', label: 'Validation', icon: 'validation' },
+      { path: '/release', label: 'Release', icon: 'release' },
+      { path: '/catalog', label: 'Catalog', icon: 'catalog' }
     ]
   },
   {
     title: 'Assist',
     items: [
-      { path: '/ai', label: 'Assistant', icon: 'A' },
-      { path: '/codex', label: 'Codex Tasks', icon: 'C' }
+      { path: '/ai', label: 'Assistant', icon: 'assistant' },
+      { path: '/codex', label: 'Codex Tasks', icon: 'codex' }
     ]
   },
   {
     title: 'System',
     items: [
-      { path: '/git', label: 'Version Control', icon: 'G' },
-      { path: '/settings', label: 'Settings', icon: 'S' },
-      { path: '/shortcuts', label: 'Shortcuts', icon: '?' }
+      { path: '/git', label: 'Version Control', icon: 'git' },
+      { path: '/settings', label: 'Settings', icon: 'settings' },
+      { path: '/shortcuts', label: 'Shortcuts', icon: 'shortcuts' }
     ]
   }
 ]

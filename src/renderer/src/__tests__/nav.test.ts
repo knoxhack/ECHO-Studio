@@ -41,6 +41,19 @@ describe('renderer navigation metadata', () => {
     expect(findLabel('/codex')).toBe('Codex Tasks')
   })
 
+  it('uses semantic icon keys instead of single-letter placeholders', () => {
+    const icons = NAV.flatMap((group) => group.items.map((item) => item.icon))
+
+    expect(icons.every((icon) => icon.length > 1)).toBe(true)
+    expect(icons).toEqual(expect.arrayContaining([
+      'modules',
+      'devWorkspace',
+      'validation',
+      'release',
+      'codex'
+    ]))
+  })
+
   it('keeps legacy routes labeled with current Studio surface names', () => {
     expect(findLabel('/manifest-editor')).toBe('Manifest JSON')
     expect(findLabel('/advanced')).toBe('Content Builder')

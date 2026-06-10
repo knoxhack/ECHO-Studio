@@ -143,11 +143,19 @@ button {
 }
 .nav-item .ico {
   width: 16px;
+  height: 16px;
   text-align: center;
   opacity: 0.85;
-  font-size: 11px;
-  font-weight: 800;
   color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+}
+.nav-item .ico svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .mode-card {
