@@ -208,4 +208,27 @@ describe('previewRuntimeDisabledReason', () => {
       }
     }), 'running Build All Targets')).toBe('Resolve unknown ECHO module dependencies before running Build All Targets: echo:made_up.')
   })
+
+  it('blocks local tasks when linked ECHO module Gradle dependencies are unresolved', () => {
+    const state = workspace({
+      moduleWorkspace: {
+        ...workspace().moduleWorkspace,
+        gradleDependencyIssues: [
+          {
+            moduleId: 'echocore',
+            moduleName: 'Core',
+            projectPath: ':echocore',
+            missingProjectDependencies: [':echo-native-contracts']
+          }
+        ]
+      }
+    })
+
+    expect(moduleReadinessDisabledReason(state, 'running Build All Targets')).toBe(
+      'Resolve local ECHO module Gradle dependency gaps before running Build All Targets: Core missing :echo-native-contracts.'
+    )
+    expect(previewRuntimeDisabledReason('gradle:runClient', state)).toBe(
+      'Resolve local ECHO module Gradle dependency gaps before launching previews: Core missing :echo-native-contracts.'
+    )
+  })
 })

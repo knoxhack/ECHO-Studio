@@ -35,6 +35,13 @@ export function moduleReadinessDisabledReason(
   if (devWorkspace.modulePlan.unknown.length > 0) {
     return `Resolve unknown ECHO module dependencies before ${actionPhrase}: ${devWorkspace.modulePlan.unknown.join(', ')}.`
   }
+  const gradleDependencyIssues = devWorkspace.moduleWorkspace.gradleDependencyIssues ?? []
+  if (gradleDependencyIssues.length > 0) {
+    const details = gradleDependencyIssues
+      .map((issue) => `${issue.moduleName} missing ${issue.missingProjectDependencies.join(', ')}`)
+      .join('; ')
+    return `Resolve local ECHO module Gradle dependency gaps before ${actionPhrase}: ${details}.`
+  }
   return null
 }
 

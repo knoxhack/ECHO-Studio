@@ -440,7 +440,7 @@ describe('setupDevWorkspace', () => {
           ]
         }, null, 2), 'utf8')
 
-        const { setupDevWorkspace } = await import('../../main/devWorkspaceService')
+        const { runDevTask, setupDevWorkspace } = await import('../../main/devWorkspaceService')
         const result = await setupDevWorkspace(project, {
           mode: 'gradle',
           runtimes: ['neoforge'],
@@ -467,6 +467,9 @@ describe('setupDevWorkspace', () => {
           gradleDependencyReady: false
         })
         expect(moduleWorkspace.modules[0].dependencyNotation).toBeUndefined()
+        await expect(runDevTask(project, 'gradle:build')).rejects.toThrow(
+          'Resolve local ECHO module Gradle dependency gaps before running Build All Targets: Core missing :echo-native-contracts.'
+        )
       } finally {
         if (previous === undefined) delete process.env.ECHO_MODULES_DIR
         else process.env.ECHO_MODULES_DIR = previous
