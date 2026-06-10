@@ -97,7 +97,7 @@ async function finishTaskLog(logPath: string, status: DevTaskRun['status'], fini
 }
 
 async function collectArtifacts(projectPath: string): Promise<DevArtifact[]> {
-  const roots = [join(projectPath, 'build', 'libs'), join(projectPath, 'release')]
+  const roots = [join(projectPath, 'build', 'libs'), join(projectPath, 'release'), join(projectPath, 'exports')]
   const artifacts: DevArtifact[] = []
   for (const root of roots) {
     if (!await exists(root)) continue

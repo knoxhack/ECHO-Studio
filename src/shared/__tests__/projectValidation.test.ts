@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runProjectCheck } from '../projectValidation'
+import type { DevWorkspaceState } from '../devWorkspace'
 import type { AddonManifest } from '../types'
 
 function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
@@ -22,6 +23,30 @@ function makeManifest(overrides?: Partial<AddonManifest>): AddonManifest {
     tags: ['test'],
     ...overrides
   } as AddonManifest
+}
+
+function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspaceState {
+  return {
+    ready: true,
+    mode: 'full',
+    projectPath: 'C:\\test\\project',
+    gradleReady: true,
+    hasGradleWrapper: true,
+    sourceReady: true,
+    runtimeTargets: ['neoforge'],
+    files: [],
+    modulePlan: {
+      declared: [],
+      normalizedDeclared: [],
+      enabled: [],
+      unknown: [],
+      missingRequired: [],
+      optionalAvailable: [],
+      closure: []
+    },
+    artifacts,
+    lastSetupAt: '2026-06-09T00:00:00.000Z'
+  }
 }
 
 describe('runProjectCheck', () => {
@@ -92,5 +117,40 @@ describe('runProjectCheck', () => {
       assetFiles: []
     })
     expect(report.issues.some((i) => i.message.includes('Circular recipe dependency'))).toBe(true)
+  })
+
+  it('treats packaged exports with release sidecars as release-ready artifacts', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: makeDevWorkspace([
+        {
+          path: 'C:\\test\\project\\exports\\weather_pack-1.0.0.echo-addon',
+          name: 'weather_pack-1.0.0.echo-addon',
+          kind: 'echo-addon',
+          bytes: 4,
+          modifiedAt: 1
+        },
+        {
+          path: 'C:\\test\\project\\exports\\echo-release.json',
+          name: 'echo-release.json',
+          kind: 'manifest',
+          bytes: 2,
+          modifiedAt: 1
+        },
+        {
+          path: 'C:\\test\\project\\exports\\checksums.sha256',
+          name: 'checksums.sha256',
+          kind: 'checksum',
+          bytes: 10,
+          modifiedAt: 1
+        }
+      ])
+    })
+
+    expect(report.issues.some((i) => i.message === 'No local artifacts have been built yet.')).toBe(false)
+    expect(report.issues.some((i) => i.message === 'Built artifacts are missing echo-release.json or checksums.sha256.')).toBe(false)
   })
 })

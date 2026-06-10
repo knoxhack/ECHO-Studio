@@ -97,4 +97,26 @@ describe('setupDevWorkspace', () => {
       await expect(fs.access(path.join(project, '.echo-studio', 'release-checklist.md'))).resolves.toBeUndefined()
     })
   })
+
+  it('discovers packaged release artifacts from exports', async () => {
+    await withProject(async (project) => {
+      const exportsDir = path.join(project, 'exports')
+      await fs.mkdir(exportsDir, { recursive: true })
+      await fs.writeFile(path.join(exportsDir, 'weather_pack-1.0.0.echo-addon'), 'addon', 'utf8')
+      await fs.writeFile(path.join(exportsDir, 'echo-release.json'), '{}', 'utf8')
+      await fs.writeFile(path.join(exportsDir, 'checksums.sha256'), 'hash  file', 'utf8')
+
+      const { inspectDevWorkspace } = await import('../../main/devWorkspaceService')
+      const state = await inspectDevWorkspace(project)
+
+      expect(state.artifacts.map((artifact) => artifact.name)).toEqual(expect.arrayContaining([
+        'weather_pack-1.0.0.echo-addon',
+        'echo-release.json',
+        'checksums.sha256'
+      ]))
+      expect(state.artifacts.find((artifact) => artifact.name.endsWith('.echo-addon'))?.kind).toBe('echo-addon')
+      expect(state.artifacts.find((artifact) => artifact.name === 'echo-release.json')?.kind).toBe('manifest')
+      expect(state.artifacts.find((artifact) => artifact.name === 'checksums.sha256')?.kind).toBe('checksum')
+    })
+  })
 })
