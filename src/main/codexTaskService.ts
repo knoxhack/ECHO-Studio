@@ -49,9 +49,28 @@ interface ProjectContext {
 }
 
 const STORE_PATH = join('.echo-studio', 'codex-tasks.json')
+const MANIFEST_VALIDATION_FIX_TASK_ID = 'manifest:validation-autofix'
+const LEGACY_MANIFEST_VALIDATION_FIX_TASK_ID = 'manifest:packos-autofix'
+
+function canonicalTaskId(taskId: string): string {
+  return taskId === LEGACY_MANIFEST_VALIDATION_FIX_TASK_ID ? MANIFEST_VALIDATION_FIX_TASK_ID : taskId
+}
+
+function taskAliases(id: string): string[] {
+  return id === MANIFEST_VALIDATION_FIX_TASK_ID ? [LEGACY_MANIFEST_VALIDATION_FIX_TASK_ID] : []
+}
+
+function deleteTaskState(store: CodexTaskStore, id: string): void {
+  delete store.rejected[id]
+  delete store.applied[id]
+  for (const alias of taskAliases(id)) {
+    delete store.rejected[alias]
+    delete store.applied[alias]
+  }
+}
 
 function taskLane(id: string, preferred: CodexTaskLane, store: CodexTaskStore): CodexTaskLane {
-  return store.rejected[id] ? 'rejected' : preferred
+  return [id, ...taskAliases(id)].some((taskId) => store.rejected[taskId]) ? 'rejected' : preferred
 }
 
 async function ensureStudioDir(projectPath: string): Promise<string> {
@@ -213,12 +232,12 @@ async function moduleClosureTask(store: CodexTaskStore, context: ProjectContext)
   )
 }
 
-async function packosFixTask(store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+async function validationFixTask(store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
   if (context.report.counts.BLOCKER === 0 && context.report.counts.ERROR === 0) return null
   return manifestTask(
     store,
     context,
-    'manifest:packos-autofix',
+    MANIFEST_VALIDATION_FIX_TASK_ID,
     'Apply safe validation fixes',
     'Uses Studio safety rules to repair reserved namespace usage, blocked permissions, missing core dependencies, empty runtimes, and missing tags.',
     `${context.report.counts.BLOCKER} blocker(s) and ${context.report.counts.ERROR} error(s) are present before release.`,
@@ -719,7 +738,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
   const tasks = await Promise.all([
     Promise.resolve(moduleCatalogSetupTask(store, context)),
     moduleClosureTask(store, context),
-    packosFixTask(store, context),
+    validationFixTask(store, context),
     indexEntriesTask(projectPath, store, context),
     holomapMarkersTask(projectPath, store, context),
     missionLocalizationTask(projectPath, store, context),
@@ -737,17 +756,18 @@ function defaultRuntimes(manifest: AddonManifest): Runtime[] {
 }
 
 async function applyManifestProposal(projectPath: string, taskId: string): Promise<CodexTaskActionResult> {
+  const normalizedTaskId = canonicalTaskId(taskId)
   const tasks = await listCodexTasks(projectPath)
-  const task = tasks.find((item) => item.id === taskId)
+  const task = tasks.find((item) => item.id === normalizedTaskId)
   if (!task?.fileChanges[0]?.after) throw new Error(`No manifest proposal is available for ${taskId}.`)
   const next = JSON.parse(task.fileChanges[0].after) as AddonManifest
   await writeManifest(projectPath, next)
   const store = await readStore(projectPath)
-  delete store.rejected[taskId]
-  store.applied[taskId] = new Date().toISOString()
+  deleteTaskState(store, normalizedTaskId)
+  store.applied[normalizedTaskId] = new Date().toISOString()
   await writeStore(projectPath, store)
   return {
-    taskId,
+    taskId: normalizedTaskId,
     message: `${task.title} applied.`,
     filesChanged: ['echo.mod.json']
   }
@@ -842,8 +862,9 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
 
 export async function setCodexTaskRejected(projectPath: string, taskId: string, rejected: boolean): Promise<CodexTask[]> {
   const store = await readStore(projectPath)
-  if (rejected) store.rejected[taskId] = new Date().toISOString()
-  else delete store.rejected[taskId]
+  const normalizedTaskId = canonicalTaskId(taskId)
+  if (rejected) store.rejected[normalizedTaskId] = new Date().toISOString()
+  else deleteTaskState(store, normalizedTaskId)
   await writeStore(projectPath, store)
   return listCodexTasks(projectPath)
 }

@@ -144,7 +144,7 @@ describe('codex task service', () => {
 
       const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
       const tasks = await listCodexTasks(project)
-      const task = tasks.find((item) => item.id === 'manifest:packos-autofix')
+      const task = tasks.find((item) => item.id === 'manifest:validation-autofix')
       const proposed = JSON.parse(task?.fileChanges[0].after ?? '{}') as AddonManifest
 
       expect(task).toBeDefined()
@@ -152,7 +152,7 @@ describe('codex task service', () => {
       expect(proposed.dependencies.required).toContain('echo:weather_core')
       expect(proposed.target.modules).toContain('echo:weather_core')
 
-      await applyCodexTask(project, 'manifest:packos-autofix')
+      await applyCodexTask(project, 'manifest:validation-autofix')
       const applied = JSON.parse(await fs.readFile(path.join(project, 'echo.mod.json'), 'utf8')) as AddonManifest
 
       expect(applied.dependencies.required).toContain('echo:weather_core')
@@ -172,6 +172,34 @@ describe('codex task service', () => {
         provides: ['weather.events']
       }
     ])
+  })
+
+  it('keeps legacy PackOS manifest task ids as validation-fix aliases', async () => {
+    await withProject(async (project) => {
+      const nextManifest = manifest()
+      nextManifest.namespace = 'echo'
+      nextManifest.id = 'echo:weather_pack'
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(nextManifest, null, 2), 'utf8')
+
+      const { applyCodexTask, listCodexTasks, setCodexTaskRejected } = await import('../../main/codexTaskService')
+      const before = await listCodexTasks(project)
+      const task = before.find((item) => item.id === 'manifest:validation-autofix')
+
+      expect(task).toBeDefined()
+
+      const rejected = await setCodexTaskRejected(project, 'manifest:packos-autofix', true)
+      expect(rejected.find((item) => item.id === 'manifest:validation-autofix')?.lane).toBe('rejected')
+
+      const restored = await setCodexTaskRejected(project, 'manifest:validation-autofix', false)
+      expect(restored.find((item) => item.id === 'manifest:validation-autofix')?.lane).toBe('waiting_review')
+
+      const result = await applyCodexTask(project, 'manifest:packos-autofix')
+      const applied = JSON.parse(await fs.readFile(path.join(project, 'echo.mod.json'), 'utf8')) as AddonManifest
+
+      expect(result.taskId).toBe('manifest:validation-autofix')
+      expect(applied.namespace).toBe('teamnova')
+      expect(applied.id).toBe('teamnova:weather_pack')
+    })
   })
 
   it('suggests configuring preview launchers when selected runtimes lack executable paths', async () => {

@@ -95,7 +95,7 @@ export default function Validation(): JSX.Element {
 
   const hs = report.healthScore
   const reviewableCodexTasks = codexTasks.filter((task) => task.lane !== 'rejected')
-  const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:packos-autofix' && task.lane !== 'rejected'))
+  const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:validation-autofix' && task.lane !== 'rejected'))
   const aiFixableCount = report.issues.filter((issue) => issue.aiFixable).length
   const workspaceSetUp = Boolean(devWorkspace?.lastSetupAt)
   const workspaceReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.gradleReady && devWorkspace.hasGradleWrapper)))
