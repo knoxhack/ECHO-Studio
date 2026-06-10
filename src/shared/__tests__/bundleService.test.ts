@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computeLoadOrder } from '../bundles'
+import { computeLoadOrder, summarizeBundleModules } from '../bundles'
+import { ECHO_MODULE_CATALOG, mergeModuleCatalog, moduleFromIndexEntry } from '../moduleCatalog'
 import type { AddonManifest } from '../types'
 
 function makeManifest(id: string, deps: string[] = []): AddonManifest {
@@ -48,5 +49,39 @@ describe('computeLoadOrder', () => {
     const result = computeLoadOrder([a, b])
     expect(result.warnings.length).toBeGreaterThan(0)
     expect(result.warnings[0]).toContain('Circular dependency')
+  })
+})
+
+describe('summarizeBundleModules', () => {
+  it('resolves bundle module closure through the active catalog', () => {
+    const catalog = mergeModuleCatalog([
+      moduleFromIndexEntry({
+        id: 'echomissioncore',
+        name: 'ECHO: MissionCore',
+        channel: 'beta',
+        requires: ['echocore', 'echoweathercore']
+      }),
+      moduleFromIndexEntry({
+        id: 'echoweathercore',
+        name: 'ECHO: WeatherCore',
+        channel: 'beta',
+        moduleDir: 'addons/echoweathercore',
+        requires: ['echocore'],
+        provides: ['weather.events']
+      })
+    ], ECHO_MODULE_CATALOG)
+    const summary = summarizeBundleModules([
+      makeManifest('teamnova:missions', ['echo:mission_core'])
+    ], catalog)
+
+    expect(summary.modules.map((mod) => mod.alias)).toEqual(expect.arrayContaining([
+      'echo:core',
+      'echo:mission_core',
+      'echo:weather_core'
+    ]))
+    expect(summary.localModuleCount).toBe(1)
+    expect(summary.missingRequired).toContain('echo:weather_core')
+    expect(summary.unknown).toEqual([])
+    expect(summary.blocked).toEqual([])
   })
 })

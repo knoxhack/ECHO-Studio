@@ -4,7 +4,8 @@ import { createHash } from 'crypto'
 import AdmZip from 'adm-zip'
 import { readManifest, defaultWorkspace } from './fsService'
 import type { AddonManifest } from '../shared/types'
-import { computeLoadOrder, type BundleMember, type ExperienceResult, type ServerPackResult } from '../shared/bundles'
+import { computeLoadOrder, summarizeBundleModules, type BundleMember, type BundleModuleSummary, type ExperienceResult, type ServerPackResult } from '../shared/bundles'
+import { listEchoModules } from './moduleCatalogService'
 
 async function loadMember(path: string): Promise<{ manifest: AddonManifest; member: BundleMember }> {
   const manifest = await readManifest(path)
@@ -19,6 +20,43 @@ async function loadMember(path: string): Promise<{ manifest: AddonManifest; memb
 
 export { computeLoadOrder } from '../shared/bundles'
 
+function moduleWarnings(summary: BundleModuleSummary): string[] {
+  const warnings: string[] = []
+  if (summary.missingRequired.length > 0) {
+    warnings.push(`Module closure missing from member manifests: ${summary.missingRequired.join(', ')}.`)
+  }
+  if (summary.unknown.length > 0) {
+    warnings.push(`Unknown module or dependency references: ${summary.unknown.join(', ')}.`)
+  }
+  if (summary.blocked.length > 0) {
+    warnings.push(`Blocked modules are present: ${summary.blocked.join(', ')}.`)
+  }
+  return warnings
+}
+
+function moduleMetadata(summary: BundleModuleSummary, catalogSource: string): Record<string, unknown> {
+  return {
+    catalogSource,
+    moduleCount: summary.moduleCount,
+    localModuleCount: summary.localModuleCount,
+    modules: summary.modules.map((mod) => ({
+      id: mod.id,
+      alias: mod.alias,
+      name: mod.name,
+      role: mod.role,
+      status: mod.status,
+      publicApi: mod.publicApi,
+      trustLevel: mod.trustLevel ?? 'unknown',
+      localSource: mod.localSource
+    })),
+    issues: {
+      missingRequired: summary.missingRequired,
+      unknown: summary.unknown,
+      blocked: summary.blocked
+    }
+  }
+}
+
 // Build a Community Experience bundle: a project folder with experience.json +
 // lockfile.json describing members, load order and dependency rules.
 export async function createExperience(
@@ -31,7 +69,10 @@ export async function createExperience(
   const loaded = await Promise.all(memberPaths.map(loadMember))
   const manifests = loaded.map((l) => l.manifest)
   const members = loaded.map((l) => l.member)
+  const moduleCatalog = await listEchoModules(workspaceDir)
+  const moduleSummary = summarizeBundleModules(manifests, moduleCatalog.catalog)
   const { order, warnings } = computeLoadOrder(manifests)
+  warnings.push(...moduleCatalog.warnings, ...moduleWarnings(moduleSummary))
 
   // Compatibility warnings across members.
   const experiences = new Set(manifests.flatMap((m) => m.target.experiences))
@@ -51,7 +92,8 @@ export async function createExperience(
     namespace,
     members: members.map((m) => ({ id: m.id, version: m.version })),
     loadOrder: order,
-    dependencyRules: manifests.map((m) => ({ id: m.id, requires: m.dependencies.required }))
+    dependencyRules: manifests.map((m) => ({ id: m.id, requires: m.dependencies.required })),
+    moduleClosure: moduleMetadata(moduleSummary, moduleCatalog.source)
   }
   const lockfile = {
     schemaVersion: 1,
@@ -66,7 +108,7 @@ export async function createExperience(
     'utf-8'
   )
 
-  return { path: dir, loadOrder: order, members, warnings }
+  return { path: dir, loadOrder: order, members, moduleSummary, warnings }
 }
 
 // Export a server pack zip: server profile + required client addon list +
@@ -79,7 +121,10 @@ export async function exportServerPack(
   const loaded = await Promise.all(memberPaths.map(loadMember))
   const manifests = loaded.map((l) => l.manifest)
   const members = loaded.map((l) => l.member)
+  const moduleCatalog = await listEchoModules(workspaceDir)
+  const moduleSummary = summarizeBundleModules(manifests, moduleCatalog.catalog)
   const warnings: string[] = []
+  warnings.push(...moduleCatalog.warnings, ...moduleWarnings(moduleSummary))
 
   // Client addons are those that register UI/screens/content the client needs.
   const requiredClientAddons = manifests
@@ -98,6 +143,7 @@ export async function exportServerPack(
     name,
     requiredClientAddons,
     members: members.map((m) => ({ id: m.id, version: m.version, hash: m.hash })),
+    moduleClosure: moduleMetadata(moduleSummary, moduleCatalog.source),
     configProfiles: { default: { pvp: false, difficulty: 'normal' } }
   }
   zip.addFile('server.profile.json', Buffer.from(JSON.stringify(serverProfile, null, 2), 'utf-8'))
@@ -112,7 +158,7 @@ export async function exportServerPack(
   const zipPath = join(exportsDir, `${sanitize(name)}-serverpack.zip`)
   zip.writeZip(zipPath)
 
-  return { zipPath, requiredClientAddons, warnings, members }
+  return { zipPath, requiredClientAddons, moduleSummary, warnings, members }
 }
 
 function local(id: string): string {
