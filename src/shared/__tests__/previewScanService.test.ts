@@ -129,8 +129,28 @@ describe('runPreviewScan', () => {
 
       const result = await runPreviewScan(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
 
-      expect(result.warnings).toContain('Addon does not declare support for runtime "standalone".')
+      expect(result.warnings).toContain('Project does not declare support for runtime "standalone".')
       expect(result.logs.some((log) => log.message.includes('Runtime mismatch'))).toBe(true)
+    })
+  })
+
+  it('scans the resolved ECHO module closure and warns when dependencies.required is incomplete', async () => {
+    await withWorkspace(async (root) => {
+      const project = await writeProject(root, 'mission', manifest({
+        target: { experiences: ['ashfall'], modules: ['echo:mission_core'] },
+        dependencies: { required: ['echo:core'], optional: [] }
+      }))
+      const { runPreviewScan } = await import('../../main/previewScanService')
+
+      const result = await runPreviewScan(project, root, 'Ashfall Compatibility', DEFAULT_OPTIONS)
+
+      expect(result.missingDependencies).toEqual([])
+      expect(result.warnings).toEqual(expect.arrayContaining([
+        expect.stringContaining('Manifest dependencies.required is missing resolved module entries:')
+      ]))
+      expect(result.warnings.join(' ')).toContain('echo:mission_core')
+      expect(result.logs.some((log) => log.message.includes('Manifest required module closure is incomplete'))).toBe(true)
+      expect(result.logs.some((log) => log.message.includes('echo:adapter_core'))).toBe(true)
     })
   })
 

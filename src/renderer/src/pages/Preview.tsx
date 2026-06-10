@@ -305,7 +305,7 @@ export default function Preview(): JSX.Element {
             )}
           </div>
           {([
-            { key: 'loadOnlySelected', label: 'Load only selected project' },
+            { key: 'loadOnlySelected', label: 'Load only active project' },
             { key: 'debugOverlay', label: 'Enable debug overlay checks' },
             { key: 'fakePlayer', label: 'Enable fake player profile' },
             { key: 'testInventory', label: 'Enable test inventory' }

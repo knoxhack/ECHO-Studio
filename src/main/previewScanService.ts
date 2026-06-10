@@ -3,7 +3,13 @@ import { readManifest, listProjects } from './fsService'
 import { listContent } from './contentService'
 import type { AddonProject } from '../shared/types'
 import { computePreviewScore, getPreviewScanProfile, normalizePreviewScanProfile, type PreviewScanResult, type PreviewScanOptions, type PreviewScanLog } from '../shared/previewScan'
-import { findEchoModule, normalizeModuleId } from '../shared/moduleCatalog'
+import {
+  findEchoModule,
+  normalizeModuleId,
+  preferredModuleAlias,
+  resolveProjectModulePlan,
+  type EchoModuleRecord
+} from '../shared/moduleCatalog'
 import { listEchoModules } from './moduleCatalogService'
 
 async function listWorkspaceProjects(workspaceDir: string): Promise<AddonProject[]> {
@@ -18,7 +24,19 @@ function logOptions(options: PreviewScanOptions, log: (level: PreviewScanLog['le
   if (options.debugOverlay) log('info', 'Debug overlay enabled.')
   if (options.fakePlayer) log('ok', 'Fake player profile enabled.')
   if (options.testInventory) log('ok', 'Test inventory enabled.')
-  if (options.loadOnlySelected) log('info', 'Loading only the selected project; workspace dependency scan is disabled.')
+  if (options.loadOnlySelected) log('info', 'Loading only the active project; workspace dependency scan is disabled.')
+}
+
+function uniqueDependencies(ids: string[], catalog: EchoModuleRecord[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of ids) {
+    const normalized = normalizeModuleId(id, catalog)
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(id)
+  }
+  return out
 }
 
 export async function runPreviewScan(
@@ -43,19 +61,19 @@ export async function runPreviewScan(
   const manifest = await readManifest(projectPath)
   if (!manifest) {
     errors.push('Missing or unreadable echo.mod.json')
-    log('error', 'Failed to read addon manifest.')
+    log('error', 'Failed to read project manifest.')
     return { profile, logs, compatibilityScore: 0, missingDependencies, warnings, errors, contentLoaded, contentFailed }
   }
 
-  log('ok', `Loading addon: ${manifest.id} v${manifest.version}`)
+  log('ok', `Loading project: ${manifest.id} v${manifest.version}`)
 
   const normalizedProfile = normalizePreviewScanProfile(profile)
   const profileDef = getPreviewScanProfile(normalizedProfile)
 
   // Runtime check
   if (!manifest.runtime.supports.includes(profileDef.runtime)) {
-    warnings.push(`Addon does not declare support for runtime "${profileDef.runtime}".`)
-    log('warn', `Runtime mismatch: profile wants ${profileDef.runtime}, addon supports ${manifest.runtime.supports.join(', ')}`)
+    warnings.push(`Project does not declare support for runtime "${profileDef.runtime}".`)
+    log('warn', `Runtime mismatch: profile wants ${profileDef.runtime}, project supports ${manifest.runtime.supports.join(', ')}`)
   } else {
     log('ok', `Runtime compatible: ${profileDef.runtime}`)
   }
@@ -63,7 +81,7 @@ export async function runPreviewScan(
   // Experience target check
   const hasTarget = manifest.target.experiences.some((e) => profileDef.experiences.includes(e))
   if (!hasTarget) {
-    warnings.push(`Addon targets ${manifest.target.experiences.join(', ')}, but compatibility profile expects ${profileDef.experiences.join(', ')}.`)
+    warnings.push(`Project targets ${manifest.target.experiences.join(', ')}, but compatibility profile expects ${profileDef.experiences.join(', ')}.`)
     log('warn', 'Experience target mismatch detected.')
   } else {
     log('ok', 'Experience target compatible.')
@@ -73,7 +91,18 @@ export async function runPreviewScan(
   const workspaceProjects = options.loadOnlySelected ? [] : await listWorkspaceProjects(workspaceDir)
   const moduleCatalog = await listEchoModules(projectPath)
   const workspaceIds = new Set(workspaceProjects.map((p) => normalizeModuleId(p.manifest.id, moduleCatalog.catalog)))
-  const required = manifest.dependencies.required
+  const modulePlan = resolveProjectModulePlan(manifest, moduleCatalog.catalog)
+  const requiredIds = new Set(manifest.dependencies.required.map((dep) => normalizeModuleId(dep, moduleCatalog.catalog)))
+  const missingRequiredEntries = modulePlan.closure.filter((mod) => !requiredIds.has(mod.id))
+  if (missingRequiredEntries.length > 0) {
+    const missing = missingRequiredEntries.map((mod) => preferredModuleAlias(mod))
+    warnings.push(`Manifest dependencies.required is missing resolved module entries: ${missing.join(', ')}.`)
+    log('warn', `Manifest required module closure is incomplete: ${missing.join(', ')}`)
+  }
+  const required = uniqueDependencies([
+    ...manifest.dependencies.required,
+    ...modulePlan.closure.map((mod) => preferredModuleAlias(mod))
+  ], moduleCatalog.catalog)
   log('info', `Resolving dependencies: ${required.join(', ') || 'none'}`)
   if (!options.loadOnlySelected && workspaceProjects.length > 0) {
     log('info', `Workspace dependency candidates: ${workspaceProjects.length}`)
