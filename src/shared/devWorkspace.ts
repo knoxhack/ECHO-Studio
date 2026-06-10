@@ -295,7 +295,7 @@ export const DEV_TASKS: DevTask[] = [
   {
     id: 'gradle:moduleWorkspace',
     label: 'Inspect Module Workspace',
-    description: 'Print the selected ECHO module closure and linked local source folders.',
+    description: 'Print the resolved ECHO module closure and linked local source folders.',
     command: 'echoModuleWorkspace',
     kind: 'inspect'
   },
@@ -332,7 +332,7 @@ export const DEV_TASKS: DevTask[] = [
   {
     id: 'modules:releaseSelected',
     label: 'Generate Selected Module Release',
-    description: 'Generate source-packaged release visibility artifacts for the selected local module closure.',
+    description: 'Generate source-packaged release visibility artifacts for the resolved local module closure.',
     command: 'node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source',
     kind: 'package'
   },

@@ -34,7 +34,7 @@ const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks
   {
     id: 'modules',
     title: 'ECHO Modules',
-    description: 'Inspect the selected module closure, validate the local module graph, and build visibility artifacts.',
+    description: 'Inspect the resolved module closure, validate the local module graph, and build visibility artifacts.',
     tasks: ['gradle:moduleWorkspace', 'modules:validate', 'modules:releaseSelected', 'modules:releaseAll', 'modules:verifyRelease', 'modules:docsAudit']
   },
   {
@@ -229,7 +229,7 @@ export default function DevWorkspace(): JSX.Element {
     if (!state) return 'Inspecting workspace.'
     if (PREVIEW_RUNTIME_TASKS.includes(taskId)) return previewRuntimeDisabledReason(taskId, state, Boolean(activeProject))
     if (taskId.startsWith('modules:') && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
-    if (taskId === 'modules:releaseSelected' && !state.modulePlan.closure.some((mod) => mod.moduleDir || mod.descriptorPath)) return 'No selected modules are linked to local ECHO-Modules source.'
+    if (taskId === 'modules:releaseSelected' && !state.modulePlan.closure.some((mod) => mod.moduleDir || mod.descriptorPath)) return 'No resolved modules are linked to local ECHO-Modules source.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaAvailable) return `Install Java ${state.toolchain.requiredJavaVersion} or add it to PATH.`
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.toolchain.javaMeetsRequirement) return `Use Java ${state.toolchain.requiredJavaVersion} for this generated workspace.`

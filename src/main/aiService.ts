@@ -139,7 +139,9 @@ export async function chat(
       const m = await readManifest(projectPath)
       if (m) {
         namespace = m.namespace
-        manifestNote = `\nActive project: ${m.id} (namespace "${m.namespace}"), target ${m.target.experiences.join(', ')}, modules ${m.target.modules.join(', ')}.`
+        const targetModules = m.target.modules.length ? m.target.modules.join(', ') : 'none'
+        const requiredModules = m.dependencies.required.length ? m.dependencies.required.join(', ') : 'none'
+        manifestNote = `\nActive project: ${m.id} (namespace "${m.namespace}"), target ${m.target.experiences.join(', ')}, target modules ${targetModules}, required modules ${requiredModules}.`
       }
     } catch {
       /* no manifest */

@@ -668,7 +668,7 @@ sourceSets.main.resources {
 
 tasks.register("echoModuleWorkspace") {
     group = "echo dev"
-    description = "Prints the selected ECHO module closure and linked local source folders."
+    description = "Prints the resolved ECHO module closure and linked local source folders."
     doLast {
         if (!echoModuleWorkspaceFile.exists()) {
             throw new GradleException("ECHO module workspace map is missing. Run Set Up Workspace in ECHO Studio.")
@@ -1163,7 +1163,7 @@ async function echoModulesTaskCommand(projectPath: string, taskId: DevTaskId): P
       if (!manifest) throw new Error('Missing echo.mod.json')
       const selected = selectedLocalModuleIds(resolveProjectModulePlan(manifest, catalog.catalog))
       if (selected.length === 0) {
-        throw new Error('No selected modules are linked to local ECHO-Modules source.')
+        throw new Error('No resolved modules are linked to local ECHO-Modules source.')
       }
       for (const moduleId of selected) args.push(`--module ${assertSafeModuleTaskId(moduleId)}`)
     }

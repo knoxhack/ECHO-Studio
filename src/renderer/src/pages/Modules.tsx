@@ -201,8 +201,8 @@ export default function Modules(): JSX.Element {
       <ActiveBar />
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
-        <Metric label="Enabled" value={String(plan.enabled.length)} />
-        <Metric label="Catalog" value={String(catalog.length)} />
+        <Metric label="Target Modules" value={String(plan.targetModules.length)} />
+        <Metric label="Resolved Modules" value={String(plan.closure.length)} />
         <Metric label="Missing Required" value={String(plan.missingRequired.length)} tone={plan.missingRequired.length ? 'var(--warn)' : 'var(--good)'} />
         <Metric label="Unknown" value={String(plan.unknown.length)} tone={plan.unknown.length ? 'var(--bad)' : 'var(--good)'} />
       </div>
@@ -210,9 +210,10 @@ export default function Modules(): JSX.Element {
       {catalogResult && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className={`badge ${catalogResult.source === 'local-index' ? 'ready' : 'local'}`}>
-              {catalogResult.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in catalog'}
-            </span>
+          <span className={`badge ${catalogResult.source === 'local-index' ? 'ready' : 'local'}`}>
+            {catalogResult.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in catalog'}
+          </span>
+            <span className="dim" style={{ fontSize: 11 }}>{catalog.length} records</span>
             {catalogResult.indexPath && <span className="mono dim" style={{ fontSize: 11 }}>{catalogResult.indexPath}</span>}
             {catalogResult.generatedAt && <span className="dim" style={{ fontSize: 11 }}>generated {new Date(catalogResult.generatedAt).toLocaleString()}</span>}
             {catalogResult.moduleRoot && (

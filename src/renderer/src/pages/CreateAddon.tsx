@@ -251,26 +251,26 @@ export default function CreateAddon(): JSX.Element {
           )}
           <div className="grid cols-2">
             <div className="card">
-              <h3>Selected Modules</h3>
+              <h3>Target Modules</h3>
               <p className="dim" style={{ fontSize: 13 }}>
-                These are written into the new project manifest from the type, target, and runtime choices.
+                These starter modules are written to target.modules from the type, target, and runtime choices.
               </p>
               <div className="btn-row">
-                {modulePlan.enabled.map((mod) => (
+                {modulePlan.targetModules.map((mod) => (
                   <span className={`badge ${mod.blocked || mod.trustLevel === 'blocked' ? 'fixes' : 'ready'}`} key={mod.id}>
                     {mod.name}
                   </span>
                 ))}
-                {modulePlan.enabled.length === 0 && <span className="dim">No modules selected.</span>}
+                {modulePlan.targetModules.length === 0 && <span className="dim">No target modules selected.</span>}
               </div>
             </div>
             <div className="card">
-              <h3>Resolved Closure</h3>
+              <h3>Required Closure</h3>
               <p className="dim" style={{ fontSize: 13 }}>
-                Studio also writes required transitive modules so validation, preview, and packaging start from a complete graph.
+                Studio writes the required transitive module set so validation, preview, and packaging start from a complete graph.
               </p>
               <div className="btn-row">
-                {modulePlan.closure.map((mod) => (
+                {modulePlan.requiredModules.map((mod) => (
                   <span className={`badge ${mod.status === 'stable' ? 'ready' : 'local'}`} key={mod.id}>
                     {mod.name}
                   </span>
@@ -333,7 +333,7 @@ export default function CreateAddon(): JSX.Element {
             <div>Target: {TARGET_LABELS[target]}</div>
             <div className="mono">ID: {namespace}:{addonId}</div>
             <div>Runtime: {runtimes.map((r) => RUNTIME_LABELS[r]).join(' + ')}</div>
-            <div>Modules: {modulePlan.enabled.length} selected / {modulePlan.closure.length} in resolved closure</div>
+            <div>Modules: {modulePlan.targetModules.length} target / {modulePlan.requiredModules.length} required / {modulePlan.closure.length} resolved</div>
             <div>Next: review Modules, then run Dev Workspace setup.</div>
           </div>
           {error && (

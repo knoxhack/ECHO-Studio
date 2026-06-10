@@ -151,7 +151,7 @@ export default function MyAddons(): JSX.Element {
                   <div>
                     Modules:{' '}
                     <span style={{ color: moduleIssueCount > 0 ? 'var(--warn)' : 'var(--good)' }}>
-                      {modulePlan.enabled.length} selected / {modulePlan.closure.length} in closure
+                      {modulePlan.targetModules.length} target / {modulePlan.requiredModules.length} required / {modulePlan.closure.length} resolved
                     </span>
                     {moduleIssueCount > 0 && ` (${moduleIssueCount} issue${moduleIssueCount === 1 ? '' : 's'})`}
                   </div>

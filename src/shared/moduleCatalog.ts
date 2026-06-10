@@ -76,6 +76,9 @@ export interface EchoModuleCatalogResult {
 export interface ProjectModulePlan {
   declared: string[]
   normalizedDeclared: string[]
+  targetModules: EchoModuleRecord[]
+  requiredModules: EchoModuleRecord[]
+  optionalModules: EchoModuleRecord[]
   enabled: EchoModuleRecord[]
   unknown: string[]
   missingRequired: EchoModuleRecord[]
@@ -459,6 +462,18 @@ export function getModuleDependencyClosure(ids: string[], catalog: EchoModuleRec
   return out
 }
 
+function knownModulesFor(ids: string[], catalog: EchoModuleRecord[]): EchoModuleRecord[] {
+  const seen = new Set<string>()
+  const out: EchoModuleRecord[] = []
+  for (const id of ids) {
+    const mod = findEchoModule(id, catalog)
+    if (!mod || seen.has(mod.id)) continue
+    seen.add(mod.id)
+    out.push(mod)
+  }
+  return out
+}
+
 export function resolveProjectModulePlan(manifest: AddonManifest, catalog: EchoModuleRecord[] = ECHO_MODULE_CATALOG): ProjectModulePlan {
   const declared = Array.from(
     new Set([
@@ -468,7 +483,10 @@ export function resolveProjectModulePlan(manifest: AddonManifest, catalog: EchoM
     ])
   )
   const normalizedDeclared = Array.from(new Set(declared.map((id) => normalizeModuleId(id, catalog)).filter(Boolean)))
-  const enabled = normalizedDeclared.map((id) => findEchoModule(id, catalog)).filter((mod): mod is EchoModuleRecord => Boolean(mod))
+  const targetModules = knownModulesFor(manifest.target.modules, catalog)
+  const requiredModules = knownModulesFor(manifest.dependencies.required, catalog)
+  const optionalModules = knownModulesFor(manifest.dependencies.optional, catalog)
+  const enabled = knownModulesFor(normalizedDeclared, catalog)
   const knownIds = new Set(enabled.map((mod) => mod.id))
   const unknown = declared.filter((id) => !findEchoModule(id, catalog))
   const closure = getModuleDependencyClosure(normalizedDeclared, catalog)
@@ -482,6 +500,9 @@ export function resolveProjectModulePlan(manifest: AddonManifest, catalog: EchoM
   return {
     declared,
     normalizedDeclared,
+    targetModules,
+    requiredModules,
+    optionalModules,
     enabled,
     unknown,
     missingRequired,

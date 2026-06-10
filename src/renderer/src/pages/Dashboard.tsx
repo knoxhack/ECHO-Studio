@@ -15,17 +15,17 @@ export default function Dashboard(): JSX.Element {
     let warnings = 0
     let failed = 0
     let readyToRelease = 0
-    let enabledModules = 0
+    let resolvedModules = 0
     for (const project of projects) {
       const report = runPackOSCheck(project.manifest, moduleCatalog)
       const modulePlan = resolveProjectModulePlan(project.manifest, moduleCatalog)
-      enabledModules += modulePlan.enabled.length
+      resolvedModules += modulePlan.closure.length
       if (report.counts.BLOCKER > 0 || report.counts.ERROR > 0) failed++
       else if (report.counts.WARNING > 0) warnings++
       else passed++
       if (report.publishingReady && project.publishStatus === 'draft') readyToRelease++
     }
-    return { passed, warnings, failed, readyToRelease, enabledModules }
+    return { passed, warnings, failed, readyToRelease, resolvedModules }
   }, [moduleCatalog, projects])
 
   return (
@@ -50,8 +50,8 @@ export default function Dashboard(): JSX.Element {
           <div className="sub">active workspaces</div>
         </div>
         <div className="card hover" onClick={() => nav('/modules')}>
-          <h3>Modules</h3>
-          <div className="metric">{stats.enabledModules}</div>
+          <h3>Resolved Modules</h3>
+          <div className="metric">{stats.resolvedModules}</div>
           <div className="sub">
             {moduleCatalogResult?.source === 'local-index' ? 'from local ECHO-Modules' : 'from built-in catalog'}
           </div>
@@ -145,7 +145,7 @@ export default function Dashboard(): JSX.Element {
                   <b>{project.manifest.name}</b> <span className="mono dim">{project.manifest.id}</span>
                 </div>
                 <div className="faint" style={{ fontSize: 12 }}>
-                  v{project.manifest.version} / {localModulePlan.enabled.length} module(s) / edited {new Date(project.lastEdited).toLocaleString()}
+                  v{project.manifest.version} / {localModulePlan.targetModules.length} target / {localModulePlan.closure.length} resolved / edited {new Date(project.lastEdited).toLocaleString()}
                 </div>
               </div>
               <span className={`badge ${project.publishStatus === 'published' ? 'ready' : 'local'}`}>

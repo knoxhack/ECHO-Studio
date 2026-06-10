@@ -51,6 +51,9 @@ function makeDevWorkspace(artifacts: DevWorkspaceState['artifacts']): DevWorkspa
     modulePlan: {
       declared: [],
       normalizedDeclared: [],
+      targetModules: [],
+      requiredModules: [],
+      optionalModules: [],
       enabled: [],
       unknown: [],
       missingRequired: [],

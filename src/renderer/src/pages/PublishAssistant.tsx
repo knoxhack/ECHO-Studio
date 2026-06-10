@@ -433,7 +433,7 @@ export default function PublishAssistant(): JSX.Element {
                     workspace.moduleLock.extraInLock,
                     `${workspace.moduleLock.lockedModuleIds.length} locked module(s).`
                   )
-                : 'Inspecting selected ECHO module closure.'
+                : 'Inspecting resolved ECHO module closure.'
             }
           />
           <StepRow

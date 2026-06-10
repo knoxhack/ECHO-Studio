@@ -14,7 +14,7 @@ export function CloneDialog({
   template: TemplateDef
   onClose: () => void
 }): JSX.Element {
-  const { workspaceDir, refresh, setActiveProject, toast } = useWorkspace()
+  const { workspaceDir, refresh, setActiveProject, toast, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const nav = useNavigate()
   const [namespace, setNamespace] = useState('teamnova')
   const [addonId, setAddonId] = useState(template.id)
@@ -30,7 +30,10 @@ export function CloneDialog({
     addonId: addonId.trim(),
     name: name.trim() || template.name
   }), [addonId, name, namespace, template, workspaceDir])
-  const modulePlan = useMemo(() => resolveProjectModulePlan(buildManifest(currentOptions)), [currentOptions])
+  const modulePlan = useMemo(
+    () => resolveProjectModulePlan(buildManifest(currentOptions, moduleCatalog), moduleCatalog),
+    [currentOptions, moduleCatalog]
+  )
   const blockedModules = modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked')
   const moduleIssueCount = modulePlan.missingRequired.length + modulePlan.unknown.length + blockedModules.length
 
@@ -78,22 +81,30 @@ export function CloneDialog({
           <input value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <div className="mono dim">Full ID: {namespace}:{addonId}</div>
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+            {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in module catalog'}
+          </span>
+          {moduleCatalogResult?.warnings.length ? (
+            <span className="dim" style={{ fontSize: 12 }}>{moduleCatalogResult.warnings.join(' ')}</span>
+          ) : null}
+        </div>
         <div className="grid cols-2" style={{ marginTop: 12 }}>
           <div>
-            <div className="section-title" style={{ marginTop: 0 }}>Selected Modules</div>
+            <div className="section-title" style={{ marginTop: 0 }}>Target Modules</div>
             <div className="btn-row">
-              {modulePlan.enabled.map((mod) => (
+              {modulePlan.targetModules.map((mod) => (
                 <span className={`badge ${mod.blocked || mod.trustLevel === 'blocked' ? 'fixes' : 'ready'}`} key={mod.id}>
                   {mod.name}
                 </span>
               ))}
-              {modulePlan.enabled.length === 0 && <span className="dim">No modules selected.</span>}
+              {modulePlan.targetModules.length === 0 && <span className="dim">No target modules selected.</span>}
             </div>
           </div>
           <div>
-            <div className="section-title" style={{ marginTop: 0 }}>Resolved Closure</div>
+            <div className="section-title" style={{ marginTop: 0 }}>Required Closure</div>
             <div className="btn-row">
-              {modulePlan.closure.map((mod) => (
+              {modulePlan.requiredModules.map((mod) => (
                 <span className={`badge ${mod.status === 'stable' ? 'ready' : 'local'}`} key={mod.id}>
                   {mod.name}
                 </span>

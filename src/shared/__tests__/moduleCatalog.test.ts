@@ -97,6 +97,9 @@ describe('module catalog', () => {
     })
     const catalog = mergeModuleCatalog([imported], ECHO_MODULE_CATALOG)
     const plan = resolveProjectModulePlan(manifest(['echo:weather_core']), catalog)
+    expect(plan.targetModules).toEqual([])
+    expect(plan.requiredModules.map((mod) => mod.id)).toEqual(['echoweathercore'])
+    expect(plan.optionalModules).toEqual([])
     expect(plan.enabled.map((mod) => mod.id)).toContain('echoweathercore')
     expect(plan.missingRequired.map((mod) => mod.id)).toEqual(expect.arrayContaining(['echocore', 'echonetcore']))
   })
@@ -117,6 +120,18 @@ describe('module catalog', () => {
       'echo:net_core',
       'echo:mission_core'
     ]))
+    expect(plan.targetModules.map((mod) => mod.id)).toEqual(expect.arrayContaining([
+      'echoadaptercore',
+      'echocore',
+      'echonetcore',
+      'echomissioncore'
+    ]))
+    expect(plan.requiredModules.map((mod) => mod.id)).toEqual(expect.arrayContaining([
+      'echoadaptercore',
+      'echocore',
+      'echonetcore',
+      'echomissioncore'
+    ]))
     expect(plan.missingRequired).toEqual([])
   })
 
@@ -131,6 +146,12 @@ describe('module catalog', () => {
       'echo:net_core'
     ]))
     expect(next.dependencies.required).not.toContain('echo:mission_core')
+    expect(plan.optionalModules.map((mod) => mod.id)).toEqual(['echomissioncore'])
+    expect(plan.requiredModules.map((mod) => mod.id)).toEqual(expect.arrayContaining([
+      'echoadaptercore',
+      'echocore',
+      'echonetcore'
+    ]))
     expect(plan.missingRequired).toEqual([])
   })
 

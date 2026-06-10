@@ -60,6 +60,9 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
     modulePlan: {
       declared: ['echo:core'],
       normalizedDeclared: ['echocore'],
+      targetModules: [],
+      requiredModules: [],
+      optionalModules: [],
       enabled: [],
       unknown: [],
       missingRequired: [],

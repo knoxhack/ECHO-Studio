@@ -108,6 +108,8 @@ describe('TEMPLATES', () => {
     const plan = resolveProjectModulePlan(manifest)
 
     expect(plan.missingRequired).toEqual([])
+    expect(plan.targetModules.map((mod) => mod.id)).toEqual(expect.arrayContaining(['echomissioncore', 'echoholomap', 'echoindex']))
+    expect(plan.requiredModules.map((mod) => mod.id)).toEqual(expect.arrayContaining(['echoadaptercore', 'echocore', 'echonetcore', 'echomissioncore']))
     expect(manifest.dependencies.required).toEqual(expect.arrayContaining(['echo:adapter_core', 'echo:core', 'echo:net_core', 'echo:mission_core']))
   })
 
@@ -150,6 +152,8 @@ describe('TEMPLATES', () => {
     const plan = resolveProjectModulePlan(manifest, catalog)
 
     expect(manifest.dependencies.required).toContain('echo:weather_core')
+    expect(plan.targetModules.map((mod) => mod.id)).not.toContain('echoweathercore')
+    expect(plan.requiredModules.map((mod) => mod.id)).toContain('echoweathercore')
     expect(plan.missingRequired).toEqual([])
     expect(plan.closure.map((mod) => mod.id)).toContain('echoweathercore')
   })
