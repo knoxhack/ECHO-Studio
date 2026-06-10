@@ -231,6 +231,43 @@ describe('setupDevWorkspace', () => {
     })
   })
 
+  it('runs Studio validation as a logged local dev task', async () => {
+    await withProject(async (project) => {
+      const { readDevTaskLog, runDevTask } = await import('../../main/devWorkspaceService')
+
+      const result = await runDevTask(project, 'studio:validate')
+      const log = await readDevTaskLog(project, result.logPath!)
+
+      expect(result.status).toBe('completed')
+      expect(result.command).toBe('ECHO Studio validation')
+      expect(result.stdout).toContain('Validation score:')
+      expect(result.stdout).toContain('Publishing ready: yes')
+      expect(result.stderr).toContain('ECHO module lock has not been generated.')
+      expect(log).toContain('ECHO Studio task: studio:validate')
+      expect(log).toContain('[status] completed')
+    })
+  })
+
+  it('returns a failed Studio validation task when blockers or errors are present', async () => {
+    await withProject(async (project) => {
+      const broken = manifest()
+      broken.namespace = 'echo'
+      broken.id = 'echo:weather_pack'
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(broken, null, 2), 'utf8')
+
+      const { readDevTaskLog, runDevTask } = await import('../../main/devWorkspaceService')
+      const result = await runDevTask(project, 'studio:validate')
+      const log = await readDevTaskLog(project, result.logPath!)
+
+      expect(result.status).toBe('failed')
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain('Publishing ready: no')
+      expect(result.stderr).toContain('BLOCKER Manifest')
+      expect(result.stderr).toContain('reserved namespace')
+      expect(log).toContain('[status] failed')
+    })
+  })
+
   it('writes local ECHO module source links into the dev-only workspace map', async () => {
     const previous = process.env.ECHO_MODULES_DIR
     await withProject(async (project) => {

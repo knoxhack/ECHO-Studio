@@ -23,7 +23,7 @@ const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks
     id: 'gradle',
     title: 'Gradle Build Loop',
     description: 'Inspect tasks, build, test, clean, and generate NeoForge data from the pinned workspace.',
-    tasks: ['gradle:tasks', 'gradle:build', 'gradle:test', 'gradle:clean', 'gradle:runData']
+    tasks: ['studio:validate', 'gradle:tasks', 'gradle:build', 'gradle:test', 'gradle:clean', 'gradle:runData']
   },
   {
     id: 'runtime',

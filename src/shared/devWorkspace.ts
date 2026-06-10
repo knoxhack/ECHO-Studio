@@ -228,6 +228,7 @@ export interface DevSetupResult {
 }
 
 export type DevTaskId =
+  | 'studio:validate'
   | 'gradle:tasks'
   | 'gradle:build'
   | 'gradle:test'
@@ -285,6 +286,13 @@ export function recommendedDevWorkspaceMode(runtimes: Runtime[]): DevWorkspaceMo
 }
 
 export const DEV_TASKS: DevTask[] = [
+  {
+    id: 'studio:validate',
+    label: 'Run Studio Validation',
+    description: 'Run the full ECHO Studio validation report with module, toolchain, content, asset, and release readiness checks.',
+    command: 'studioValidation',
+    kind: 'test'
+  },
   {
     id: 'gradle:tasks',
     label: 'List Gradle Tasks',

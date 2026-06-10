@@ -7,7 +7,7 @@ import { resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModule
 import { buildNeoForgeModsToml } from '../shared/neoforgeMetadata'
 import { MODULE_READY_TASKS, PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '../shared/previewRuntime'
 import type { AddonManifest, Runtime } from '../shared/types'
-import { packageAddon } from './packageService'
+import { fullProjectReport, packageAddon } from './packageService'
 import { readManifest } from './fsService'
 import { listEchoModules } from './moduleCatalogService'
 
@@ -1277,6 +1277,26 @@ function assertSafeModuleTaskId(moduleId: string): string {
   return moduleId
 }
 
+function validationSummary(report: Awaited<ReturnType<typeof fullProjectReport>>): string {
+  return [
+    `Validation score: ${report.compatibilityScore}%`,
+    `Publishing ready: ${report.publishingReady ? 'yes' : 'no'}`,
+    `Blockers: ${report.counts.BLOCKER}`,
+    `Errors: ${report.counts.ERROR}`,
+    `Warnings: ${report.counts.WARNING}`,
+    `Suggestions: ${report.counts.SUGGESTION}`,
+    `Info: ${report.counts.INFO}`
+  ].join('\n')
+}
+
+function validationIssueText(report: Awaited<ReturnType<typeof fullProjectReport>>): string {
+  return report.issues.map((issue) => {
+    const file = issue.file ? ` [${issue.file}]` : ''
+    const fix = issue.fix ? ` Fix: ${issue.fix}` : ''
+    return `${issue.level} ${issue.category}${file}: ${issue.message}${fix}`
+  }).join('\n')
+}
+
 async function echoModulesTaskCommand(projectPath: string, taskId: DevTaskId): Promise<{ command: string; cwd: string }> {
   const catalog = await listEchoModules(projectPath)
   if (!catalog.moduleRoot) throw new Error('Local ECHO-Modules metadata/modules/index.json was not found.')
@@ -1344,6 +1364,54 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
       startedAt,
       finishedAt,
       artifacts: await collectArtifacts(projectPath, cwd)
+    }
+  }
+
+  if (task.id === 'studio:validate') {
+    const command = 'ECHO Studio validation'
+    const logPath = await createTaskLog(projectPath, taskId, command, startedAt)
+    try {
+      const state = await inspectDevWorkspace(projectPath)
+      const report = await fullProjectReport(projectPath, state)
+      const stdout = validationSummary(report)
+      const stderr = validationIssueText(report)
+      const failed = report.counts.BLOCKER > 0 || report.counts.ERROR > 0
+      const status = failed ? 'failed' : 'completed'
+      const finishedAt = new Date().toISOString()
+      await appendTaskLog(logPath, 'stdout', stdout)
+      await appendTaskLog(logPath, 'issues', stderr)
+      await finishTaskLog(logPath, status, finishedAt, failed ? 1 : 0)
+      return {
+        taskId,
+        status,
+        command,
+        cwd: projectPath,
+        logPath,
+        exitCode: failed ? 1 : 0,
+        stdout,
+        stderr,
+        startedAt,
+        finishedAt,
+        artifacts: await collectCurrentArtifacts(projectPath)
+      }
+    } catch (error) {
+      const finishedAt = new Date().toISOString()
+      const message = error instanceof Error ? error.message : String(error)
+      await appendTaskLog(logPath, 'error', message)
+      await finishTaskLog(logPath, 'failed', finishedAt, 1)
+      return {
+        taskId,
+        status: 'failed',
+        command,
+        cwd: projectPath,
+        logPath,
+        exitCode: 1,
+        stdout: '',
+        stderr: message,
+        startedAt,
+        finishedAt,
+        artifacts: await collectCurrentArtifacts(projectPath)
+      }
     }
   }
 
