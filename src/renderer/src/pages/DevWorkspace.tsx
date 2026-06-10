@@ -3,7 +3,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { DEV_TASKS, type DevTaskId, type DevTaskRun, type DevWorkspaceMode, type DevWorkspaceState } from '@shared/devWorkspace'
-import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '@shared/previewRuntime'
+import { PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '@shared/previewRuntime'
 import type { Runtime } from '@shared/types'
 
 const RUNTIME_OPTIONS: Array<{ id: Runtime; label: string }> = [
@@ -44,6 +44,14 @@ const TASK_GROUPS: Array<{ id: string; title: string; description: string; tasks
     tasks: ['package:local']
   }
 ]
+
+const CURRENT_MODULE_TASKS = new Set<DevTaskId>([
+  'gradle:build',
+  'gradle:test',
+  'gradle:runData',
+  'modules:releaseSelected',
+  'package:local'
+])
 
 const DEV_TASK_BY_ID = new Map<DevTaskId, (typeof DEV_TASKS)[number]>(DEV_TASKS.map((task) => [task.id, task]))
 
@@ -224,10 +232,18 @@ export default function DevWorkspace(): JSX.Element {
         state.runtimeLaunchers.standaloneExpected && !state.runtimeLaunchers.standaloneConfigured ? 'Standalone preview path' : ''
       ].filter(Boolean)
     : []
+  const blockedModules = state?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
+  const moduleGateReason = state ? moduleReadinessDisabledReason(state, 'running local build, preview, or package tasks') : null
 
   const taskDisabledReason = (taskId: DevTaskId): string | null => {
     if (!state) return 'Inspecting workspace.'
     if (PREVIEW_RUNTIME_TASKS.includes(taskId)) return previewRuntimeDisabledReason(taskId, state, Boolean(activeProject))
+    if (CURRENT_MODULE_TASKS.has(taskId)) {
+      if (!state.moduleLock.upToDate) return 'Refresh Dev Workspace so generated module locks match the current manifest.'
+      if (!state.moduleWorkspace.upToDate) return 'Refresh Dev Workspace so local module source map matches the current manifest.'
+      const moduleReason = moduleReadinessDisabledReason(state, `running ${DEV_TASK_BY_ID.get(taskId)?.label ?? 'this task'}`)
+      if (moduleReason) return moduleReason
+    }
     if (taskId.startsWith('modules:') && !state.moduleCatalog.localAvailable) return 'Local ECHO-Modules index was not found.'
     if (taskId === 'modules:releaseSelected' && !state.modulePlan.closure.some((mod) => mod.moduleDir || mod.descriptorPath)) return 'No resolved modules are linked to local ECHO-Modules source.'
     if ((taskId.startsWith('gradle:') || taskId.startsWith('preview:')) && !state.gradleReady) return 'Set up a Gradle workspace first.'
@@ -396,6 +412,12 @@ export default function DevWorkspace(): JSX.Element {
                   {state.moduleCatalog.warnings.join(' ')}
                 </div>
               )}
+              {moduleGateReason && blockedModules.length === 0 && (
+                <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                  <span className="lvl">WARNING</span>
+                  {moduleGateReason}
+                </div>
+              )}
               {!state.moduleWorkspace.upToDate && (
                 <div className="issue WARNING" style={{ marginBottom: 12 }}>
                   <span className="lvl">WARNING</span>
@@ -423,6 +445,13 @@ export default function DevWorkspace(): JSX.Element {
                 <div className="issue WARNING" style={{ marginTop: 12 }}>
                   <span className="lvl">WARNING</span>
                   Unknown dependencies: {state.modulePlan.unknown.join(', ')}.
+                </div>
+              )}
+              {blockedModules.length > 0 && (
+                <div className="issue BLOCKER" style={{ marginTop: 12 }}>
+                  <span className="lvl">BLOCKER</span>
+                  Blocked modules cannot be used by local preview, build, package, or public release tasks.
+                  <div className="fix">{blockedModules.map((mod) => `${mod.name}${mod.blockReason ? `: ${mod.blockReason}` : ''}`).join(' ')}</div>
                 </div>
               )}
               {!state.moduleLock.upToDate && (

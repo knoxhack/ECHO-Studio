@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DevWorkspaceState } from '../devWorkspace'
-import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '../previewRuntime'
+import { PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '../previewRuntime'
 
 function workspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState {
   return {
@@ -128,5 +128,73 @@ describe('previewRuntimeDisabledReason', () => {
     })
 
     expect(previewRuntimeDisabledReason('preview:standalone', state)).toBe('Refresh Dev Workspace so local module source map matches the current manifest.')
+  })
+
+  it('blocks runtime launch when resolved modules are blocked', () => {
+    const state = workspace({
+      modulePlan: {
+        ...workspace().modulePlan,
+        closure: [
+          {
+            id: 'echounsafe',
+            aliases: ['echo:unsafe'],
+            name: 'Unsafe',
+            role: 'test',
+            kind: 'library',
+            status: 'experimental',
+            channel: 'alpha',
+            standaloneReady: false,
+            launcherVisible: false,
+            ashfallRequired: false,
+            publicApi: 'experimental',
+            trustLevel: 'blocked',
+            blocked: true,
+            blockReason: 'Security review failed.',
+            requires: [],
+            optional: [],
+            provides: [],
+            runtimes: ['neoforge'],
+            creatorUse: 'Blocked test module.'
+          }
+        ]
+      }
+    })
+
+    expect(previewRuntimeDisabledReason('gradle:runClient', state)).toBe('Remove blocked ECHO modules before launching previews: Unsafe.')
+  })
+
+  it('explains missing and unknown module readiness blockers for other local tasks', () => {
+    expect(moduleReadinessDisabledReason(workspace({
+      modulePlan: {
+        ...workspace().modulePlan,
+        missingRequired: [
+          {
+            id: 'echomissioncore',
+            aliases: ['echo:mission_core'],
+            name: 'MissionCore',
+            role: 'missions',
+            kind: 'library',
+            status: 'stable',
+            channel: 'stable',
+            standaloneReady: true,
+            launcherVisible: true,
+            ashfallRequired: false,
+            publicApi: 'stable',
+            requires: [],
+            optional: [],
+            provides: [],
+            runtimes: ['neoforge'],
+            creatorUse: 'Mission APIs.'
+          }
+        ]
+      }
+    }), 'running Package Local Release')).toBe('Add required ECHO module closure before running Package Local Release: MissionCore.')
+
+    expect(moduleReadinessDisabledReason(workspace({
+      modulePlan: {
+        ...workspace().modulePlan,
+        unknown: ['echo:made_up']
+      }
+    }), 'running Build All Targets')).toBe('Resolve unknown ECHO module dependencies before running Build All Targets: echo:made_up.')
   })
 })

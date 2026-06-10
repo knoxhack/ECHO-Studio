@@ -100,7 +100,14 @@ export default function PackOSCheck(): JSX.Element {
   const workspaceSetUp = Boolean(devWorkspace?.lastSetupAt)
   const workspaceReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.gradleReady && devWorkspace.hasGradleWrapper)))
   const toolchainReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.toolchain.javaMeetsRequirement && devWorkspace.toolchain.gradleAvailable)))
-  const moduleReady = Boolean(devWorkspace?.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate && devWorkspace.modulePlan.missingRequired.length === 0 && devWorkspace.modulePlan.unknown.length === 0)
+  const blockedModules = devWorkspace?.modulePlan.closure.filter((mod) => mod.blocked || mod.trustLevel === 'blocked') ?? []
+  const moduleReady = Boolean(
+    devWorkspace?.moduleLock.upToDate &&
+    devWorkspace.moduleWorkspace.upToDate &&
+    devWorkspace.modulePlan.missingRequired.length === 0 &&
+    devWorkspace.modulePlan.unknown.length === 0 &&
+    blockedModules.length === 0
+  )
   const previewReady = Boolean(devWorkspace?.runtimeLaunchers.ready)
   const hasReleaseManifest = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'echo-release.json'))
   const hasChecksums = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'checksums.sha256'))
@@ -203,6 +210,7 @@ export default function PackOSCheck(): JSX.Element {
                   : [
                       devWorkspace.modulePlan.missingRequired.length ? `Missing closure: ${devWorkspace.modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.` : '',
                       devWorkspace.modulePlan.unknown.length ? `Unknown: ${devWorkspace.modulePlan.unknown.join(', ')}.` : '',
+                      blockedModules.length ? `Blocked: ${blockedModules.map((mod) => mod.name).join(', ')}.` : '',
                       !devWorkspace.moduleLock.upToDate ? diffDetail(devWorkspace.moduleLock.missingFromLock, devWorkspace.moduleLock.extraInLock, 'Module lock is current.') : '',
                       !devWorkspace.moduleWorkspace.upToDate ? diffDetail(devWorkspace.moduleWorkspace.missingFromMap, devWorkspace.moduleWorkspace.extraInMap, 'Module workspace map is current.') : ''
                     ].filter(Boolean).join(' ')

@@ -12,7 +12,7 @@ import {
   type PreviewScanResult,
   type PreviewScanOptions
 } from '@shared/previewScan'
-import { PREVIEW_RUNTIME_TASKS, previewRuntimeDisabledReason } from '@shared/previewRuntime'
+import { PREVIEW_RUNTIME_TASKS, moduleReadinessDisabledReason, previewRuntimeDisabledReason } from '@shared/previewRuntime'
 
 export default function Preview(): JSX.Element {
   const { activeProject, workspaceDir, config, toast } = useWorkspace()
@@ -191,6 +191,8 @@ export default function Preview(): JSX.Element {
   const launcherValue = devWorkspace
     ? devWorkspace.runtimeLaunchers.ready ? 'Ready' : 'Needs Path'
     : '...'
+  const moduleGateReason = devWorkspace ? moduleReadinessDisabledReason(devWorkspace, 'launching local runtime previews') : null
+  const moduleGateBlocked = Boolean(devWorkspace?.modulePlan.closure.some((mod) => mod.blocked || mod.trustLevel === 'blocked'))
 
   const taskStatusClass = (status: DevTaskRun['status']): string => {
     if (status === 'failed') return 'fixes'
@@ -232,6 +234,12 @@ export default function Preview(): JSX.Element {
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Runtime Launchers</h3>
+          {moduleGateReason && (
+            <div className={`issue ${moduleGateBlocked ? 'BLOCKER' : 'WARNING'}`} style={{ marginBottom: 12 }}>
+              <span className="lvl">{moduleGateBlocked ? 'BLOCKER' : 'WARNING'}</span>
+              {moduleGateReason}
+            </div>
+          )}
           <div className="grid cols-2" style={{ gap: 8 }}>
             {PREVIEW_RUNTIME_TASKS.map((taskId) => {
               const task = DEV_TASKS.find((item) => item.id === taskId)
