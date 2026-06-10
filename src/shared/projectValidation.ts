@@ -279,7 +279,7 @@ export function runProjectCheck(input: ProjectCheckInput): PackOSReport {
     }
   }
 
-  return mergeReport(base, extra)
+  return mergeReport(base, extra, input)
 }
 
 function pick<T>(input: ProjectCheckInput, type: ContentType): T[] {
@@ -336,7 +336,15 @@ function detectRecipeCycle(recipes: Recipe[]): string | null {
   return found
 }
 
-function mergeReport(base: PackOSReport, extra: ValidationIssue[]): PackOSReport {
+function assetHealth(base: PackOSReport, input: ProjectCheckInput): number {
+  if (!input.devWorkspace || input.artifactReadiness === 'packaging') return base.healthScore.assets
+  if (input.devWorkspace.artifacts.length === 0) return 50
+  const hasReleaseManifest = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'echo-release.json')
+  const hasChecksums = input.devWorkspace.artifacts.some((artifact) => artifact.name === 'checksums.sha256')
+  return hasReleaseManifest && hasChecksums ? 100 : 65
+}
+
+function mergeReport(base: PackOSReport, extra: ValidationIssue[], input: ProjectCheckInput): PackOSReport {
   const issues = [...base.issues, ...extra]
   const counts = { BLOCKER: 0, ERROR: 0, WARNING: 0, INFO: 0, SUGGESTION: 0 }
   for (const i of issues) counts[i.level]++
@@ -352,6 +360,7 @@ function mergeReport(base: PackOSReport, extra: ValidationIssue[]): PackOSReport
     healthScore: {
       ...base.healthScore,
       compatibility: score,
+      assets: assetHealth(base, input),
       publishing: publishingReady ? 'Ready' : 'Not Ready'
     }
   }

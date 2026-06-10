@@ -295,6 +295,41 @@ describe('runProjectCheck', () => {
 
     expect(report.issues.some((i) => i.message === 'No local artifacts have been built yet.')).toBe(false)
     expect(report.issues.some((i) => i.message === 'Built artifacts are missing echo-release.json or checksums.sha256.')).toBe(false)
+    expect(report.healthScore.assets).toBe(100)
+  })
+
+  it('lowers artifact health when no local release artifacts exist', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: makeDevWorkspace([])
+    })
+
+    expect(report.issues.some((i) => i.message === 'No local artifacts have been built yet.')).toBe(true)
+    expect(report.healthScore.assets).toBe(50)
+  })
+
+  it('lowers artifact health when built artifacts are missing release sidecars', () => {
+    const report = runProjectCheck({
+      manifest: makeManifest(),
+      content: {},
+      langKeys: [],
+      assetFiles: [],
+      devWorkspace: makeDevWorkspace([
+        {
+          path: 'C:\\test\\project\\exports\\weather_pack-1.0.0.echo-addon',
+          name: 'weather_pack-1.0.0.echo-addon',
+          kind: 'echo-addon',
+          bytes: 4,
+          modifiedAt: 1
+        }
+      ])
+    })
+
+    expect(report.issues.some((i) => i.message === 'Built artifacts are missing echo-release.json or checksums.sha256.')).toBe(true)
+    expect(report.healthScore.assets).toBe(65)
   })
 
   it('warns when the ECHO module lock is stale', () => {

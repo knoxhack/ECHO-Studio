@@ -6,12 +6,44 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { autoFixManifest } from '@shared/validation'
 import { editorLabelForProjectFile, editorRouteForProjectFile } from '@shared/content/routes'
 import type { CodexTask } from '@shared/codexTasks'
+import type { DevWorkspaceState } from '@shared/devWorkspace'
 import type { PackOSReport } from '@shared/types'
+
+function diffDetail(missing: string[], extra: string[], ready: string): string {
+  const parts = [
+    missing.length ? `Missing: ${missing.join(', ')}.` : '',
+    extra.length ? `Extra: ${extra.join(', ')}.` : ''
+  ].filter(Boolean)
+  return parts.length ? parts.join(' ') : ready
+}
+
+function StepRow({
+  done,
+  label,
+  detail
+}: {
+  done: boolean
+  label: string
+  detail: string
+}): JSX.Element {
+  return (
+    <div className="list-row" style={{ padding: '9px 10px' }}>
+      <span className={`badge ${done ? 'ready' : 'local'}`}>{done ? 'Ready' : 'Pending'}</span>
+      <div style={{ flex: 1 }}>
+        <b>{label}</b>
+        <div className="dim" style={{ fontSize: 12 }}>
+          {detail}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function PackOSCheck(): JSX.Element {
   const { activeProject, refresh, toast } = useWorkspace()
   const nav = useNavigate()
   const [report, setReport] = useState<PackOSReport | null>(null)
+  const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
   const [fixing, setFixing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [codexTasks, setCodexTasks] = useState<CodexTask[]>([])
@@ -19,13 +51,15 @@ export default function PackOSCheck(): JSX.Element {
   const run = useCallback(async () => {
     if (!activeProject) return
     setLoading(true)
-    const [res, tasks] = await Promise.all([
+    const [res, tasks, workspace] = await Promise.all([
       window.studio.fullCheck(activeProject.path),
-      window.studio.listCodexTasks(activeProject.path)
+      window.studio.listCodexTasks(activeProject.path),
+      window.studio.inspectDevWorkspace(activeProject.path)
     ])
     setLoading(false)
     if (res.ok && res.data) setReport(res.data)
     if (tasks.ok && tasks.data) setCodexTasks(tasks.data)
+    setDevWorkspace(workspace.ok && workspace.data ? workspace.data : null)
   }, [activeProject])
 
   useEffect(() => {
@@ -62,6 +96,14 @@ export default function PackOSCheck(): JSX.Element {
   const reviewableCodexTasks = codexTasks.filter((task) => task.lane !== 'rejected')
   const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:packos-autofix' && task.lane !== 'rejected'))
   const aiFixableCount = report.issues.filter((issue) => issue.aiFixable).length
+  const workspaceSetUp = Boolean(devWorkspace?.lastSetupAt)
+  const workspaceReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.gradleReady && devWorkspace.hasGradleWrapper)))
+  const toolchainReady = Boolean(devWorkspace && (devWorkspace.mode === 'visual' || (devWorkspace.toolchain.javaMeetsRequirement && devWorkspace.toolchain.gradleAvailable)))
+  const moduleReady = Boolean(devWorkspace?.moduleLock.upToDate && devWorkspace.moduleWorkspace.upToDate && devWorkspace.modulePlan.missingRequired.length === 0 && devWorkspace.modulePlan.unknown.length === 0)
+  const previewReady = Boolean(devWorkspace?.runtimeLaunchers.ready)
+  const hasReleaseManifest = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'echo-release.json'))
+  const hasChecksums = Boolean(devWorkspace?.artifacts.some((artifact) => artifact.name === 'checksums.sha256'))
+  const artifactReady = Boolean(devWorkspace?.artifacts.length && hasReleaseManifest && hasChecksums)
   const openIssueFile = (file: string): void => {
     nav(editorRouteForProjectFile(file))
   }
@@ -145,6 +187,112 @@ export default function PackOSCheck(): JSX.Element {
             {lvl}: {report.counts[lvl]}
           </span>
         ))}
+      </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Local Loop Readiness</h3>
+          <StepRow
+            done={moduleReady}
+            label="ECHO Modules"
+            detail={
+              devWorkspace
+                ? moduleReady
+                  ? `${devWorkspace.modulePlan.closure.length} module(s) resolved with current lock and source map.`
+                  : [
+                      devWorkspace.modulePlan.missingRequired.length ? `Missing closure: ${devWorkspace.modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.` : '',
+                      devWorkspace.modulePlan.unknown.length ? `Unknown: ${devWorkspace.modulePlan.unknown.join(', ')}.` : '',
+                      !devWorkspace.moduleLock.upToDate ? diffDetail(devWorkspace.moduleLock.missingFromLock, devWorkspace.moduleLock.extraInLock, 'Module lock is current.') : '',
+                      !devWorkspace.moduleWorkspace.upToDate ? diffDetail(devWorkspace.moduleWorkspace.missingFromMap, devWorkspace.moduleWorkspace.extraInMap, 'Module workspace map is current.') : ''
+                    ].filter(Boolean).join(' ')
+                : 'Inspecting module closure.'
+            }
+          />
+          <StepRow
+            done={workspaceReady}
+            label="Dev Workspace"
+            detail={
+              devWorkspace
+                ? workspaceSetUp
+                  ? devWorkspace.mode === 'visual'
+                    ? 'Visual workspace is selected; code setup is optional.'
+                    : devWorkspace.gradleReady
+                      ? devWorkspace.hasGradleWrapper
+                        ? 'Pinned Gradle launcher and generated project files are available.'
+                        : 'Gradle project files exist, but the pinned launcher is missing.'
+                      : 'Run Dev Workspace setup to generate Gradle project files.'
+                  : 'Run setup from Modules or Dev Workspace to create the local build surface.'
+                : 'Inspecting workspace setup.'
+            }
+          />
+          <StepRow
+            done={toolchainReady}
+            label="Toolchain"
+            detail={
+              devWorkspace
+                ? devWorkspace.mode === 'visual'
+                  ? 'Visual mode does not require Java or Gradle tasks.'
+                  : devWorkspace.toolchain.issues.length > 0
+                    ? devWorkspace.toolchain.issues.join(' ')
+                    : `Java ${devWorkspace.toolchain.javaVersion ?? devWorkspace.toolchain.requiredJavaVersion} and ${devWorkspace.toolchain.gradleCommand} are ready.`
+                : 'Inspecting Java and Gradle availability.'
+            }
+          />
+          <StepRow
+            done={previewReady}
+            label="Preview Launchers"
+            detail={
+              devWorkspace
+                ? previewReady
+                  ? 'Selected runtime preview launchers are configured.'
+                  : 'Set missing ECHO Native or Standalone executable paths in Settings, then run setup.'
+                : 'Inspecting preview launcher configuration.'
+            }
+          />
+          <StepRow
+            done={artifactReady}
+            label="Release Artifacts"
+            detail={
+              devWorkspace
+                ? artifactReady
+                  ? `${devWorkspace.artifacts.length} artifact/sidecar file(s), including echo-release.json and checksums.sha256.`
+                  : devWorkspace.artifacts.length > 0
+                    ? 'Built artifacts exist, but release sidecars are missing.'
+                    : 'Run Release Builder to prepare local packages and Release Index sidecars.'
+                : 'Inspecting local artifact outputs.'
+            }
+          />
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn ghost" onClick={() => nav('/modules')}>Modules</button>
+            <button className="btn ghost" onClick={() => nav('/dev-workspace')}>Dev Workspace</button>
+            <button className="btn ghost" onClick={() => nav('/preview')}>Preview</button>
+            <button className="btn ghost" onClick={() => nav('/release')}>Release Builder</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Artifact Health</h3>
+          <div className="score-ring" style={{ color: hs.assets >= 80 ? 'var(--good)' : hs.assets >= 60 ? 'var(--warn)' : 'var(--bad)' }}>
+            {hs.assets}%
+          </div>
+          <div className="bar" style={{ marginTop: 8 }}>
+            <span style={{ width: `${hs.assets}%` }} />
+          </div>
+          <p className="dim" style={{ fontSize: 13 }}>
+            PackOS treats local release artifacts as ready only when runtime packages and Release Index sidecars are present.
+          </p>
+          {devWorkspace?.artifacts.length ? (
+            <div className="btn-row">
+              {devWorkspace.artifacts.slice(0, 8).map((artifact) => (
+                <span className={`badge ${artifact.kind === 'checksum' || artifact.kind === 'manifest' ? 'ready' : 'local'}`} key={artifact.path}>
+                  {artifact.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="dim" style={{ fontSize: 12 }}>No local artifacts found yet.</p>
+          )}
+        </div>
       </div>
 
       {aiFixableCount > 0 && (
