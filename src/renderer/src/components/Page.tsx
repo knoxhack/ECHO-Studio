@@ -24,14 +24,3 @@ export function Page({
     </div>
   )
 }
-
-// A placeholder for screens that are functional stubs in this build.
-export function Stub({ note }: { note: string }): JSX.Element {
-  return (
-    <div className="card" style={{ marginTop: 12 }}>
-      <p className="dim" style={{ margin: 0 }}>
-        {note}
-      </p>
-    </div>
-  )
-}
