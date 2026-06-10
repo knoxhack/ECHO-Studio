@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
@@ -17,6 +17,7 @@ const LANES: Array<{ id: CodexTaskLane; label: string }> = [
 export default function CodexTasks(): JSX.Element {
   const { activeProject, toast, refresh } = useWorkspace()
   const nav = useNavigate()
+  const location = useLocation()
   const [tasks, setTasks] = useState<CodexTask[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -32,15 +33,18 @@ export default function CodexTasks(): JSX.Element {
     const result = await window.studio.listCodexTasks(activeProject.path)
     if (result.ok && result.data) {
       const nextTasks = result.data
+      const requestedTaskId = (location.state as { selectedTaskId?: string } | null)?.selectedTaskId
       setTasks(nextTasks)
       setSelectedId((current) => current && nextTasks.some((task) => task.id === current)
         ? current
-        : nextTasks[0]?.id ?? null)
+        : requestedTaskId && nextTasks.some((task) => task.id === requestedTaskId)
+          ? requestedTaskId
+          : nextTasks[0]?.id ?? null)
       setStatus('')
     } else {
       setStatus(result.error || 'Could not load Codex tasks.')
     }
-  }, [activeProject])
+  }, [activeProject, location.state])
 
   useEffect(() => {
     void load()

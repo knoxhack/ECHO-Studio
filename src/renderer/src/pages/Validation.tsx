@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
-import { autoFixManifest } from '@shared/validation'
 import { editorLabelForProjectFile, editorRouteForProjectFile } from '@shared/content/routes'
 import type { CodexTask } from '@shared/codexTasks'
 import type { DevWorkspaceState } from '@shared/devWorkspace'
@@ -40,11 +39,10 @@ function StepRow({
 }
 
 export default function Validation(): JSX.Element {
-  const { activeProject, refresh, toast } = useWorkspace()
+  const { activeProject } = useWorkspace()
   const nav = useNavigate()
   const [report, setReport] = useState<PackOSReport | null>(null)
   const [devWorkspace, setDevWorkspace] = useState<DevWorkspaceState | null>(null)
-  const [fixing, setFixing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [codexTasks, setCodexTasks] = useState<CodexTask[]>([])
 
@@ -79,18 +77,8 @@ export default function Validation(): JSX.Element {
       </Page>
     )
 
-  const applyManifestFixes = async (): Promise<void> => {
-    setFixing(true)
-    const manifestRes = await window.studio.readManifest(activeProject.path)
-    if (manifestRes.ok && manifestRes.data) {
-      const catalogRes = await window.studio.listEchoModules(activeProject.path)
-      const fixed = autoFixManifest(manifestRes.data, catalogRes.ok && catalogRes.data ? catalogRes.data.catalog : undefined)
-      await window.studio.writeManifest(activeProject.path, fixed)
-      await refresh()
-    }
-    setFixing(false)
-    toast('Applied manifest fixes')
-    run()
+  const openCodexTask = (selectedTaskId?: string): void => {
+    nav('/codex', selectedTaskId ? { state: { selectedTaskId } } : undefined)
   }
 
   const hs = report.healthScore
@@ -126,12 +114,12 @@ export default function Validation(): JSX.Element {
           </button>
           <button
             className="btn primary"
-            disabled={fixing || !manifestFixAvailable}
-            onClick={applyManifestFixes}
+            disabled={!manifestFixAvailable}
+            onClick={() => openCodexTask('manifest:validation-autofix')}
           >
-            {fixing ? 'Applying...' : 'Apply Manifest Fixes'}
+            Review Manifest Fix
           </button>
-          <button className="btn" disabled={reviewableCodexTasks.length === 0} onClick={() => nav('/codex')}>
+          <button className="btn" disabled={reviewableCodexTasks.length === 0} onClick={() => openCodexTask()}>
             Review Codex Fixes
           </button>
         </>
@@ -313,12 +301,12 @@ export default function Validation(): JSX.Element {
               : `${aiFixableCount} issue(s) are marked AI-fixable. Re-run checks or open Codex Tasks to refresh repair proposals.`}
           </p>
           <div className="btn-row">
-            <button className="btn primary" disabled={reviewableCodexTasks.length === 0} onClick={() => nav('/codex')}>
+            <button className="btn primary" disabled={reviewableCodexTasks.length === 0} onClick={() => openCodexTask()}>
               Review Codex Tasks
             </button>
             {manifestFixAvailable && (
-              <button className="btn ghost" disabled={fixing} onClick={applyManifestFixes}>
-                Apply Manifest-Only Fix
+              <button className="btn ghost" onClick={() => openCodexTask('manifest:validation-autofix')}>
+                Review Manifest Fix
               </button>
             )}
           </div>
@@ -344,7 +332,7 @@ export default function Validation(): JSX.Element {
             {issue.fix && <div className="fix">Fix: {issue.fix}</div>}
             <div className="btn-row" style={{ marginTop: 8 }}>
               {issue.aiFixable && (
-                <button className="btn ghost" onClick={() => nav('/codex')}>
+                <button className="btn ghost" onClick={() => openCodexTask()}>
                   Review Codex Fix
                 </button>
               )}
