@@ -4,6 +4,7 @@ import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import { autoFixManifest } from '@shared/validation'
+import type { CodexTask } from '@shared/codexTasks'
 import type { PackOSReport } from '@shared/types'
 
 export default function PackOSCheck(): JSX.Element {
@@ -12,13 +13,18 @@ export default function PackOSCheck(): JSX.Element {
   const [report, setReport] = useState<PackOSReport | null>(null)
   const [fixing, setFixing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [codexTasks, setCodexTasks] = useState<CodexTask[]>([])
 
   const run = useCallback(async () => {
     if (!activeProject) return
     setLoading(true)
-    const res = await window.studio.fullCheck(activeProject.path)
+    const [res, tasks] = await Promise.all([
+      window.studio.fullCheck(activeProject.path),
+      window.studio.listCodexTasks(activeProject.path)
+    ])
     setLoading(false)
     if (res.ok && res.data) setReport(res.data)
+    if (tasks.ok && tasks.data) setCodexTasks(tasks.data)
   }, [activeProject])
 
   useEffect(() => {
@@ -38,7 +44,7 @@ export default function PackOSCheck(): JSX.Element {
       </Page>
     )
 
-  const fixAll = async (): Promise<void> => {
+  const applyManifestFixes = async (): Promise<void> => {
     setFixing(true)
     const manifestRes = await window.studio.readManifest(activeProject.path)
     if (manifestRes.ok && manifestRes.data) {
@@ -47,11 +53,14 @@ export default function PackOSCheck(): JSX.Element {
       await refresh()
     }
     setFixing(false)
-    toast('Applied automatic manifest fixes')
+    toast('Applied manifest fixes')
     run()
   }
 
   const hs = report.healthScore
+  const reviewableCodexTasks = codexTasks.filter((task) => task.lane !== 'rejected')
+  const manifestFixAvailable = Boolean(codexTasks.some((task) => task.id === 'manifest:packos-autofix' && task.lane !== 'rejected'))
+  const aiFixableCount = report.issues.filter((issue) => issue.aiFixable).length
   return (
     <Page
       title="Validation"
@@ -63,10 +72,13 @@ export default function PackOSCheck(): JSX.Element {
           </button>
           <button
             className="btn primary"
-            disabled={fixing || (report.counts.BLOCKER === 0 && report.counts.ERROR === 0)}
-            onClick={fixAll}
+            disabled={fixing || !manifestFixAvailable}
+            onClick={applyManifestFixes}
           >
-            {fixing ? 'Fixing...' : 'Fix with AI'}
+            {fixing ? 'Applying...' : 'Apply Manifest Fixes'}
+          </button>
+          <button className="btn" disabled={reviewableCodexTasks.length === 0} onClick={() => nav('/codex')}>
+            Review Codex Fixes
           </button>
         </>
       }
@@ -131,6 +143,27 @@ export default function PackOSCheck(): JSX.Element {
         ))}
       </div>
 
+      {aiFixableCount > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Reviewable Fixes</h3>
+          <p className="dim" style={{ marginTop: 0 }}>
+            {reviewableCodexTasks.length > 0
+              ? `${reviewableCodexTasks.length} Codex task(s) are available for ${aiFixableCount} AI-fixable validation issue(s). Review diffs before applying content or workspace changes.`
+              : `${aiFixableCount} issue(s) are marked AI-fixable. Re-run checks or open Codex Tasks to refresh repair proposals.`}
+          </p>
+          <div className="btn-row">
+            <button className="btn primary" disabled={reviewableCodexTasks.length === 0} onClick={() => nav('/codex')}>
+              Review Codex Tasks
+            </button>
+            {manifestFixAvailable && (
+              <button className="btn ghost" disabled={fixing} onClick={applyManifestFixes}>
+                Apply Manifest-Only Fix
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {report.issues.length === 0 ? (
         <div className="card">
           <p className="dim" style={{ margin: 0 }}>
@@ -150,8 +183,8 @@ export default function PackOSCheck(): JSX.Element {
             {issue.fix && <div className="fix">Fix: {issue.fix}</div>}
             <div className="btn-row" style={{ marginTop: 8 }}>
               {issue.aiFixable && (
-                <button className="btn ghost" onClick={fixAll}>
-                  Fix with AI
+                <button className="btn ghost" onClick={() => nav('/codex')}>
+                  Review Codex Fix
                 </button>
               )}
               {issue.file && (

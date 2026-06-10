@@ -98,7 +98,7 @@ function mockGenerate(prompt: string, namespace: string): AiChatResult {
   if (p.includes('fix') || p.includes('packos') || p.includes('error')) {
     return {
       usedModel: false,
-      text: 'Common PackOS fixes: change reserved namespace to your creator namespace, add echo:mission_core when registering missions, and generate any missing localization keys. Use "Fix with AI" on the PackOS Check page to apply manifest fixes automatically.'
+      text: 'Common PackOS fixes: change reserved namespace to your creator namespace, add echo:mission_core when registering missions, and generate missing localization, Index, or HoloMap links. Use Validation for the report, then review Codex Tasks for diff-based fixes before applying them.'
     }
   }
   return {
