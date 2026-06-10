@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../components/Page'
 import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
@@ -8,11 +8,16 @@ import {
   RUNTIME_LABELS,
   TARGET_LABELS
 } from '@shared/constants'
-import { ECHO_MODULE_CATALOG, normalizeModuleId } from '@shared/moduleCatalog'
+import {
+  addModuleToManifest,
+  normalizeModuleId,
+  resolveProjectModulePlan,
+  type EchoModuleRecord
+} from '@shared/moduleCatalog'
 import type { AddonManifest, Runtime, TargetExperience } from '@shared/types'
 
 export default function ManifestBuilder(): JSX.Element {
-  const { activeProject, refresh, toast } = useWorkspace()
+  const { activeProject, refresh, toast, moduleCatalog, moduleCatalogResult } = useWorkspace()
   const [m, setM] = useState<AddonManifest | null>(null)
   const [dirty, setDirty] = useState(false)
   const [tab, setTab] = useState<'form' | 'json'>('form')
@@ -27,13 +32,15 @@ export default function ManifestBuilder(): JSX.Element {
     })
   }, [activeProject])
 
+  const modulePlan = useMemo(() => (m ? resolveProjectModulePlan(m, moduleCatalog) : null), [m, moduleCatalog])
+
   if (!activeProject)
     return (
       <Page title="Experience" subtitle="Shape project identity, targets, runtimes, permissions, and module dependencies.">
         <NoProject />
       </Page>
     )
-  if (!m)
+  if (!m || !modulePlan)
     return (
       <Page title="Experience">
         <div className="empty">Loading project...</div>
@@ -69,15 +76,29 @@ export default function ManifestBuilder(): JSX.Element {
     })
   }
 
-  const toggleDep = (dep: string, kind: 'required' | 'optional'): void => {
-    const list = m.dependencies[kind]
-    const has = list.some((item) => normalizeModuleId(item) === normalizeModuleId(dep))
+  const removeModule = (mod: EchoModuleRecord): void => {
+    const remove = (list: string[]): string[] => list.filter((item) => normalizeModuleId(item, moduleCatalog) !== mod.id)
     up({
+      target: {
+        ...m.target,
+        modules: remove(m.target.modules)
+      },
       dependencies: {
-        ...m.dependencies,
-        [kind]: has ? list.filter((item) => normalizeModuleId(item) !== normalizeModuleId(dep)) : [...list, dep]
+        required: remove(m.dependencies.required),
+        optional: remove(m.dependencies.optional)
       }
     })
+  }
+
+  const toggleDep = (mod: EchoModuleRecord, kind: 'required' | 'optional'): void => {
+    const list = m.dependencies[kind]
+    const has = list.some((item) => normalizeModuleId(item, moduleCatalog) === mod.id)
+    if (has) {
+      removeModule(mod)
+      return
+    }
+    setM((cur) => (cur ? addModuleToManifest(cur, mod, kind, moduleCatalog) : cur))
+    setDirty(true)
   }
 
   return (
@@ -266,17 +287,38 @@ export default function ManifestBuilder(): JSX.Element {
 
           <div className="card" style={{ gridColumn: '1 / -1' }}>
             <h3>Dependencies</h3>
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <span className={`badge ${moduleCatalogResult?.source === 'local-index' ? 'ready' : 'local'}`}>
+                {moduleCatalogResult?.source === 'local-index' ? 'Local ECHO-Modules index' : 'Built-in module catalog'}
+              </span>
+              <span className="badge">{modulePlan.targetModules.length} target</span>
+              <span className="badge">{modulePlan.requiredModules.length} required</span>
+              <span className="badge">{modulePlan.closure.length} resolved</span>
+            </div>
+            {moduleCatalogResult?.warnings.length ? (
+              <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                <span className="lvl">WARNING</span>
+                {moduleCatalogResult.warnings.join(' ')}
+              </div>
+            ) : null}
+            {modulePlan.missingRequired.length > 0 && (
+              <div className="issue WARNING" style={{ marginBottom: 12 }}>
+                <span className="lvl">MODULES</span>
+                Missing required closure: {modulePlan.missingRequired.map((mod) => mod.name).join(', ')}.
+                <div className="fix">Use the Modules page or re-add a required module here to restore the full closure.</div>
+              </div>
+            )}
             <div className="grid cols-2">
               <div>
                 <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
-                  Required
+                  Required module closure
                 </div>
-                {ECHO_MODULE_CATALOG.map((module) => (
+                {moduleCatalog.map((module) => (
                   <label className="checkbox" key={module.id}>
                     <input
                       type="checkbox"
-                      checked={m.dependencies.required.some((dep) => normalizeModuleId(dep) === module.id)}
-                      onChange={() => toggleDep(module.id, 'required')}
+                      checked={m.dependencies.required.some((dep) => normalizeModuleId(dep, moduleCatalog) === module.id)}
+                      onChange={() => toggleDep(module, 'required')}
                     />
                     <span className="mono">{module.name}</span>
                   </label>
@@ -284,14 +326,14 @@ export default function ManifestBuilder(): JSX.Element {
               </div>
               <div>
                 <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
-                  Optional
+                  Optional module integrations
                 </div>
-                {ECHO_MODULE_CATALOG.map((module) => (
+                {moduleCatalog.map((module) => (
                   <label className="checkbox" key={module.id}>
                     <input
                       type="checkbox"
-                      checked={m.dependencies.optional.some((dep) => normalizeModuleId(dep) === module.id)}
-                      onChange={() => toggleDep(module.id, 'optional')}
+                      checked={m.dependencies.optional.some((dep) => normalizeModuleId(dep, moduleCatalog) === module.id)}
+                      onChange={() => toggleDep(module, 'optional')}
                     />
                     <span className="mono">{module.name}</span>
                   </label>
