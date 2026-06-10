@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { templateById, templatesByCategory, TEMPLATES } from '../templateLibrary'
+import { buildManifest, buildProjectFiles } from '../templates'
+import type { CreateAddonOptions } from '../types'
 
 describe('templateById', () => {
   it('returns a known template', () => {
@@ -31,5 +33,29 @@ describe('TEMPLATES', () => {
   it('has unique ids', () => {
     const ids = TEMPLATES.map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('scaffolds preview compatibility profiles instead of legacy sandbox profiles', () => {
+    const opts: CreateAddonOptions = {
+      workspaceDir: '',
+      type: 'gameplay_addon',
+      target: 'ashfall',
+      namespace: 'teamnova',
+      addonId: 'weather_pack',
+      name: 'Weather Pack',
+      description: 'A test project.',
+      runtimes: ['neoforge'],
+      options: {
+        includeExample: false,
+        includeHoloMap: false,
+        includeIndex: false,
+        includeRewards: false,
+        includeLocalization: false,
+        includeSandbox: true
+      }
+    }
+    const files = buildProjectFiles(opts, buildManifest(opts))
+    expect(files['preview/compatibility-profile.json']).toContain('ashfall_compatibility')
+    expect(files['sandbox/test_profile.json']).toBeUndefined()
   })
 })

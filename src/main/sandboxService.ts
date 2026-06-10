@@ -65,7 +65,7 @@ export async function runSandbox(
   const now = () => new Date().toISOString().split('T')[1].slice(0, 8)
   const log = (level: SandboxLog['level'], message: string) => logs.push({ time: now(), level, message })
 
-  log('info', `Initializing sandbox runtime... (${profile})`)
+  log('info', `Initializing compatibility scan... (${profile})`)
   logOptions(options, log)
 
   const manifest = await readManifest(projectPath)
@@ -90,7 +90,7 @@ export async function runSandbox(
   // Experience target check
   const hasTarget = manifest.target.experiences.some((e) => profileDef.experiences.includes(e))
   if (!hasTarget) {
-    warnings.push(`Addon targets ${manifest.target.experiences.join(', ')}, but sandbox profile expects ${profileDef.experiences.join(', ')}.`)
+    warnings.push(`Addon targets ${manifest.target.experiences.join(', ')}, but compatibility profile expects ${profileDef.experiences.join(', ')}.`)
     log('warn', 'Experience target mismatch detected.')
   } else {
     log('ok', 'Experience target compatible.')
@@ -151,7 +151,7 @@ export async function runSandbox(
 
   const score = computeSandboxScore(missingDependencies.length, warnings.length, errors.length, contentFailed)
 
-  log('ok', `Sandbox ready. Compatibility score: ${score}%`)
+  log('ok', `Compatibility scan complete. Score: ${score}%`)
 
   return {
     profile,

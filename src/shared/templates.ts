@@ -220,9 +220,9 @@ export function buildProjectFiles(opts: CreateAddonOptions, manifest: AddonManif
   }
 
   if (opts.options.includeSandbox) {
-    files['sandbox/test_profile.json'] = JSON.stringify(
+    files['preview/compatibility-profile.json'] = JSON.stringify(
       {
-        profile: `${opts.target}_sandbox`,
+        profile: `${opts.target}_compatibility`,
         loadOnly: [manifest.id],
         debugOverlay: true,
         fakePlayer: true,

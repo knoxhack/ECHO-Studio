@@ -69,7 +69,7 @@ export default function Settings(): JSX.Element {
   }
 
   return (
-    <Page title="Settings" subtitle="Configure your creator profile, workspace, SDK, AI, sandbox, and updates. Changes persist.">
+    <Page title="Settings" subtitle="Configure your creator profile, workspace, SDK, AI, preview tools, and updates. Changes persist.">
       <div className="grid cols-2">
         <div className="card">
           <h3>Account &amp; Creator</h3>
@@ -172,7 +172,7 @@ export default function Settings(): JSX.Element {
         </div>
 
         <div className="card">
-          <h3>SDK &amp; Sandbox</h3>
+          <h3>SDK &amp; Preview</h3>
           <div style={{ fontSize: 13, lineHeight: 2 }}>
             <div>Installed SDK: <b>{SDK_VERSION}</b></div>
             <div>Target SDK: <b>{config.sdk.targetVersion}</b></div>
@@ -186,13 +186,13 @@ export default function Settings(): JSX.Element {
             Auto-update SDK
           </label>
           <label className="field" style={{ marginTop: 8 }}>
-            <span>Default sandbox profile</span>
+            <span>Default compatibility scan profile</span>
             <select value={config.sandbox.defaultProfile} onChange={(event) => updateConfig({ sandbox: { ...config.sandbox, defaultProfile: event.target.value } })}>
-              <option>Ashfall Sandbox</option>
-              <option>ECHO Prime Sandbox</option>
-              <option>Arcana Sandbox</option>
-              <option>Generic ECHO Runtime Sandbox</option>
-              <option>Server Sandbox</option>
+              <option value="Ashfall Sandbox">Ashfall Compatibility</option>
+              <option value="ECHO Prime Sandbox">ECHO Prime Compatibility</option>
+              <option value="Arcana Sandbox">Arcana Compatibility</option>
+              <option value="Generic ECHO Runtime Sandbox">Generic Runtime Compatibility</option>
+              <option value="Server Sandbox">Server Compatibility</option>
             </select>
           </label>
           <label className="field" style={{ marginTop: 8 }}>

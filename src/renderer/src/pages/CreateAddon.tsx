@@ -192,7 +192,7 @@ export default function CreateAddon(): JSX.Element {
               ['includeIndex', 'Include Index entries'],
               ['includeRewards', 'Include rewards'],
               ['includeLocalization', 'Include localization (en_us)'],
-              ['includeSandbox', 'Include test sandbox profile']
+              ['includeSandbox', 'Include compatibility scan profile']
             ] as const
           ).map(([key, label]) => (
             <label className="checkbox" key={key}>
@@ -278,6 +278,6 @@ function previewTree(ns: string, id: string): string {
 +-- holomap/
 +-- index/
 +-- lang/
-+-- sandbox/
++-- preview/
 +-- docs/`
 }

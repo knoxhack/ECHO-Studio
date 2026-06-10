@@ -14,6 +14,14 @@ const PROFILES = [
   'Server Sandbox'
 ]
 
+const PROFILE_LABELS: Record<string, string> = {
+  'Ashfall Sandbox': 'Ashfall Compatibility',
+  'ECHO Prime Sandbox': 'ECHO Prime Compatibility',
+  'Arcana Sandbox': 'Arcana Compatibility',
+  'Generic ECHO Runtime Sandbox': 'Generic Runtime Compatibility',
+  'Server Sandbox': 'Server Compatibility'
+}
+
 const RUNTIME_TASKS: DevTaskId[] = [
   'gradle:runClient',
   'gradle:runServer',
@@ -85,7 +93,7 @@ export default function TestSandbox(): JSX.Element {
     if (res.ok && res.data) {
       setResult(res.data)
     } else {
-      setError(res.error || 'Sandbox run failed.')
+      setError(res.error || 'Compatibility scan failed.')
     }
   }
 
@@ -162,13 +170,13 @@ export default function TestSandbox(): JSX.Element {
   const collectLogs = (): void => {
     if (!result) return
     const text = result.logs.map((log) => `[${log.time}] [${log.level}] ${log.message}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => toast('Logs copied to clipboard'))
+    navigator.clipboard.writeText(text).then(() => toast('Scan logs copied to clipboard'))
   }
 
   const askAi = (): void => {
     if (!result || result.errors.length === 0) return
     const errorText = result.errors.join('\n')
-    const prompt = `My addon failed sandbox testing with these errors:\n${errorText}\n\nCan you explain what went wrong and how to fix it?`
+    const prompt = `My preview compatibility scan found these errors:\n${errorText}\n\nCan you explain what went wrong and how to fix it?`
     nav('/codex', { state: { prefilled: prompt } })
   }
 
@@ -199,7 +207,7 @@ export default function TestSandbox(): JSX.Element {
 
   if (!activeProject) {
     return (
-      <Page title="Preview" subtitle="Test runtime profiles, dependency loading, content registration, runtime launches, and log output before packaging.">
+      <Page title="Preview" subtitle="Launch local runtime targets, stream logs, and run quick compatibility scans before packaging.">
         <NoProject />
       </Page>
     )
@@ -208,14 +216,14 @@ export default function TestSandbox(): JSX.Element {
   return (
     <Page
       title="Preview"
-      subtitle="Test runtime profiles, dependency loading, content registration, runtime launches, and log output before packaging."
+      subtitle="Launch local runtime targets, stream logs, and run quick compatibility scans before packaging."
       actions={
         <>
-          <button className="btn" disabled={running || !activeProject} onClick={launch}>
-            {running ? 'Running...' : 'Run Quick Test'}
+          <button className="btn" onClick={inspectDevWorkspace}>
+            Refresh Workspace
           </button>
-          <button className="btn primary" disabled={running || !activeProject} onClick={launch}>
-            {running ? 'Running...' : 'Launch Sandbox'}
+          <button className="btn ghost" onClick={() => nav('/dev-workspace')}>
+            Open Dev Workspace
           </button>
         </>
       }
@@ -226,64 +234,6 @@ export default function TestSandbox(): JSX.Element {
         <Metric label="Gradle" value={gradleValue} tone={devWorkspace?.gradleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Toolchain" value={toolchainValue} tone={toolchainReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Launchers" value={launcherValue} tone={devWorkspace?.runtimeLaunchers.ready ? 'var(--good)' : 'var(--warn)'} />
-      </div>
-
-      <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3>Sandbox Profile</h3>
-          <label className="field">
-            <span>Target profile</span>
-            <select value={profile} onChange={(event) => setProfile(event.target.value)}>
-              {PROFILES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          {([
-            { key: 'loadOnlySelected', label: 'Load only selected addon' },
-            { key: 'debugOverlay', label: 'Enable debug overlay' },
-            { key: 'fakePlayer', label: 'Enable fake player profile' },
-            { key: 'testInventory', label: 'Enable test inventory' }
-          ] as { key: keyof SandboxOptions; label: string }[]).map((field) => (
-            <label className="checkbox" key={field.key}>
-              <input
-                type="checkbox"
-                checked={options[field.key]}
-                onChange={() => toggleOption(field.key)}
-              />
-              {field.label}
-            </label>
-          ))}
-        </div>
-        <div className="card">
-          <h3>Result Summary</h3>
-          {result ? (
-            <div style={{ fontSize: 13, lineHeight: 2 }}>
-              <div>
-                Compatibility score: <b style={{ color: scoreColor(result.compatibilityScore) }}>{result.compatibilityScore}%</b>
-              </div>
-              <div>Missing dependencies: <b>{result.missingDependencies.length}</b></div>
-              <div>
-                Warnings: <b style={{ color: result.warnings.length > 0 ? 'var(--warn)' : 'inherit' }}>{result.warnings.length}</b>
-              </div>
-              <div>
-                Errors: <b style={{ color: result.errors.length > 0 ? 'var(--bad)' : 'inherit' }}>{result.errors.length}</b>
-              </div>
-              <div>Content loaded: <b>{result.contentLoaded}</b></div>
-              <div>Content failed: <b>{result.contentFailed}</b></div>
-            </div>
-          ) : (
-            <div className="dim" style={{ fontSize: 13 }}>Run the sandbox to see results.</div>
-          )}
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button className="btn ghost" disabled={!result} onClick={collectLogs}>
-              Collect Logs
-            </button>
-            <button className="btn ghost" disabled={!result || result.errors.length === 0} onClick={askAi}>
-              Ask AI to Explain Crash
-            </button>
-          </div>
-        </div>
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
@@ -327,7 +277,6 @@ export default function TestSandbox(): JSX.Element {
             )}
           </div>
         </div>
-
         <div className="card">
           <h3>Runtime Log</h3>
           {runtimeRun && (
@@ -337,8 +286,69 @@ export default function TestSandbox(): JSX.Element {
               {runtimeRun.pid && <span className="badge">pid {runtimeRun.pid}</span>}
             </div>
           )}
-          <div className="code" style={{ minHeight: 180, maxHeight: 280, whiteSpace: 'pre-wrap' }}>
+          <div className="code" style={{ minHeight: 220, maxHeight: 320, whiteSpace: 'pre-wrap' }}>
             {runtimeLog || runtimeRun?.stdout || 'Launch a runtime target to stream logs here.'}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Quick Compatibility Scan</h3>
+          <label className="field">
+            <span>Target profile</span>
+            <select value={profile} onChange={(event) => setProfile(event.target.value)}>
+              {PROFILES.map((item) => (
+                <option key={item} value={item}>{PROFILE_LABELS[item] ?? item}</option>
+              ))}
+            </select>
+          </label>
+          {([
+            { key: 'loadOnlySelected', label: 'Load only selected project' },
+            { key: 'debugOverlay', label: 'Enable debug overlay checks' },
+            { key: 'fakePlayer', label: 'Enable fake player profile' },
+            { key: 'testInventory', label: 'Enable test inventory' }
+          ] as { key: keyof SandboxOptions; label: string }[]).map((field) => (
+            <label className="checkbox" key={field.key}>
+              <input
+                type="checkbox"
+                checked={options[field.key]}
+                onChange={() => toggleOption(field.key)}
+              />
+              {field.label}
+            </label>
+          ))}
+          <button className="btn primary" disabled={running || !activeProject} onClick={launch}>
+            {running ? 'Scanning...' : 'Run Compatibility Scan'}
+          </button>
+        </div>
+        <div className="card">
+          <h3>Scan Summary</h3>
+          {result ? (
+            <div style={{ fontSize: 13, lineHeight: 2 }}>
+              <div>
+                Compatibility score: <b style={{ color: scoreColor(result.compatibilityScore) }}>{result.compatibilityScore}%</b>
+              </div>
+              <div>Missing dependencies: <b>{result.missingDependencies.length}</b></div>
+              <div>
+                Warnings: <b style={{ color: result.warnings.length > 0 ? 'var(--warn)' : 'inherit' }}>{result.warnings.length}</b>
+              </div>
+              <div>
+                Errors: <b style={{ color: result.errors.length > 0 ? 'var(--bad)' : 'inherit' }}>{result.errors.length}</b>
+              </div>
+              <div>Content loaded: <b>{result.contentLoaded}</b></div>
+              <div>Content failed: <b>{result.contentFailed}</b></div>
+            </div>
+          ) : (
+            <div className="dim" style={{ fontSize: 13 }}>Run the quick scan to see results.</div>
+          )}
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button className="btn ghost" disabled={!result} onClick={collectLogs}>
+              Collect Scan Logs
+            </button>
+            <button className="btn ghost" disabled={!result || result.errors.length === 0} onClick={askAi}>
+              Ask Codex to Explain
+            </button>
           </div>
         </div>
       </div>
@@ -346,7 +356,7 @@ export default function TestSandbox(): JSX.Element {
       {error && <div className="alert" style={{ marginBottom: 14 }}>{error}</div>}
 
       <div className="card">
-        <h3>Sandbox Output</h3>
+        <h3>Compatibility Scan Output</h3>
         <div className="code" style={{ minHeight: 180, whiteSpace: 'pre-wrap' }}>
           {result ? (
             result.logs.map((log, index) => (
@@ -355,7 +365,7 @@ export default function TestSandbox(): JSX.Element {
               </div>
             ))
           ) : (
-            <span className="dim">Sandbox idle. Launch to see logs.</span>
+            <span className="dim">Scan idle. Run a compatibility scan to see logs.</span>
           )}
         </div>
       </div>
