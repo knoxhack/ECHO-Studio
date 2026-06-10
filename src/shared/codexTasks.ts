@@ -8,6 +8,7 @@ export type CodexTaskKind =
   | 'module_closure'
   | 'localization_fix'
   | 'mission_reward_fix'
+  | 'index_entry_fix'
   | 'dev_workspace_setup'
   | 'release_package'
   | 'navigation'

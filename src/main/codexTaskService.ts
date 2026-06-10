@@ -13,7 +13,8 @@ import { preferredModuleAlias, resolveProjectModulePlan, type EchoModuleRecord }
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
-import type { ContentRecord, ContentType, Mission } from '../shared/content/schemas'
+import type { ContentRecord, ContentType, IndexEntry, Mission, Recipe } from '../shared/content/schemas'
+import { idToFileName } from '../shared/content/paths'
 import { listAssetFiles, readManifest, writeManifest } from './fsService'
 import { readAllContent, readLangKeys } from './contentService'
 import { inspectDevWorkspace, setupDevWorkspace } from './devWorkspaceService'
@@ -287,6 +288,62 @@ function defaultRewardItem(manifest: AddonManifest): string {
   return `${manifest.namespace || localId(manifest.id)}:reward`
 }
 
+function titleFromId(id: string): string {
+  return localId(id)
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+}
+
+function combineTags(...groups: Array<string[] | undefined>): string[] | undefined {
+  const tags = groups.flatMap((group) => group ?? []).filter(Boolean)
+  return tags.length ? [...new Set(tags)] : undefined
+}
+
+function mergeIndexProposal(current: IndexEntry | undefined, next: IndexEntry): IndexEntry {
+  if (!current) return next
+  return {
+    ...current,
+    title: current.title || next.title,
+    type: current.type || next.type,
+    category: current.category || next.category,
+    description: current.description || next.description,
+    icon: current.icon || next.icon,
+    relatedRecipes: [...new Set([...(current.relatedRecipes ?? []), ...(next.relatedRecipes ?? [])])],
+    relatedMissions: [...new Set([...(current.relatedMissions ?? []), ...(next.relatedMissions ?? [])])],
+    relatedMarkers: [...new Set([...(current.relatedMarkers ?? []), ...(next.relatedMarkers ?? [])])],
+    tags: combineTags(current.tags, next.tags)
+  }
+}
+
+function missionIndexEntry(manifest: AddonManifest, mission: Mission): IndexEntry | null {
+  if (!mission.indexEntry) return null
+  const title = mission.title?.trim() || titleFromId(mission.id)
+  return {
+    id: mission.indexEntry,
+    title,
+    type: 'mission',
+    category: 'missions',
+    description: mission.description?.trim() || `Guide entry for ${title}.`,
+    relatedMissions: [mission.id],
+    tags: combineTags(['mission'], [manifest.namespace])
+  }
+}
+
+function recipeIndexEntry(manifest: AddonManifest, recipe: Recipe): IndexEntry | null {
+  if (!recipe.indexEntry) return null
+  const title = titleFromId(recipe.output.item)
+  const recipeTitle = titleFromId(recipe.id)
+  return {
+    id: recipe.indexEntry,
+    title,
+    type: 'item',
+    category: 'recipes',
+    description: `Output item produced by ${recipeTitle}.`,
+    relatedRecipes: [recipe.id],
+    tags: combineTags(['recipe', recipe.type], [manifest.namespace])
+  }
+}
+
 async function readLangDocument(projectPath: string): Promise<{ path: string; before: string; entries: Record<string, string> }> {
   const path = join(projectPath, 'lang', 'en_us.json')
   try {
@@ -298,6 +355,75 @@ async function readLangDocument(projectPath: string): Promise<{ path: string; be
     return { path, before, entries }
   } catch {
     return { path, before: '', entries: {} }
+  }
+}
+
+async function indexEntriesTask(projectPath: string, store: CodexTaskStore, context: ProjectContext): Promise<CodexTask | null> {
+  const existingIds = new Set(context.content.index.map((record) => record.id))
+  const proposals = new Map<string, IndexEntry>()
+
+  for (const record of context.content.mission) {
+    const mission = record.data as Mission
+    const entry = missionIndexEntry(context.manifest, mission)
+    if (entry && !existingIds.has(entry.id)) {
+      proposals.set(entry.id, mergeIndexProposal(proposals.get(entry.id), entry))
+    }
+  }
+
+  for (const record of context.content.recipe) {
+    const recipe = record.data as Recipe
+    const entry = recipeIndexEntry(context.manifest, recipe)
+    if (entry && !existingIds.has(recipe.output.item) && !existingIds.has(entry.id)) {
+      proposals.set(entry.id, mergeIndexProposal(proposals.get(entry.id), entry))
+    }
+  }
+
+  if (proposals.size === 0) return null
+
+  const entries = [...proposals.values()].sort((a, b) => a.id.localeCompare(b.id))
+  const fileChanges = await Promise.all(entries.map(async (entry) => {
+    const path = `index/${idToFileName(entry.id)}`
+    const absolutePath = join(projectPath, path)
+    const before = await fs.readFile(absolutePath, 'utf8').catch(() => '')
+    const after = jsonDocument(entry)
+    return {
+      path,
+      before,
+      after,
+      diff: buildUnifiedTextDiff(path, before, after)
+    }
+  }))
+
+  const nextIndexRecords: ContentRecord<IndexEntry>[] = entries.map((entry) => {
+    const fileName = idToFileName(entry.id)
+    return {
+      id: entry.id,
+      fileName,
+      path: join(projectPath, 'index', fileName),
+      data: entry
+    }
+  })
+  const afterReport = reportFromContext(context, {
+    content: {
+      ...context.content,
+      index: [...context.content.index, ...nextIndexRecords]
+    }
+  })
+  return {
+    id: 'content:index-entries',
+    title: 'Generate missing Index entries',
+    kind: 'index_entry_fix',
+    lane: taskLane('content:index-entries', 'waiting_review', store),
+    summary: 'Creates Index entries referenced by missions and recipe outputs so cross-content links resolve in Studio and PackOS validation.',
+    reason: `${entries.length} Index entr${entries.length === 1 ? 'y is' : 'ies are'} missing: ${entries.map((entry) => entry.id).join(', ')}.`,
+    route: '/index',
+    affectedFiles: fileChanges.map((change) => change.path),
+    fileChanges,
+    canApply: true,
+    applyLabel: entries.length === 1 ? 'Write Index entry' : 'Write Index entries',
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report),
+    validationAfter: validationSnapshot(afterReport)
   }
 }
 
@@ -407,6 +533,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
   const tasks = await Promise.all([
     moduleClosureTask(store, context),
     packosFixTask(store, context),
+    indexEntriesTask(projectPath, store, context),
     missionLocalizationTask(projectPath, store, context),
     missionRewardsTask(projectPath, store, context),
     Promise.resolve(devWorkspaceTask(store, context)),
@@ -441,7 +568,8 @@ function assertAllowedFileChange(projectPath: string, taskId: string, changePath
   const normalized = changePath.replace(/\\/g, '/')
   const allowed =
     (taskId === 'content:mission-localization' && normalized === 'lang/en_us.json') ||
-    (taskId === 'content:mission-rewards' && /^missions\/[A-Za-z0-9._-]+\.json$/.test(normalized))
+    (taskId === 'content:mission-rewards' && /^missions\/[A-Za-z0-9._-]+\.json$/.test(normalized)) ||
+    (taskId === 'content:index-entries' && /^index\/[A-Za-z0-9._-]+\.json$/.test(normalized))
   if (!allowed) throw new Error(`Task ${taskId} cannot write ${changePath}.`)
   const target = resolve(projectPath, normalized)
   const root = resolve(projectPath)
@@ -478,6 +606,7 @@ export async function applyCodexTask(projectPath: string, taskId: string): Promi
   if (taskId.startsWith('manifest:')) return applyManifestProposal(projectPath, taskId)
   if (taskId === 'content:mission-localization') return applyFileProposal(projectPath, taskId)
   if (taskId === 'content:mission-rewards') return applyFileProposal(projectPath, taskId)
+  if (taskId === 'content:index-entries') return applyFileProposal(projectPath, taskId)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) throw new Error('Missing echo.mod.json')

@@ -115,4 +115,62 @@ describe('codex task service', () => {
       expect(afterTasks.some((item) => item.id === 'content:mission-rewards')).toBe(false)
     })
   })
+
+  it('proposes and applies missing Index entries for missions and recipe outputs', async () => {
+    await withProject(async (project) => {
+      const missionPath = path.join(project, 'missions', 'first_contact.json')
+      const mission = JSON.parse(await fs.readFile(missionPath, 'utf8'))
+      mission.description = 'Locate the weather beacon and report home.'
+      mission.indexEntry = 'teamnova:first_contact_entry'
+      await fs.writeFile(missionPath, JSON.stringify(mission, null, 2), 'utf8')
+
+      await fs.mkdir(path.join(project, 'recipes'), { recursive: true })
+      await fs.writeFile(path.join(project, 'recipes', 'weather_core.json'), JSON.stringify({
+        id: 'teamnova:weather_core',
+        type: 'crafting',
+        inputs: [{ item: 'teamnova:beacon_fragment', count: 3 }],
+        output: { item: 'teamnova:weather_core', count: 1 },
+        indexEntry: 'teamnova:weather_core_entry'
+      }, null, 2), 'utf8')
+
+      const { applyCodexTask, listCodexTasks } = await import('../../main/codexTaskService')
+
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'content:index-entries')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('index_entry_fix')
+      expect(task?.lane).toBe('waiting_review')
+      expect(task?.fileChanges.map((change) => change.path)).toEqual([
+        'index/first_contact_entry.json',
+        'index/weather_core_entry.json'
+      ])
+      expect(task?.fileChanges[0].diff).toContain('+  "relatedMissions": [')
+      expect(task?.fileChanges[1].diff).toContain('+  "relatedRecipes": [')
+      expect(task?.validationAfter?.suggestions).toBeLessThan(task?.validationBefore?.suggestions ?? 999)
+
+      const result = await applyCodexTask(project, 'content:index-entries')
+      const missionEntry = JSON.parse(await fs.readFile(path.join(project, 'index', 'first_contact_entry.json'), 'utf8'))
+      const recipeEntry = JSON.parse(await fs.readFile(path.join(project, 'index', 'weather_core_entry.json'), 'utf8'))
+      const afterTasks = await listCodexTasks(project)
+
+      expect(result.filesChanged).toEqual([
+        'index/first_contact_entry.json',
+        'index/weather_core_entry.json'
+      ])
+      expect(missionEntry).toMatchObject({
+        id: 'teamnova:first_contact_entry',
+        type: 'mission',
+        category: 'missions',
+        relatedMissions: ['teamnova:first_contact']
+      })
+      expect(recipeEntry).toMatchObject({
+        id: 'teamnova:weather_core_entry',
+        type: 'item',
+        category: 'recipes',
+        relatedRecipes: ['teamnova:weather_core']
+      })
+      expect(afterTasks.some((item) => item.id === 'content:index-entries')).toBe(false)
+    })
+  })
 })
