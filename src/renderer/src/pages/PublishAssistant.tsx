@@ -158,6 +158,19 @@ export default function PublishAssistant(): JSX.Element {
     blockedModules.length === 0
   )
 
+  const executeReleaseGate = useCallback(async (): Promise<DevTaskRun> => {
+    if (!activeProject) {
+      throw new Error('Select a project first.')
+    }
+    const result = await window.studio.runDevTask(activeProject.path, 'studio:releaseGate')
+    if (!result.ok || !result.data) throw new Error(result.error ?? 'Local release gate failed.')
+    const run = result.data
+    setReleaseGateRun(run)
+    setStatus(firstLine(run.stdout) || firstLine(run.stderr) || `Local release gate ${run.status}.`)
+    await refreshReadiness()
+    return run
+  }, [activeProject, refreshReadiness])
+
   const packageProject = async (): Promise<void> => {
     if (!activeProject) {
       setStatus('Select a project first.')
@@ -166,6 +179,15 @@ export default function PublishAssistant(): JSX.Element {
     setBusy(true)
     setReleaseUrl('')
     try {
+      setStatus('Running local release gate before preparing assets.')
+      const gateRun = await executeReleaseGate()
+      if (gateRun.status !== 'completed') {
+        setPkg(null)
+        setStatus(`${firstLine(gateRun.stdout) || 'Local release gate failed.'} Fix gate issues before preparing public release assets.`)
+        toast('Local release gate needs fixes')
+        return
+      }
+      setStatus('Local release gate passed. Preparing release assets.')
       const result = await window.studio.packageAddon(activeProject.path)
       if (!result.ok || !result.data) throw new Error(result.error ?? 'Package build failed.')
       const next = result.data
@@ -195,12 +217,7 @@ export default function PublishAssistant(): JSX.Element {
     }
     setBusy(true)
     try {
-      const result = await window.studio.runDevTask(activeProject.path, 'studio:releaseGate')
-      if (!result.ok || !result.data) throw new Error(result.error ?? 'Local release gate failed.')
-      const run = result.data
-      setReleaseGateRun(run)
-      setStatus(firstLine(run.stdout) || `Local release gate ${run.status}.`)
-      await refreshReadiness()
+      const run = await executeReleaseGate()
       toast(run.status === 'completed' ? 'Local release gate passed' : 'Local release gate needs fixes')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Local release gate failed.')
@@ -332,6 +349,12 @@ export default function PublishAssistant(): JSX.Element {
     : 'Run Local Gate to check validation, module locks, source maps, and release readiness before packaging.'
   const publishRequirements = [
     {
+      key: 'local-gate',
+      ready: releaseGateReady,
+      label: 'Local release gate',
+      detail: releaseGateReady ? 'Validation, module locks, source maps, and release readiness passed in this Studio session.' : releaseGateDetail
+    },
+    {
       key: 'sdk',
       ready: sdkReady,
       label: 'Package contract',
@@ -398,6 +421,7 @@ export default function PublishAssistant(): JSX.Element {
     .filter((requirement) => !requirement.ready)
     .map((requirement) => `${requirement.label}: ${requirement.detail}`)
   const publishReady = Boolean(
+    releaseGateReady &&
     sdkReady &&
     validationReady &&
     moduleReady &&
@@ -437,7 +461,7 @@ export default function PublishAssistant(): JSX.Element {
             Run Local Gate
           </button>
           <button className="btn primary" disabled={busy} onClick={packageProject}>
-            {busy ? 'Working...' : 'Prepare Assets'}
+            {busy ? 'Working...' : 'Gate + Prepare Assets'}
           </button>
         </>
       }
@@ -656,7 +680,7 @@ export default function PublishAssistant(): JSX.Element {
               Run Local Gate
             </button>
             <button className="btn primary" onClick={packageProject} disabled={busy}>
-              Prepare Assets
+              Gate + Prepare Assets
             </button>
             <button className="btn ghost" onClick={() => pkg?.zipPath && window.studio.openPath(parentPath(pkg.zipPath))} disabled={!pkg?.zipPath}>
               Open Release Folder
