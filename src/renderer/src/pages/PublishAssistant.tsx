@@ -213,6 +213,10 @@ export default function PublishAssistant(): JSX.Element {
   }
 
   const createDraft = async (): Promise<void> => {
+    if (!publishReady) {
+      setStatus(`Cannot create a GitHub draft yet. ${publishBlockers[0] ?? 'Review the draft requirements.'}`)
+      return
+    }
     if (
       !pkg?.releaseDraftPath ||
       !pkg.checksumsPath ||
@@ -270,6 +274,64 @@ export default function PublishAssistant(): JSX.Element {
     pkg.releaseIndexHandoff.attestation.requireDigestMatch &&
     attestationSubjectCount > 0
   )
+  const authReady = Boolean(authStatus?.githubAppSessionReady || authStatus?.ghCliAuthenticated)
+  const publishRequirements = [
+    {
+      key: 'sdk',
+      ready: sdkReady,
+      label: 'SDK contract',
+      detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} SDK issue(s) need review.`) : 'Run Prepare Assets to validate the package manifest.'
+    },
+    {
+      key: 'packos',
+      ready: packosReady,
+      label: 'PackOS',
+      detail: readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}.` : 'Run project validation or Prepare Assets.'
+    },
+    {
+      key: 'modules',
+      ready: moduleReady,
+      label: 'ECHO Modules',
+      detail: workspace
+        ? moduleReady
+          ? 'Module lock, workspace map, closure, and trust state are current.'
+          : 'Refresh Dev Workspace until module lock, workspace map, dependencies, and trust state are current.'
+        : 'Refresh readiness to inspect module closure.'
+    },
+    {
+      key: 'sidecars',
+      ready: releaseSidecarsReady,
+      label: 'Release sidecars',
+      detail: releaseSidecarsReady ? 'All package sidecars and draft metadata were generated.' : 'Run Prepare Assets to write checksums, package manifest, release manifest, handoff, submission notes, and draft JSON.'
+    },
+    {
+      key: 'handoff',
+      ready: handoffReady,
+      label: 'Release Index handoff',
+      detail: handoffReady ? `${pkg?.releaseIndexHandoff?.entryFileName} targets ${pkg?.releaseIndexHandoff?.targetCollection}.` : 'Generate a valid ECHO Release Index handoff.'
+    },
+    {
+      key: 'attestation',
+      ready: attestationReady,
+      label: 'Attestation subjects',
+      detail: attestationReady ? `${attestationSubjectCount} checksum subject(s) are ready for GitHub attestation verification.` : 'Generate digest subjects for release artifacts.'
+    },
+    {
+      key: 'repository',
+      ready: Boolean(owner.trim() && repo.trim() && tag.trim()),
+      label: 'Repository target',
+      detail: owner.trim() && repo.trim() && tag.trim() ? `${owner}/${repo} at ${tag}.` : 'Enter owner, repository, and release tag.'
+    },
+    {
+      key: 'auth',
+      ready: authReady,
+      label: 'GitHub auth',
+      detail: authReady ? `Publishing will use ${providerLabel(authStatus)}.` : authStatus?.message ?? 'Refresh auth or connect GitHub publishing.'
+    }
+  ]
+  const publishBlockers = publishRequirements
+    .filter((requirement) => !requirement.ready)
+    .map((requirement) => `${requirement.label}: ${requirement.detail}`)
   const publishReady = Boolean(
     sdkReady &&
     packosReady &&
@@ -279,8 +341,14 @@ export default function PublishAssistant(): JSX.Element {
     attestationReady &&
     owner.trim() &&
     repo.trim() &&
-    tag.trim()
+    tag.trim() &&
+    authReady
   )
+  const draftDisabledReason = busy
+    ? 'A release action is already running.'
+    : publishReady
+      ? 'Ready to create a GitHub draft.'
+      : publishBlockers[0] ?? 'Review draft requirements.'
 
   return (
     <Page
@@ -539,6 +607,21 @@ export default function PublishAssistant(): JSX.Element {
             <input type="checkbox" checked={draft} onChange={(event) => setDraft(event.target.checked)} />
             Create as GitHub draft
           </label>
+          <div className="section-title">Draft Requirements</div>
+          {publishRequirements.map((requirement) => (
+            <StepRow
+              key={requirement.key}
+              done={requirement.ready}
+              label={requirement.label}
+              detail={requirement.detail}
+            />
+          ))}
+          {!publishReady && (
+            <div className="issue WARNING" style={{ marginTop: 12 }}>
+              <span className="lvl">WAITING</span>
+              {publishBlockers[0] ?? 'Review draft requirements before publishing.'}
+            </div>
+          )}
           <div className="btn-row" style={{ marginTop: 12 }}>
             {authStatus?.githubAppConfigured && (
               <button className="btn" onClick={startAppLogin} disabled={busy}>
@@ -548,7 +631,7 @@ export default function PublishAssistant(): JSX.Element {
             <button className="btn" onClick={connectRepo} disabled={busy || !owner.trim() || !repo.trim()}>
               Connect Repo
             </button>
-            <button className="btn primary" onClick={createDraft} disabled={busy || !publishReady}>
+            <button className="btn primary" onClick={createDraft} disabled={busy || !publishReady} title={draftDisabledReason}>
               Create Draft
             </button>
             {releaseUrl && (
