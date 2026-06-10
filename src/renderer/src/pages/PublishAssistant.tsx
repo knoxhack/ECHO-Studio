@@ -286,8 +286,8 @@ export default function PublishAssistant(): JSX.Element {
     {
       key: 'sdk',
       ready: sdkReady,
-      label: 'SDK contract',
-      detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} SDK issue(s) need review.`) : 'Run Prepare Assets to validate the package manifest.'
+      label: 'Package contract',
+      detail: pkg ? (sdkReady ? 'Package manifest is valid.' : `${pkg.sdkValidation.issues.length} contract issue(s) need review.`) : 'Run Prepare Assets to validate the package manifest.'
     },
     {
       key: 'packos',
@@ -386,7 +386,7 @@ export default function PublishAssistant(): JSX.Element {
       <ActiveBar />
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
-        <Metric label="SDK Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
+        <Metric label="Package Contract" value={sdkReady ? 'Ready' : pkg ? 'Issues' : 'Pending'} tone={sdkReady ? 'var(--good)' : pkg ? 'var(--bad)' : 'var(--warn)'} />
         <Metric label="PackOS" value={readinessReport ? `${readinessReport.compatibilityScore}%` : readinessLoading ? 'Checking' : 'Pending'} tone={packosReady ? 'var(--good)' : readinessReport ? 'var(--warn)' : 'var(--text-faint)'} />
         <Metric label="ECHO Modules" value={moduleReady ? 'Current' : workspace ? 'Needs Sync' : 'Checking'} tone={moduleReady ? 'var(--good)' : 'var(--warn)'} />
         <Metric label="Publish Auth" value={providerLabel(authStatus)} tone={authStatus?.activeProvider === 'none' ? 'var(--warn)' : 'var(--good)'} />
@@ -543,7 +543,7 @@ export default function PublishAssistant(): JSX.Element {
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Local Release Pipeline</h3>
-          <StepRow done={sdkReady} label="SDK package contract" detail={pkg ? (sdkReady ? 'Package manifest passes SDK validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
+          <StepRow done={sdkReady} label="Addon package contract" detail={pkg ? (sdkReady ? 'Package manifest passes contract validation.' : `${pkg.sdkValidation.issues.length} issue(s) found.`) : 'Run Prepare Assets to validate echo-addon-package.json.'} />
           <StepRow done={packosReady} label="PackOS project validation" detail={readinessReport ? `Blockers ${readinessReport.counts.BLOCKER} - Errors ${readinessReport.counts.ERROR}` : 'Run project validation as part of the package build.'} />
           <StepRow done={releaseSidecarsReady} label="Release sidecars" detail="Write checksums.sha256, echo-addon-package.json, echo-release.json, release-index-handoff.json, release-index-submission.md, and github-release-draft.json." />
           <StepRow

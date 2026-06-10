@@ -106,7 +106,7 @@ export default function Docs(): JSX.Element {
   }, [manifest, modulePlan])
 
   return (
-    <Page title="Docs" subtitle="SDK documentation built into the app. Detects your project and recommends guides.">
+    <Page title="Docs" subtitle="ECHO contracts and module docs built into the app. Detects your project and recommends guides.">
       <div className="split" style={{ gridTemplateColumns: '240px 1fr' }}>
         <div className="card" style={{ overflow: 'auto' }}>
           {CATEGORIES.map((c) => (
@@ -135,7 +135,7 @@ export default function Docs(): JSX.Element {
               </div>
             </>
           ) : (
-            <p className="dim">Documentation for {cat} is available in the full SDK reference.</p>
+            <p className="dim">Documentation for {cat} is available in the full ECHO reference.</p>
           )}
         </div>
       </div>

@@ -129,7 +129,7 @@ function devWorkspace(overrides?: Partial<DevWorkspaceState>): DevWorkspaceState
 }
 
 describe('packageAddon', () => {
-  it('writes SDK-validated release artifacts and sidecars', async () => {
+  it('writes contract-validated release artifacts and sidecars', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-addon-package-'))
     const previousCommitSha = process.env.ECHO_STUDIO_COMMIT_SHA
     const previousLegacyCommitSha = process.env.ECHO_ADDON_STUDIO_COMMIT_SHA

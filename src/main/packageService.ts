@@ -413,7 +413,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
 
   const sdkValidation = validateAddonPackageManifest(packageManifest, artifactRecords.map((artifact) => artifact.name))
   if (!sdkValidation.ok) {
-    throw new Error(`SDK package validation failed: ${sdkValidation.issues.join(' ')}`)
+    throw new Error(`Package contract validation failed: ${sdkValidation.issues.join(' ')}`)
   }
 
   const hash = artifactRecords[0].sha256
@@ -456,7 +456,7 @@ export async function packageAddon(projectPath: string, devWorkspace?: DevWorksp
     body: [
       `ECHO addon package for ${manifest.id}.`,
       '',
-      `SDK validation: ${sdkValidation.ok ? 'ready' : 'not ready'}.`,
+      `Package contract validation: ${sdkValidation.ok ? 'ready' : 'not ready'}.`,
       `PackOS validation: ${report.publishingReady ? 'ready' : 'not ready'}.`,
       `Issues: ${report.issues.length}.`,
       '',

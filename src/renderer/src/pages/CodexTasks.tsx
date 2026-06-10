@@ -289,7 +289,7 @@ function ActionResult({ result }: { result: CodexTaskActionResult }): JSX.Elemen
             <Metric label="Package" value={formatBytes(packageResult.bytes)} tone="var(--good)" />
             <Metric label="Assets" value={String(packageResult.assetPaths.length)} tone={packageResult.assetPaths.length ? 'var(--good)' : 'var(--warn)'} />
             <Metric label="PackOS" value={`${packageResult.report.compatibilityScore}%`} tone={packageResult.report.publishingReady ? 'var(--good)' : 'var(--warn)'} />
-            <Metric label="SDK" value={packageResult.sdkValidation.ok ? 'Ready' : 'Issues'} tone={packageResult.sdkValidation.ok ? 'var(--good)' : 'var(--bad)'} />
+            <Metric label="Contract" value={packageResult.sdkValidation.ok ? 'Ready' : 'Issues'} tone={packageResult.sdkValidation.ok ? 'var(--good)' : 'var(--bad)'} />
           </div>
           <div className="btn-row" style={{ marginTop: 12 }}>
             <button className="btn ghost" onClick={() => window.studio.openPath(parentPath(packageResult.zipPath))}>

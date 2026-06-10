@@ -28,7 +28,7 @@ export default function AIAssistant(): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: 'assistant',
-      text: "I'm the ECHO Studio Assistant. I generate SDK-safe content namespaced to you and never bypass PackOS. Add an API key in Settings for full model-powered generation; otherwise I run offline."
+      text: "I'm the ECHO Studio Assistant. I generate content against public ECHO contracts, keep it namespaced to you, and never bypass PackOS. Add an API key in Settings for full model-powered generation; otherwise I run offline."
     }
   ])
   const [input, setInput] = useState('')
@@ -80,7 +80,7 @@ export default function AIAssistant(): JSX.Element {
   return (
     <Page
       title="ECHO Studio Assistant"
-      subtitle="SDK-safe AI. Uses your configured model when an API key is set, otherwise runs offline."
+      subtitle="Contract-aware AI. Uses your configured model when an API key is set, otherwise runs offline."
     >
       <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 240px)' }}>
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: 6 }}>

@@ -73,7 +73,7 @@ export default function Compatibility(): JSX.Element {
             )
           })}
           <div style={{ marginTop: 10, fontSize: 12 }} className="dim">
-            Minimum SDK: <b>{m.runtime.minimumEchoSdk}</b> - Native readiness: <b>{m.runtime.nativeReadiness}</b>
+            Minimum contract set: <b>{m.runtime.minimumEchoSdk}</b> - Native readiness: <b>{m.runtime.nativeReadiness}</b>
           </div>
         </div>
 

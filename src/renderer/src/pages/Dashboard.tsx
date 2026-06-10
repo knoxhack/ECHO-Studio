@@ -98,7 +98,7 @@ export default function Dashboard(): JSX.Element {
               Published projects: <b>{projects.filter((project) => project.publishStatus === 'published').length}</b>
             </div>
             <div>
-              SDK: <b>{SDK_VERSION}</b>
+              Contracts: <b>{SDK_VERSION}</b>
             </div>
           </div>
           <div className="btn-row" style={{ marginTop: 12 }}>
