@@ -1,6 +1,6 @@
-﻿name: addons studio bug
+name: echo studio bug
 description: Report an issue for the ECHO public alpha.
-title: "[addons studio bug]: "
+title: "[echo studio bug]: "
 labels: ["alpha-feedback"]
 body:
   - type: markdown
@@ -12,7 +12,7 @@ body:
     attributes:
       label: Product
       description: Which ECHO product is affected?
-      placeholder: ECHO Launcher, Ashfall Native Edition, ECHO SDK, etc.
+      placeholder: ECHO Launcher, ECHO Studio, Ashfall Native Edition, ECHO SDK, etc.
     validations:
       required: true
   - type: input

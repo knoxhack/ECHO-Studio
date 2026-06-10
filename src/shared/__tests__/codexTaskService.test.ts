@@ -67,6 +67,43 @@ async function withProject(run: (project: string) => Promise<void>, modules: unk
 }
 
 describe('codex task service', () => {
+  it('suggests connecting ECHO-Modules when Studio cannot read a local catalog', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echo-codex-no-modules-'))
+    const previousModulesDir = process.env.ECHO_MODULES_DIR
+    const configPath = path.join(os.tmpdir(), 'config.json')
+    const previousConfig = await fs.readFile(configPath, 'utf8').catch(() => undefined)
+    try {
+      process.env.ECHO_MODULES_DIR = path.join(root, 'missing-ECHO-Modules')
+      const { setConfig } = await import('../../main/config')
+      await setConfig({
+        moduleCatalog: {
+          moduleRoot: path.join(root, 'configured-missing-ECHO-Modules'),
+          indexPath: ''
+        }
+      })
+      const project = path.join(root, 'project')
+      await fs.mkdir(project, { recursive: true })
+      await fs.writeFile(path.join(project, 'echo.mod.json'), JSON.stringify(manifest(), null, 2), 'utf8')
+
+      const { listCodexTasks } = await import('../../main/codexTaskService')
+      const tasks = await listCodexTasks(project)
+      const task = tasks.find((item) => item.id === 'modules:configure-local-catalog')
+
+      expect(task).toBeDefined()
+      expect(task?.kind).toBe('module_catalog_setup')
+      expect(task?.lane).toBe('suggested')
+      expect(task?.route).toBe('/settings')
+      expect(task?.canApply).toBe(false)
+      expect(task?.reason).toContain('Configured ECHO-Modules index was not found')
+    } finally {
+      if (previousModulesDir === undefined) delete process.env.ECHO_MODULES_DIR
+      else process.env.ECHO_MODULES_DIR = previousModulesDir
+      if (previousConfig === undefined) await fs.rm(configPath, { force: true })
+      else await fs.writeFile(configPath, previousConfig, 'utf8')
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('proposes full transitive module closure repairs for declared modules', async () => {
     await withProject(async (project) => {
       const nextManifest = manifest()

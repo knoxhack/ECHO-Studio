@@ -1050,7 +1050,7 @@ Version: ${manifest.version}
 1. Run Gradle tests from ECHO Studio.
 2. Run Package Local Release from ECHO Studio.
 3. Review exports/echo-release.json, exports/checksums.sha256, and exports/release-index-submission.md.
-4. Create the GitHub draft from Publish Assistant when the local package is ready.
+4. Create the GitHub draft from Release when the local package is ready.
 5. Submit release-index-handoff.json with release-index-submission.md for Release Index ingestion review.
 `
 }

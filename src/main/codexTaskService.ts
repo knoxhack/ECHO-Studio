@@ -9,7 +9,7 @@ import {
   type CodexTaskActionResult,
   type CodexTaskLane
 } from '../shared/codexTasks'
-import { addRequiredModuleClosureToManifest, resolveProjectModulePlan, type EchoModuleRecord } from '../shared/moduleCatalog'
+import { addRequiredModuleClosureToManifest, resolveProjectModulePlan, type EchoModuleCatalogResult, type EchoModuleRecord } from '../shared/moduleCatalog'
 import type { AddonManifest, PackOSReport, Runtime } from '../shared/types'
 import type { DevWorkspaceState } from '../shared/devWorkspace'
 import { runProjectCheck } from '../shared/projectValidation'
@@ -30,6 +30,7 @@ interface CodexTaskStore {
 interface ProjectContext {
   manifest: AddonManifest
   moduleCatalog: EchoModuleRecord[]
+  moduleCatalogResult: EchoModuleCatalogResult
   report: PackOSReport
   content: Record<ContentType, ContentRecord[]>
   langKeys: string[]
@@ -117,6 +118,7 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
   return {
     manifest,
     moduleCatalog: moduleCatalog.catalog,
+    moduleCatalogResult: moduleCatalog,
     report,
     content,
     langKeys,
@@ -135,6 +137,28 @@ async function loadContext(projectPath: string): Promise<ProjectContext> {
       devWorkspace.artifacts.some((artifact) => artifact.name === 'checksums.sha256')
     ),
     artifactNames: devWorkspace?.artifacts.map((artifact) => artifact.name) ?? []
+  }
+}
+
+function moduleCatalogSetupTask(store: CodexTaskStore, context: ProjectContext): CodexTask | null {
+  const usingLocalCatalog = context.moduleCatalogResult.source === 'local-index'
+  const hasWarnings = context.moduleCatalogResult.warnings.length > 0
+  if (usingLocalCatalog && !hasWarnings) return null
+  return {
+    id: 'modules:configure-local-catalog',
+    title: usingLocalCatalog ? 'Review ECHO-Modules catalog warnings' : 'Connect a local ECHO-Modules catalog',
+    kind: 'module_catalog_setup',
+    lane: taskLane('modules:configure-local-catalog', 'suggested', store),
+    summary: 'Opens Settings so Studio can use a pinned ECHO-Modules checkout or index override for generated module metadata, local source links, and module Gradle builds.',
+    reason: hasWarnings
+      ? context.moduleCatalogResult.warnings.join(' ')
+      : 'Studio is using the built-in starter module catalog. Pin a local ECHO-Modules checkout for full local module integration.',
+    route: '/settings',
+    affectedFiles: context.moduleCatalogResult.indexPath ? [context.moduleCatalogResult.indexPath] : ['metadata/modules/index.json'],
+    fileChanges: [],
+    canApply: false,
+    rejectable: true,
+    validationBefore: validationSnapshot(context.report)
   }
 }
 
@@ -693,6 +717,7 @@ export async function listCodexTasks(projectPath: string): Promise<CodexTask[]> 
   const store = await readStore(projectPath)
   const context = await loadContext(projectPath)
   const tasks = await Promise.all([
+    Promise.resolve(moduleCatalogSetupTask(store, context)),
     moduleClosureTask(store, context),
     packosFixTask(store, context),
     indexEntriesTask(projectPath, store, context),
