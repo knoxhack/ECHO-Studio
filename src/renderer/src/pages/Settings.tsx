@@ -25,7 +25,7 @@ interface UpdateStatus {
   message?: string
 }
 
-const ECHO_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Addons-Studio/releases'
+const ECHO_STUDIO_RELEASES_URL = 'https://github.com/knoxhack/ECHO-Studio/releases'
 const DEFAULT_MODULE_INDEX_PATH = 'metadata/modules/index.json'
 type RuntimeToolKey = 'echoNativeExecutable' | 'standaloneExecutable'
 type PreviewRuntime = Extract<Runtime, 'echo_native' | 'standalone'>

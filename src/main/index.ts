@@ -6,7 +6,7 @@ import { registerIpc } from './ipc'
 import { selectIndexedProductUpdate, type IndexedProductUpdate, type ReleaseIndexProductEntry } from '../shared/productUpdateIndex'
 
 const UPDATE_FEED_OWNER_PUBLIC = 'knoxhack'
-const UPDATE_FEED_REPO_PUBLIC = 'ECHO-Addons-Studio'
+const UPDATE_FEED_REPO_PUBLIC = 'ECHO-Studio'
 const UPDATE_FEED_STREAM = 'public'
 const RELEASE_INDEX_CHANNEL_URL =
   process.env['ECHO_RELEASE_INDEX_CHANNEL_URL'] ||

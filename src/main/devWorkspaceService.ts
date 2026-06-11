@@ -1505,7 +1505,7 @@ export async function runDevTask(projectPath: string, taskId: DevTaskId): Promis
           stderr,
           startedAt,
           finishedAt,
-          artifacts: await collectCurrentArtifacts(projectPath)
+          artifacts: []
         }
       }
       result = await packageAddon(projectPath, state)

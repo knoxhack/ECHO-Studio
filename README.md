@@ -34,7 +34,7 @@ ECHO Studio installers, app update metadata, release notes, generated addon pack
 
 ## Release Index Product Routing
 
-App update checks currently resolve the canonical Release Index product entry `echo-addons-studio` from `channels/alpha/launcher-channel.json`. That id is retained as the compatibility update key while the installed product name and UI are ECHO Studio. The legacy GitHub updater feed is used only as a fallback while the indexed product entry is warning-state or missing approved updater artifacts.
+App update checks currently resolve the canonical Release Index product entry `echo-addons-studio` from `channels/alpha/launcher-channel.json`. That id is retained as the compatibility update key while the installed product name, UI, and GitHub updater repository are ECHO Studio. The legacy GitHub updater feed is used only as a fallback while the indexed product entry is warning-state or missing approved updater artifacts.
 
 ## Docs Index
 

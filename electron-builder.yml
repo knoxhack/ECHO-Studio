@@ -42,5 +42,5 @@ portable:
 publish:
   provider: github
   owner: knoxhack
-  repo: ECHO-Addons-Studio
+  repo: ECHO-Studio
   releaseType: release
