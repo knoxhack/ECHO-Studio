@@ -19,7 +19,7 @@ win:
   verifyUpdateCodeSignature: false
   signAndEditExecutable: false
 nsis:
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: ECHO-Studio-Setup-${version}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -38,7 +38,7 @@ nsis:
   runAfterFinish: true
   warningsAsErrors: false
 portable:
-  artifactName: ${productName}-Portable-${version}.${ext}
+  artifactName: ECHO-Studio-Portable-${version}.${ext}
 publish:
   provider: github
   owner: knoxhack

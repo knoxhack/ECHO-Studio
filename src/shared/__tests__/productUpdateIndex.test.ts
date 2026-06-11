@@ -12,14 +12,14 @@ function productEntry(overrides: Partial<ReleaseIndexProductEntry> = {}): Releas
     validation: 'approved',
     artifacts: {
       windowsSetup: {
-        file: 'ECHO Studio-Setup-0.1.1.exe',
-        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO%20Studio-Setup-0.1.1.exe',
+        file: 'ECHO-Studio-Setup-0.1.1.exe',
+        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO-Studio-Setup-0.1.1.exe',
         sha256: sha,
         size: 100
       },
       windowsSetupBlockmap: {
-        file: 'ECHO Studio-Setup-0.1.1.exe.blockmap',
-        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO%20Studio-Setup-0.1.1.exe.blockmap',
+        file: 'ECHO-Studio-Setup-0.1.1.exe.blockmap',
+        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO-Studio-Setup-0.1.1.exe.blockmap',
         sha256: sha,
         size: 10
       },
@@ -40,8 +40,8 @@ describe('selectIndexedProductUpdate', () => {
 
     expect(update.feed).toEqual({ owner: 'knoxhack', repo: 'ECHO-Studio' })
     expect(update.artifacts.latestYml.name).toBe('latest.yml')
-    expect(update.artifacts.installer.name).toBe('ECHO Studio-Setup-0.1.1.exe')
-    expect(update.artifacts.blockmap?.name).toBe('ECHO Studio-Setup-0.1.1.exe.blockmap')
+    expect(update.artifacts.installer.name).toBe('ECHO-Studio-Setup-0.1.1.exe')
+    expect(update.artifacts.blockmap?.name).toBe('ECHO-Studio-Setup-0.1.1.exe.blockmap')
   })
 
   it('rejects warning product entries before updater feed selection', () => {
@@ -65,8 +65,8 @@ describe('selectIndexedProductUpdate', () => {
       selectIndexedProductUpdate(productEntry({
         artifacts: {
           windowsSetup: {
-            file: 'ECHO Studio-Setup-0.1.1.exe',
-            url: 'https://example.com/ECHO%20Studio-Setup-0.1.1.exe',
+            file: 'ECHO-Studio-Setup-0.1.1.exe',
+            url: 'https://example.com/ECHO-Studio-Setup-0.1.1.exe',
             sha256: 'not-a-sha'
           },
           latestYml: {

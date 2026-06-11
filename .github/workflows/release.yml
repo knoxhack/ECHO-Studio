@@ -130,6 +130,22 @@ jobs:
           }
           [System.IO.File]::WriteAllLines($sumFile, $checksumLines, [System.Text.UTF8Encoding]::new($false))
 
+      - name: Upload release artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $assetPaths = @(
+            Get-ChildItem -Path release -File |
+              Where-Object { $_.Name -ne 'SHA256SUMS.txt' -and $_.Name -ne 'builder-debug.yml' } |
+              Sort-Object Name |
+              ForEach-Object { $_.FullName }
+          )
+          if (-not $assetPaths) {
+            throw 'No release artifacts found to upload.'
+          }
+          gh release upload "${{ needs.validate.outputs.tag }}" @assetPaths --clobber
+
       - name: Attest release artifacts
         uses: actions/attest@v4
         with:
