@@ -397,7 +397,7 @@ export default function Settings(): JSX.Element {
         <div className="card">
           <h3>Updates</h3>
           <div style={{ fontSize: 13, lineHeight: 2 }}>
-            <div>Current version: <b>{window.studio.getVersion?.() ?? '0.1.0'}</b></div>
+            <div>Current version: <b>{window.studio.getVersion?.() ?? '0.1.1'}</b></div>
             <div style={{ color: 'var(--text-dim)' }}>{update ? updateLabel(update) : 'Checking for updates...'}</div>
             {update?.status === 'downloaded' && (
               <button className="btn primary" style={{ marginTop: 8 }} onClick={() => window.studio.installUpdate()}>

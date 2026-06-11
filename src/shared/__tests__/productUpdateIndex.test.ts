@@ -7,25 +7,25 @@ function productEntry(overrides: Partial<ReleaseIndexProductEntry> = {}): Releas
   return {
     id: 'echo-addons-studio',
     kind: 'studio',
-    version: '0.1.0',
+    version: '0.1.1',
     sourceRepo: 'knoxhack/ECHO-Studio',
     validation: 'approved',
     artifacts: {
       windowsSetup: {
-        file: 'ECHO.Addon.Studio-Setup-0.1.0.exe',
-        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.0/ECHO.Addon.Studio-Setup-0.1.0.exe',
+        file: 'ECHO Studio-Setup-0.1.1.exe',
+        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO%20Studio-Setup-0.1.1.exe',
         sha256: sha,
         size: 100
       },
       windowsSetupBlockmap: {
-        file: 'ECHO.Addon.Studio-Setup-0.1.0.exe.blockmap',
-        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.0/ECHO.Addon.Studio-Setup-0.1.0.exe.blockmap',
+        file: 'ECHO Studio-Setup-0.1.1.exe.blockmap',
+        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/ECHO%20Studio-Setup-0.1.1.exe.blockmap',
         sha256: sha,
         size: 10
       },
       latestYml: {
         file: 'latest.yml',
-        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.0/latest.yml',
+        url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/latest.yml',
         sha256: sha,
         size: 1
       }
@@ -40,8 +40,8 @@ describe('selectIndexedProductUpdate', () => {
 
     expect(update.feed).toEqual({ owner: 'knoxhack', repo: 'ECHO-Studio' })
     expect(update.artifacts.latestYml.name).toBe('latest.yml')
-    expect(update.artifacts.installer.name).toBe('ECHO.Addon.Studio-Setup-0.1.0.exe')
-    expect(update.artifacts.blockmap?.name).toBe('ECHO.Addon.Studio-Setup-0.1.0.exe.blockmap')
+    expect(update.artifacts.installer.name).toBe('ECHO Studio-Setup-0.1.1.exe')
+    expect(update.artifacts.blockmap?.name).toBe('ECHO Studio-Setup-0.1.1.exe.blockmap')
   })
 
   it('rejects warning product entries before updater feed selection', () => {
@@ -54,7 +54,7 @@ describe('selectIndexedProductUpdate', () => {
         artifacts: {
           latestYml: {
             file: 'latest.yml',
-            url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.0/latest.yml',
+            url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/latest.yml',
             sha256: sha
           }
         }
@@ -65,13 +65,13 @@ describe('selectIndexedProductUpdate', () => {
       selectIndexedProductUpdate(productEntry({
         artifacts: {
           windowsSetup: {
-            file: 'ECHO.Addon.Studio-Setup-0.1.0.exe',
-            url: 'https://example.com/ECHO.Addon.Studio-Setup-0.1.0.exe',
+            file: 'ECHO Studio-Setup-0.1.1.exe',
+            url: 'https://example.com/ECHO%20Studio-Setup-0.1.1.exe',
             sha256: 'not-a-sha'
           },
           latestYml: {
             file: 'latest.yml',
-            url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.0/latest.yml',
+            url: 'https://github.com/knoxhack/ECHO-Studio/releases/download/v0.1.1/latest.yml',
             sha256: sha
           }
         }
