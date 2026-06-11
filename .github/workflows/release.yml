@@ -36,9 +36,10 @@ jobs:
       - id: release-metadata
         shell: bash
         run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           TAG="${GITHUB_REF_NAME}"
           if [ -z "$TAG" ] || [ "$TAG" = "null" ] || [ "$TAG" = "" ] || [ "$TAG" = "main" ]; then
-            TAG="v$(node -p \"require('./package.json').version\")"
+            TAG="v${PACKAGE_VERSION}"
           fi
 
           if [ -n "${{ github.event_name }}" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -53,7 +54,7 @@ jobs:
             exit 1
           fi
 
-          PKG_VERSION="v$(node -p \"require('./package.json').version\")"
+          PKG_VERSION="v${PACKAGE_VERSION}"
           if [ "$TAG" != "$PKG_VERSION" ]; then
             echo "Tag/version mismatch: tag=$TAG package=$PKG_VERSION"
             exit 1
