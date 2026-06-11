@@ -108,21 +108,25 @@ jobs:
             throw 'release output directory missing'
           }
 
-          $manifests = Get-ChildItem -Path release -Filter 'latest*.yml' -File
+          $releaseFiles = Get-ChildItem -Path release -File | Where-Object {
+            $_.Name -ne 'SHA256SUMS.txt' -and $_.Name -ne 'builder-debug.yml'
+          }
+
+          $manifests = $releaseFiles | Where-Object { $_.Name -like 'latest*.yml' }
           if (-not $manifests) {
             throw 'Expected updater manifest latest*.yml missing from release artifacts'
           }
 
-          $installers = Get-ChildItem -Path release -File | Where-Object { $_.Extension -in '.exe', '.zip', '.dmg', '.AppImage', '.deb', '.rpm' }
+          $installers = $releaseFiles | Where-Object { $_.Extension -in '.exe', '.zip', '.dmg', '.AppImage', '.deb', '.rpm' }
           if (-not $installers) {
             throw 'No installer artifacts found under release directory'
           }
 
           $sumFile = Join-Path release 'SHA256SUMS.txt'
           Remove-Item -Force $sumFile -ErrorAction SilentlyContinue
-          Get-ChildItem release -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
+          $releaseFiles | Sort-Object Name | ForEach-Object {
             $hash = Get-FileHash -Path $_.FullName -Algorithm SHA256
-            [System.IO.File]::AppendAllText($sumFile, "$($hash.Hash.ToLower())  $($_.Name)`n")
+            [System.IO.File]::AppendAllText($sumFile, "$($hash.Hash.ToLower()) *$($_.Name)`n", [System.Text.Encoding]::UTF8)
           }
 
       - name: Attest release artifacts
