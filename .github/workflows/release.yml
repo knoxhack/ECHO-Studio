@@ -124,10 +124,11 @@ jobs:
 
           $sumFile = Join-Path release 'SHA256SUMS.txt'
           Remove-Item -Force $sumFile -ErrorAction SilentlyContinue
-          $releaseFiles | Sort-Object Name | ForEach-Object {
+          $checksumLines = $releaseFiles | Sort-Object Name | ForEach-Object {
             $hash = Get-FileHash -Path $_.FullName -Algorithm SHA256
-            [System.IO.File]::AppendAllText($sumFile, "$($hash.Hash.ToLower()) *$($_.Name)`n", [System.Text.Encoding]::UTF8)
+            "$($hash.Hash.ToLower()) *$($_.Name)"
           }
+          [System.IO.File]::WriteAllLines($sumFile, $checksumLines, [System.Text.UTF8Encoding]::new($false))
 
       - name: Attest release artifacts
         uses: actions/attest@v4
