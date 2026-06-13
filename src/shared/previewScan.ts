@@ -86,6 +86,8 @@ export interface PreviewScanLog {
 
 export interface PreviewScanResult {
   profile: string
+  evidenceLevel: 'static_compatibility'
+  runtimeExecuted: boolean
   logs: PreviewScanLog[]
   compatibilityScore: number
   missingDependencies: string[]

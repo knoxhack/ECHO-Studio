@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Page } from '../components/Page'
-import { ActiveBar } from '../components/ProjectPicker'
+import { ActiveBar, NoProject } from '../components/ProjectPicker'
 import { useWorkspace } from '../state/WorkspaceContext'
 import type { GitStatus, GitCommit, GitDiff, GitBranch } from '@shared/git'
 
@@ -21,7 +21,14 @@ export default function Git(): JSX.Element {
   const [toast, setToast] = useState('')
 
   const load = async () => {
-    if (!activeProject) return
+    if (!activeProject) {
+      setStatus(null)
+      setLog([])
+      setDiff([])
+      setBranches([])
+      setRemotes([])
+      return
+    }
     const s = await window.studio.gitStatus(activeProject.path)
     if (s.ok && s.data) {
       setStatus(s.data)
@@ -42,7 +49,7 @@ export default function Git(): JSX.Element {
     }
   }
 
-  useEffect(() => { load() }, [activeProject])
+  useEffect(() => { void load() }, [activeProject])
 
   const initRepo = async () => {
     if (!activeProject) return
@@ -124,6 +131,10 @@ export default function Git(): JSX.Element {
 
   return (
     <Page title="Version Control" subtitle="Track changes, commit snapshots, manage branches and remotes.">
+      {!activeProject ? (
+        <NoProject />
+      ) : (
+        <>
       <ActiveBar />
 
       {error && (
@@ -263,6 +274,8 @@ export default function Git(): JSX.Element {
           </div>
         )}
       </div>
+        </>
+      )}
     </Page>
   )
 }

@@ -27,7 +27,7 @@ export default function ContentBuilder(): JSX.Element {
     )
 
   const openF = async (path: string): Promise<void> => {
-    const res = await window.studio.readFile(path)
+    const res = await window.studio.readFile(activeProject.path, path)
     if (res.ok) {
       setOpenFile(path)
       setContent(res.data!)
@@ -37,7 +37,7 @@ export default function ContentBuilder(): JSX.Element {
 
   const save = async (): Promise<void> => {
     if (!openFile) return
-    const res = await window.studio.writeFile(openFile, content)
+    const res = await window.studio.writeFile(activeProject.path, openFile, content)
     if (res.ok) {
       setDirty(false)
       toast('Saved')

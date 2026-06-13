@@ -63,15 +63,16 @@ const api = {
     invoke<void>('manifest:write', projectPath, manifest),
 
   readProjectTree: (projectPath: string) => invoke<FileNode>('project:tree', projectPath),
-  readFile: (filePath: string) => invoke<string>('file:read', filePath),
-  writeFile: (filePath: string, content: string) => invoke<void>('file:write', filePath, content),
+  readFile: (projectPath: string, filePath: string) => invoke<string>('file:read', projectPath, filePath),
+  writeFile: (projectPath: string, filePath: string, content: string) =>
+    invoke<void>('file:write', projectPath, filePath, content),
 
   listContent: (projectPath: string, type: ContentType) =>
     invoke<ContentRecord[]>('content:list', projectPath, type),
-  readContent: (filePath: string) => invoke<unknown>('content:read', filePath),
+  readContent: (projectPath: string, filePath: string) => invoke<unknown>('content:read', projectPath, filePath),
   writeContent: (projectPath: string, type: ContentType, item: { id: string }) =>
     invoke<string>('content:write', projectPath, type, item),
-  deleteContent: (filePath: string) => invoke<void>('content:delete', filePath),
+  deleteContent: (projectPath: string, filePath: string) => invoke<void>('content:delete', projectPath, filePath),
   listAllContent: (projectPath: string) =>
     invoke<Record<ContentType, ContentRecord[]>>('content:listAll', projectPath),
   validateProject: (projectPath: string) => invoke<ValidationReport>('project:validate', projectPath),

@@ -336,6 +336,10 @@ export default function Preview(): JSX.Element {
           {result ? (
             <div style={{ fontSize: 13, lineHeight: 2 }}>
               <div>
+                Evidence: <b>{result.evidenceLevel === 'static_compatibility' ? 'Static compatibility' : result.evidenceLevel}</b>
+              </div>
+              <div>Runtime executed: <b>{result.runtimeExecuted ? 'Yes' : 'No'}</b></div>
+              <div>
                 Compatibility score: <b style={{ color: scoreColor(result.compatibilityScore) }}>{result.compatibilityScore}%</b>
               </div>
               <div>Missing dependencies: <b>{result.missingDependencies.length}</b></div>

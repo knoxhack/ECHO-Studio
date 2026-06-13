@@ -1,6 +1,7 @@
 import { Navigate, Routes, Route, useNavigate } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
+import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { useWorkspace } from './state/WorkspaceContext'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 
@@ -57,49 +58,51 @@ export default function App(): JSX.Element {
       <div className="main">
         <Topbar />
         <div className="content">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/projects" element={<MyAddons />} />
-            <Route path="/addons" element={<MyAddons />} />
-            <Route path="/create" element={<CreateAddon />} />
-            <Route path="/templates" element={<Templates />} />
-            <Route path="/experience" element={<ManifestBuilder />} />
-            <Route path="/manifest" element={<ManifestBuilder />} />
-            <Route path="/manifest-editor" element={<ManifestEditor />} />
-            <Route path="/modules" element={<Modules />} />
-            <Route path="/dev-workspace" element={<DevWorkspace />} />
-            <Route path="/gameplay" element={<Gameplay />} />
-            <Route path="/publish-assistant" element={<PublishAssistant />} />
-            <Route path="/content" element={<ContentBuilder />} />
-            <Route path="/graph" element={<ContentGraph />} />
-            <Route path="/missions" element={<Missions />} />
-            <Route path="/recipes" element={<Recipes />} />
-            <Route path="/interface" element={<Screens />} />
-            <Route path="/screens" element={<Screens />} />
-            <Route path="/holomap" element={<HoloMap />} />
-            <Route path="/index" element={<IndexBuilder />} />
-            <Route path="/items" element={<Items />} />
-            <Route path="/loot" element={<Loot />} />
-            <Route path="/dialogue" element={<DialogueBuilder />} />
-            <Route path="/assets" element={<Assets />} />
-            <Route path="/preview" element={<Preview />} />
-            <Route path="/validation" element={<Validation />} />
-            <Route path="/packos" element={<Validation />} />
-            <Route path="/compatibility" element={<Compatibility />} />
-            <Route path="/submit" element={<Navigate to="/release" replace />} />
-            <Route path="/release" element={<PublishAssistant />} />
-            <Route path="/releases" element={<PublishAssistant />} />
-            <Route path="/catalog" element={<CommunityCatalog />} />
-            <Route path="/ecosystem" element={<Ecosystem />} />
-            <Route path="/docs" element={<Docs />} />
-            <Route path="/examples" element={<Examples />} />
-            <Route path="/codex" element={<CodexTasks />} />
-            <Route path="/ai" element={<AIAssistant />} />
-            <Route path="/git" element={<Git />} />
-            <Route path="/advanced" element={<ContentBuilder />} />
-            <Route path="/shortcuts" element={<Shortcuts />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
+          <RouteErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/projects" element={<MyAddons />} />
+              <Route path="/addons" element={<MyAddons />} />
+              <Route path="/create" element={<CreateAddon />} />
+              <Route path="/templates" element={<Templates />} />
+              <Route path="/experience" element={<ManifestBuilder />} />
+              <Route path="/manifest" element={<ManifestBuilder />} />
+              <Route path="/manifest-editor" element={<ManifestEditor />} />
+              <Route path="/modules" element={<Modules />} />
+              <Route path="/dev-workspace" element={<DevWorkspace />} />
+              <Route path="/gameplay" element={<Gameplay />} />
+              <Route path="/publish-assistant" element={<PublishAssistant />} />
+              <Route path="/content" element={<ContentBuilder />} />
+              <Route path="/graph" element={<ContentGraph />} />
+              <Route path="/missions" element={<Missions />} />
+              <Route path="/recipes" element={<Recipes />} />
+              <Route path="/interface" element={<Screens />} />
+              <Route path="/screens" element={<Screens />} />
+              <Route path="/holomap" element={<HoloMap />} />
+              <Route path="/index" element={<IndexBuilder />} />
+              <Route path="/items" element={<Items />} />
+              <Route path="/loot" element={<Loot />} />
+              <Route path="/dialogue" element={<DialogueBuilder />} />
+              <Route path="/assets" element={<Assets />} />
+              <Route path="/preview" element={<Preview />} />
+              <Route path="/validation" element={<Validation />} />
+              <Route path="/packos" element={<Validation />} />
+              <Route path="/compatibility" element={<Compatibility />} />
+              <Route path="/submit" element={<Navigate to="/release" replace />} />
+              <Route path="/release" element={<PublishAssistant />} />
+              <Route path="/releases" element={<PublishAssistant />} />
+              <Route path="/catalog" element={<CommunityCatalog />} />
+              <Route path="/ecosystem" element={<Ecosystem />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="/examples" element={<Examples />} />
+              <Route path="/codex" element={<CodexTasks />} />
+              <Route path="/ai" element={<AIAssistant />} />
+              <Route path="/git" element={<Git />} />
+              <Route path="/advanced" element={<ContentBuilder />} />
+              <Route path="/shortcuts" element={<Shortcuts />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </RouteErrorBoundary>
         </div>
       </div>
       {toastMsg && <div className="toast">{toastMsg}</div>}

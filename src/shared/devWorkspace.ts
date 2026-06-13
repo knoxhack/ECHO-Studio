@@ -91,6 +91,10 @@ export interface DevModuleWorkspaceModule {
   gradleBuildPath?: string
   gradleProjectPath?: string
   gradleProjectDependencies?: string[]
+  externalGradleProjectDependencies?: Array<{
+    projectPath: string
+    projectDir: string
+  }>
   missingGradleProjectDependencies?: string[]
   gradleDependencyReady?: boolean
   dependencyNotation?: string

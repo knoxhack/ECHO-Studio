@@ -56,13 +56,25 @@ export async function runPreviewScan(
   const log = (level: PreviewScanLog['level'], message: string) => logs.push({ time: now(), level, message })
 
   log('info', `Initializing compatibility scan... (${profile})`)
+  log('info', 'Evidence level: static compatibility checks. Launch a runtime target for live runtime logs.')
   logOptions(options, log)
 
   const manifest = await readManifest(projectPath)
   if (!manifest) {
     errors.push('Missing or unreadable echo.mod.json')
     log('error', 'Failed to read project manifest.')
-    return { profile, logs, compatibilityScore: 0, missingDependencies, warnings, errors, contentLoaded, contentFailed }
+    return {
+      profile,
+      evidenceLevel: 'static_compatibility',
+      runtimeExecuted: false,
+      logs,
+      compatibilityScore: 0,
+      missingDependencies,
+      warnings,
+      errors,
+      contentLoaded,
+      contentFailed
+    }
   }
 
   log('ok', `Loading project: ${manifest.id} v${manifest.version}`)
@@ -157,6 +169,8 @@ export async function runPreviewScan(
 
   return {
     profile,
+    evidenceLevel: 'static_compatibility',
+    runtimeExecuted: false,
     logs,
     compatibilityScore: score,
     missingDependencies,

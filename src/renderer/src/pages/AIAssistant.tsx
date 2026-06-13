@@ -88,7 +88,10 @@ export default function AIAssistant(): JSX.Element {
             <div className={`chat-msg ${msg.role === 'user' ? 'user' : 'ai'}`} key={i}>
               <div className="chat-bubble">
                 {msg.role === 'assistant' && msg.usedModel === false && (
-                  <span className="badge local" style={{ marginBottom: 6, display: 'inline-block' }}>offline</span>
+                  <span className="badge local" style={{ marginBottom: 6, display: 'inline-block' }}>offline scaffold</span>
+                )}
+                {msg.role === 'assistant' && msg.usedModel === true && (
+                  <span className="badge ready" style={{ marginBottom: 6, display: 'inline-block' }}>model</span>
                 )}
                 <div>{msg.text}</div>
                 {msg.files && msg.files.length > 0 && (
@@ -97,8 +100,8 @@ export default function AIAssistant(): JSX.Element {
                       {msg.files.map((f) => `+ ${f.path}`).join('\n')}
                     </div>
                     <div className="btn-row" style={{ marginTop: 10 }}>
-                      <button className="btn primary" onClick={() => apply(msg.files!)}>
-                        Apply Fix
+                      <button className="btn primary" disabled={!activeProject} onClick={() => apply(msg.files!)}>
+                        Apply Files
                       </button>
                       <button className="btn ghost" onClick={() => setDiff(msg.files![0])}>
                         Review Diff

@@ -129,6 +129,9 @@ describe('runPreviewScan', () => {
 
       const result = await runPreviewScan(project, root, 'Generic Runtime Compatibility', DEFAULT_OPTIONS)
 
+      expect(result.evidenceLevel).toBe('static_compatibility')
+      expect(result.runtimeExecuted).toBe(false)
+      expect(result.logs.some((log) => log.message.includes('Evidence level: static compatibility checks'))).toBe(true)
       expect(result.warnings).toContain('Project does not declare support for runtime "standalone".')
       expect(result.logs.some((log) => log.message.includes('Runtime mismatch'))).toBe(true)
     })

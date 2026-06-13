@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import type { GitStatus, GitCommit, GitDiff, GitResult, GitBranch } from '../shared/git'
 
 interface SpawnResult {
@@ -16,7 +16,7 @@ function run(cwd: string, args: string[]): string {
 
 function spawnSync(cwd: string, args: string[]): { stdout: string; stderr: string; status: number | null; error?: Error } {
   try {
-    const stdout = execSync(`git ${args.map(escapeArg).join(' ')}`, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] })
+    const stdout = execFileSync('git', args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] })
     return { stdout, stderr: '', status: 0 }
   } catch (err: any) {
     return { stdout: '', stderr: err.stderr || err.message, status: err.status ?? 1, error: err }
@@ -38,9 +38,22 @@ function runSafe(cwd: string, args: string[]): SpawnResult {
 
 export async function gitStatus(projectPath: string): Promise<GitStatus> {
   try {
-    const branch = run(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']).trim()
-    const aheadBehind = run(projectPath, ['rev-list', '--left-right', '--count', `origin/${branch}...${branch}`]).trim()
-    const [behind, ahead] = aheadBehind.split(/\s+/).map(Number)
+    run(projectPath, ['rev-parse', '--is-inside-work-tree'])
+    const symbolicBranch = runSafe(projectPath, ['symbolic-ref', '--short', 'HEAD'])
+    const branch = symbolicBranch.ok && symbolicBranch.output.trim()
+      ? symbolicBranch.output.trim()
+      : (runSafe(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']).output.trim() || 'HEAD')
+    const upstream = runSafe(projectPath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
+    let ahead = 0
+    let behind = 0
+    if (upstream.ok && upstream.output.trim()) {
+      const aheadBehind = runSafe(projectPath, ['rev-list', '--left-right', '--count', `${upstream.output.trim()}...HEAD`])
+      if (aheadBehind.ok) {
+        const [behindCount, aheadCount] = aheadBehind.output.trim().split(/\s+/).map(Number)
+        behind = behindCount || 0
+        ahead = aheadCount || 0
+      }
+    }
     const statusRaw = run(projectPath, ['status', '--porcelain'])
     const files = statusRaw
       .split('\n')
@@ -49,7 +62,7 @@ export async function gitStatus(projectPath: string): Promise<GitStatus> {
         path: line.slice(3).trim(),
         status: line.slice(0, 2).trim()
       }))
-    return { isRepo: true, branch, ahead: ahead || 0, behind: behind || 0, files }
+    return { isRepo: true, branch, ahead, behind, files }
   } catch {
     return { isRepo: false, branch: '', ahead: 0, behind: 0, files: [] }
   }

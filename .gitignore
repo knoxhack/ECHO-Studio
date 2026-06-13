@@ -3,4 +3,5 @@ out/
 release/
 dist/
 *.log
+*.tsbuildinfo
 .DS_Store

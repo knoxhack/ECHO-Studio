@@ -48,13 +48,17 @@ export function useContent(type: ContentType): UseContent {
 
   const remove = useCallback(
     async (record: ContentRecord) => {
-      const res = await window.studio.deleteContent(record.path)
+      if (!activeProject) {
+        toast('Select a project first')
+        return
+      }
+      const res = await window.studio.deleteContent(activeProject.path, record.path)
       if (res.ok) {
         toast('Deleted')
         await reload()
       }
     },
-    [reload, toast]
+    [activeProject, reload, toast]
   )
 
   return { records, loading, reload, save, remove }

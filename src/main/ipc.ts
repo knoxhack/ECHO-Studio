@@ -50,6 +50,7 @@ import { inspectDevWorkspace, listRunningDevTasks, readDevTaskLog, runDevTask, s
 import type { DevTaskId, DevWorkspaceOptions } from '../shared/devWorkspace'
 import { listEchoModules } from './moduleCatalogService'
 import { applyCodexTask, listCodexTasks, setCodexTaskApproved, setCodexTaskRejected } from './codexTaskService'
+import { resolveProjectPath, resolveProjectRelativePath, resolveProjectRoot } from './projectPaths'
 
 // Wrap a handler so every channel returns a uniform IpcResult.
 function handle<TArgs extends unknown[], TResult>(
@@ -164,18 +165,26 @@ export function registerIpc(): void {
     writeManifest(projectPath, manifest)
   )
 
-  handle('project:tree', (projectPath: string) => readProjectTree(projectPath))
-  handle('file:read', (filePath: string) => readFileText(filePath))
-  handle('file:write', (filePath: string, content: string) => writeFileText(filePath, content))
+  handle('project:tree', async (projectPath: string) => readProjectTree(await resolveProjectRoot(projectPath)))
+  handle('file:read', async (projectPath: string, filePath: string) =>
+    readFileText(await resolveProjectPath(projectPath, filePath, 'File path'))
+  )
+  handle('file:write', async (projectPath: string, filePath: string, content: string) =>
+    writeFileText(await resolveProjectPath(projectPath, filePath, 'File path'), content)
+  )
 
   handle('content:list', (projectPath: string, type: ContentType) =>
     listContent(projectPath, type)
   )
-  handle('content:read', (filePath: string) => readContent(filePath))
+  handle('content:read', async (projectPath: string, filePath: string) =>
+    readContent(await resolveProjectPath(projectPath, filePath, 'Content path'))
+  )
   handle('content:write', (projectPath: string, type: ContentType, item: { id: string }) =>
     writeContent(projectPath, type, item)
   )
-  handle('content:delete', (filePath: string) => deleteContent(filePath))
+  handle('content:delete', async (projectPath: string, filePath: string) =>
+    deleteContent(await resolveProjectPath(projectPath, filePath, 'Content path'))
+  )
   handle('content:listAll', (projectPath: string) => readAllContent(projectPath))
 
   handle('project:validate', (projectPath: string) => validateProject(projectPath))
@@ -184,7 +193,8 @@ export function registerIpc(): void {
   handle('assets:scan', (projectPath: string) => scanAssets(projectPath))
   handle('assets:import', (projectPath: string, folder: string) => importAssets(projectPath, folder))
   handle('assets:importDrop', async (projectPath: string, filePaths: string[]) => {
-    const destDir = join(projectPath, 'assets', 'drop')
+    const root = await resolveProjectRoot(projectPath)
+    const destDir = join(root, 'assets', 'drop')
     await fs.mkdir(destDir, { recursive: true })
     const copied: string[] = []
     for (const src of filePaths) {
@@ -287,15 +297,7 @@ export function registerIpc(): void {
   handle('ai:applyFiles', async (projectPath: string, files: AiFile[]) => {
     const applied: string[] = []
     for (const f of files) {
-      if (f.path.includes('..') || f.path.startsWith('/') || f.path.startsWith('\\')) {
-        throw new Error(`Invalid file path: ${f.path}`)
-      }
-      const full = join(projectPath, f.path)
-      const resolved = await fs.realpath(full).catch(() => full)
-      const resolvedProject = await fs.realpath(projectPath).catch(() => projectPath)
-      if (!resolved.startsWith(resolvedProject)) {
-        throw new Error(`Path traversal blocked: ${f.path}`)
-      }
+      const full = await resolveProjectRelativePath(projectPath, f.path, `AI file path ${f.path}`)
       await writeFileText(full, f.content)
       applied.push(f.path)
     }

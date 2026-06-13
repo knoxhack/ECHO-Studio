@@ -15,6 +15,19 @@ const RELEASE_INDEX_PRODUCT_ID = 'echo-addons-studio'
 
 type ReleaseIndexChannel = { catalogUrls?: string[] | Record<string, string[]> }
 
+function configureUserDataPath(): void {
+  const override = process.env['ECHO_STUDIO_USER_DATA_DIR']
+  if (override) {
+    app.setPath('userData', override)
+    return
+  }
+  if (!app.isPackaged) {
+    app.setPath('userData', join(app.getPath('temp'), 'ECHO Studio Dev'))
+  }
+}
+
+configureUserDataPath()
+
 function resolveUpdateStream(): 'public' | 'internal' {
   return UPDATE_FEED_STREAM
 }
@@ -117,7 +130,7 @@ function createSplash(): void {
   splashWindow.on('ready-to-show', () => splashWindow?.show())
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -157,6 +170,8 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 // ---- Auto Updater Events ----
@@ -262,11 +277,10 @@ async function setupAutoUpdater(mainWindow: BrowserWindow): Promise<void> {
 app.whenReady().then(() => {
   registerIpc()
   createSplash()
-  createWindow()
+  const mainWindow = createWindow()
 
   // Check for updates in production builds (skip in dev).
-  const mainWindow = BrowserWindow.getAllWindows()[0]
-  if (mainWindow && !process.env['ELECTRON_RENDERER_URL']) {
+  if (!process.env['ELECTRON_RENDERER_URL']) {
     void setupAutoUpdater(mainWindow)
   }
 

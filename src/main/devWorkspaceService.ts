@@ -278,6 +278,41 @@ function readModuleGradleProjectDependencies(gradleBuildPath: string | undefined
   }
 }
 
+function gradleProjectName(projectPath: string): string {
+  return projectPath.replace(/^:/, '')
+}
+
+function hasGradleBuild(dir: string): boolean {
+  return GRADLE_BUILD_FILES.some((name) => existsSync(join(dir, name)))
+}
+
+function hasGradleProjectContent(dir: string): boolean {
+  return hasGradleBuild(dir) || existsSync(join(dir, 'src'))
+}
+
+function externalGradleProjectCandidates(catalogResult: EchoModuleCatalogResult, dependency: string): string[] {
+  const name = gradleProjectName(dependency)
+  if (!catalogResult.moduleRoot || !name) return []
+  const siblingRoot = dirname(catalogResult.moduleRoot)
+  return [
+    join(catalogResult.moduleRoot, 'addons', name),
+    join(catalogResult.moduleRoot, name),
+    join(siblingRoot, 'ECHO-Native-Platform', name)
+  ]
+}
+
+function resolveExternalGradleProjectDependency(
+  catalogResult: EchoModuleCatalogResult,
+  dependency: string
+): { projectPath: string; projectDir: string } | null {
+  for (const candidate of externalGradleProjectCandidates(catalogResult, dependency)) {
+    if (existsSync(candidate) && hasGradleProjectContent(candidate)) {
+      return { projectPath: dependency, projectDir: candidate }
+    }
+  }
+  return null
+}
+
 function lockModule(mod: EchoModuleRecord): DevModuleLock['modules'][number] {
   return {
     id: mod.id,
@@ -356,7 +391,13 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
     const gradleBuildPath = gradleBuildPathsById.get(mod.id)
     const gradleProjectPath = gradleBuildPath ? `:${safeGradleProjectName(mod.id)}` : undefined
     const gradleProjectDependencies = readModuleGradleProjectDependencies(gradleBuildPath)
-    const missingGradleProjectDependencies = gradleProjectDependencies.filter((dependency) => !gradleProjectPaths.has(dependency))
+    const externalGradleProjectDependencies = gradleProjectDependencies
+      .filter((dependency) => !gradleProjectPaths.has(dependency))
+      .map((dependency) => resolveExternalGradleProjectDependency(catalogResult, dependency))
+      .filter((dependency): dependency is { projectPath: string; projectDir: string } => Boolean(dependency))
+    const externalGradleProjectPaths = new Set(externalGradleProjectDependencies.map((dependency) => dependency.projectPath))
+    const missingGradleProjectDependencies = gradleProjectDependencies
+      .filter((dependency) => !gradleProjectPaths.has(dependency) && !externalGradleProjectPaths.has(dependency))
     const gradleDependencyReady = Boolean(gradleProjectPath) && missingGradleProjectDependencies.length === 0
     return {
       id: mod.id,
@@ -374,6 +415,7 @@ function buildModuleWorkspace(manifest: AddonManifest, catalogResult: EchoModule
       ...(gradleBuildPath ? { gradleBuildPath } : {}),
       ...(gradleProjectPath ? { gradleProjectPath } : {}),
       gradleProjectDependencies,
+      ...(externalGradleProjectDependencies.length ? { externalGradleProjectDependencies } : {}),
       missingGradleProjectDependencies,
       gradleDependencyReady,
       ...(gradleDependencyReady && gradleProjectPath ? { dependencyNotation: `project("${gradleProjectPath}")` } : {}),
@@ -716,20 +758,26 @@ def echoModuleWorkspaceFile = file(".echo-studio/module-workspace.json")
 if (echoModuleWorkspaceFile.exists()) {
     def echoModuleWorkspace = new JsonSlurper().parse(echoModuleWorkspaceFile)
     def includedEchoModuleBuilds = [] as Set
+    def includeEchoProject = { String projectPath, String projectDirValue ->
+        def moduleRoot = file(projectDirValue)
+        def hasGradleProjectContent = new File(moduleRoot, "settings.gradle").exists() ||
+            new File(moduleRoot, "settings.gradle.kts").exists() ||
+            new File(moduleRoot, "build.gradle").exists() ||
+            new File(moduleRoot, "build.gradle.kts").exists() ||
+            new File(moduleRoot, "src").exists()
+        if (moduleRoot.exists() && hasGradleProjectContent && projectPath ==~ /^:[A-Za-z0-9_.-]+$/) {
+            def moduleKey = projectPath + "|" + moduleRoot.canonicalPath
+            if (includedEchoModuleBuilds.add(moduleKey)) {
+                include(projectPath)
+                project(projectPath).projectDir = moduleRoot
+            }
+        }
+    }
     (echoModuleWorkspace.modules ?: []).each { module ->
         if (module.localSource && module.moduleDir && module.gradleDependencyReady && module.gradleProjectPath) {
-            def moduleRoot = file(module.moduleDir)
-            def hasGradleBuild = new File(moduleRoot, "settings.gradle").exists() ||
-                new File(moduleRoot, "settings.gradle.kts").exists() ||
-                new File(moduleRoot, "build.gradle").exists() ||
-                new File(moduleRoot, "build.gradle.kts").exists()
-            def projectPath = String.valueOf(module.gradleProjectPath)
-            if (moduleRoot.exists() && hasGradleBuild && projectPath ==~ /^:[A-Za-z0-9_.-]+$/) {
-                def moduleKey = projectPath + "|" + moduleRoot.canonicalPath
-                if (includedEchoModuleBuilds.add(moduleKey)) {
-                    include(projectPath)
-                    project(projectPath).projectDir = moduleRoot
-                }
+            includeEchoProject(String.valueOf(module.gradleProjectPath), String.valueOf(module.moduleDir))
+            (module.externalGradleProjectDependencies ?: []).each { dependency ->
+                includeEchoProject(String.valueOf(dependency.projectPath), String.valueOf(dependency.projectDir))
             }
         }
     }
@@ -789,6 +837,14 @@ java {
 repositories {
     mavenCentral()
     maven { url = uri("https://maven.neoforged.net/releases") }
+}
+
+subprojects {
+    apply plugin: "java-library"
+    repositories {
+        mavenCentral()
+        maven { url = uri("https://maven.neoforged.net/releases") }
+    }
 }
 
 dependencies {

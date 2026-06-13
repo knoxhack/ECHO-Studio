@@ -501,6 +501,9 @@ textarea {
   padding: 16px;
   cursor: pointer;
   background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  appearance: none;
 }
 .tile:hover {
   border-color: var(--border-strong);
