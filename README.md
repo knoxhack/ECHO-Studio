@@ -8,7 +8,7 @@ ECHO Studio is the creator and developer workspace for the ECHO ecosystem. It ke
 
 ## What Lives Here
 
-ECHO Studio source, Electron/package configuration, authoring workflows, local Gradle tooling, release policy docs, update feed settings, and Release Index handoff generation.
+ECHO Studio source, Electron/package configuration, authoring workflows, local Gradle tooling, release policy docs, update feed settings, Release Index handoff generation, and an internal project Content Graph visualizer (distinct from the platform `.ECHO Content Graph` release artifact).
 
 ## Release And Update Role
 

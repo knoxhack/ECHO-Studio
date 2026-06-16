@@ -35,6 +35,10 @@ Electron desktop app (React + Vite + TypeScript via electron-vite), focused on p
 - Do **not** set `"type": "module"` in package.json. The Electron main/preload output is CommonJS.
 - Electron binary cache can require manual extraction if install fails silently.
 
+## Content Graph Distinction
+
+The **Content Graph** page in `src/renderer/src/pages/ContentGraph.tsx` visualizes authored content (missions, recipes, items, etc.) inside a single ECHO Studio project. It is unrelated to the platform `.ECHO Content Graph` release artifact produced by `ECHO-Modules` and consumed by the launcher/runtimes. When adding graph features here, avoid conflating the two systems.
+
 ## Core Safety Rule
 
 Creators build on top of ECHO, never modify ECHO itself. The `echo:` namespace and internal permissions such as `file_system.write_global` and `launcher.catalog.write` are blocked by ECHO Studio validation in `src/shared/validation.ts`.
